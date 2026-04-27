@@ -2,3 +2,36 @@ BACKLOG.md
 ROADMAP_V1_RENFORCEE.md
 ROADMAP_V2_FULL.md
 PEER_REVIEW.md
+docs-notes/
+
+# Environment and local secrets
+.env
+.env.*
+.ENV
+.ENV.*
+!.env.example
+.spotify_cache
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local outputs and logs
+*.log
+logs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

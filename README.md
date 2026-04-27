@@ -1,220 +1,293 @@
-# 🚴 CycleBeat — Your BPM-Powered Cycling Coach
+# 🚴 CycleBeat — Agentic Music-to-Coaching Session Designer
 
-> An AI-powered indoor cycling coach that reads your Spotify playlist's musical structure and generates real-time coaching instructions — just like a live RPM instructor, but with your own music.
-
----
-
-## 🎯 Problem Statement
-
-Indoor cycling classes are great, but they lock you into the instructor's playlist. CycleBeat solves this: give it any Spotify playlist and it generates a full coaching session — resistance levels, sprint cues, climbs, and recovery phases — synchronized to the actual structure of each song (intro, verse, chorus, drop, breakdown).
-
-No more generic workouts. Your music, your session, your pace.
+> Turn any Spotify playlist into a structured indoor cycling session with synchronized coaching cues, retrieval-powered training patterns, and agentic planning.
 
 ---
 
-## 🧠 How It Works
+## Problem Statement
+
+Indoor cycling classes are engaging, but they lock riders into a fixed playlist, a fixed instructor style, and a fixed workout structure. At the same time, simply matching BPM to effort is too simplistic — a good cycling session needs coherent structure, smooth transitions, realistic effort/recovery balance, and adaptation to the rider's goal.
+
+**CycleBeat** transforms a Spotify playlist into a structured coaching session synchronized to the musical structure of each track, grounded in a knowledge base of 40 cycling patterns, and delivered as live timestamped cues.
+
+**Core promise:** your music, your goal, your ride — but with a session that still feels structured, safe, and coach-like.
+
+---
+
+## How It Works
 
 ```
 Spotify Playlist URL
         ↓
-Audio Analysis API  ←── sections, energy, tempo per timestamp
+Spotify Audio Analysis (sections, tempo, loudness, energy)
         ↓
-RAG on RPM patterns ←── Qdrant knowledge base of cycling methodologies
+build_raw_query()          ← rules-based, no LLM
         ↓
-LLM Coach Agent     ←── maps musical sections → coaching instructions
+rewrite_query()  [LLM #1]  ← rewrites the raw query into natural coaching language
         ↓
-Live Streamlit UI   ←── displays cues in real time as you ride
+hybrid_search()            ← vector search + keyword search fused (no LLM)
         ↓
-User Feedback       ←── collected and monitored on dashboard
+rerank()                   ← BPM + loudness range filter (no LLM)
+        ↓
+generate_cue()   [LLM #2]  ← generates the coaching instruction from the retrieved pattern
+        ↓
+Timestamped coaching session
+        ↓
+Live Streamlit UI — synchronized cues, progress bar, 10s pre-change alert
+        ↓
+User feedback + monitoring dashboard
 ```
-
-Each song is broken into sections (intro, verse, chorus, drop, outro). CycleBeat maps each section to a specific cycling instruction based on its energy, loudness, and tempo — retrieved from a knowledge base of cycling methodologies via RAG.
 
 ---
 
-## 🛠️ Tech Stack
+## Architecture
 
-| Component | Tool |
+### What uses an LLM, what doesn't
+
+**Rules-based / local computation — no API calls:**
+
+| Component | What it does |
 |---|---|
-| LLM | GPT-4o-mini |
-| Knowledge base | Qdrant |
-| Music analysis | Spotify Audio Analysis API |
-| Agentic orchestration | LangGraph |
+| `build_raw_query()` | Converts BPM + loudness into a raw text query (`"intense tempo fast 171 BPM"`) |
+| Sentence-transformers | Encodes text into dense vectors — runs fully locally |
+| `vector_search()` | Cosine similarity search in Qdrant |
+| `text_search()` | Keyword overlap scoring across pattern labels, instructions, tags |
+| `hybrid_search()` | Reciprocal rank fusion of vector + keyword scores (α=0.7) |
+| `rerank()` | Filters candidates by BPM range and loudness range match |
+| Session timer | Elapsed time tracking and cue synchronization in Streamlit |
+
+**LLM calls (Groq API):**
+
+| Component | When it runs | What it does |
+|---|---|---|
+| `rewrite_query()` | Before retrieval | Reformulates the raw audio-feature description into natural coaching language |
+| `generate_cue()` | After retrieval | Generates a 1–2 sentence coaching instruction grounded in the retrieved pattern |
+| LLM-as-Judge | Evaluation only | Scores prompt variants on clarity, motivation, precision, naturalness |
+
+### How RAG fits in
+
+Retrieval and generation work together in two steps:
+
+1. **Retrieval:** `hybrid_search()` + `rerank()` selects the most relevant cycling pattern from the knowledge base
+2. **Generation:** the retrieved pattern (phase, resistance, cadence, effort, coach tone) is injected into the `generate_cue()` prompt — the LLM produces a grounded instruction, not a hallucinated one
+
+`rewrite_query()` extends RAG upstream: it reformulates the query *before* retrieval, improving recall for natural-language coaching concepts that raw audio features don't express.
+
+**Without RAG:** the LLM receives raw BPM/loudness numbers → generic output.
+**With RAG:** the LLM receives a structured coaching pattern → precise, contextualized instruction.
+
+---
+
+## Knowledge Base
+
+40 cycling patterns stored in `data/cycling_patterns.json`, organized in two categories:
+
+**Local patterns (29):** phase-specific coaching moments — warm-up (3 variants), steady (3), build (2), sprint (6 variants: 15s / 30s / 45s / 60s + surge + attack), climb (4: seated moderate/hard, standing moderate/max), interval ON/OFF (3), recovery (4), cool-down (2), cadence drills (2).
+
+**Transition patterns (11):** dedicated patterns for the moments *between* effort blocks — prepare sprint, release after sprint, prepare climb, release after climb, standing↔seated switches, warm-up to main set, main set to cool-down, recovery to interval, interval to recovery, build to sprint.
+
+Each pattern includes: `bpm_range`, `loudness_range`, `energy_range`, `cadence_target`, `resistance`, `effort`, `duration_min/max_s`, `coach_tone`, `tags`.
+
+---
+
+## Agentic Architecture (LangGraph)
+
+Three nodes in a compiled state graph:
+
+```
+START → playlist_agent → coach_planner → save_session → END
+              ↓ (error)                ↓ (error)
+             END                      END
+```
+
+- **playlist_agent:** fetches Spotify tracks and audio analysis, computes session timestamps
+- **coach_planner:** runs the full RAG pipeline per section — query rewrite → retrieval → rerank → generation
+- **save_session:** persists the generated session JSON to disk
+
+Conditional routing on error at each step — the graph short-circuits to END on any agent failure rather than propagating a broken state.
+
+---
+
+## Evaluation
+
+### Retrieval evaluation (`evaluation/retrieval_eval.py`)
+
+Three approaches compared on a 10-query ground-truth test set (Hit Rate + MRR):
+
+| Approach | Notes |
+|---|---|
+| Vector search (sentence-transformers) | Dense semantic similarity |
+| Keyword search (term overlap) | Lightweight, interpretable |
+| **Hybrid search (vector + keyword, α=0.7)** | **Selected — best Hit Rate and MRR** |
+
+### LLM evaluation (`evaluation/llm_eval.py`)
+
+Two prompt styles compared via LLM-as-Judge (GPT-4o) on 5 test cases:
+
+- **Prompt A:** structured JSON output with resistance target + instruction
+- **Prompt B:** natural instructor-style coaching cue
+
+Scored on clarity, motivation, precision, and naturalness. Winner is wired into the production pipeline.
+
+### Session-level evaluation (`evaluation/session_eval.py`)
+
+End-to-end evaluation of the full generated session on three metrics:
+
+- **Effort/recovery ratio** — ideal range 35–65% effort time
+- **Phase diversity** — at least 4 distinct phases per session
+- **Transition coherence** — less than 15% incoherent transitions (e.g. sprint → climb without recovery)
+
+Global score 0–100, compared against the rules-only baseline.
+
+### Baseline (`evaluation/baseline_rules_only.py`)
+
+A rules-only system (no RAG, no LLM) used as the lower bound:
+
+```
+loudness > -6  AND tempo > 140  → sprint
+loudness > -6  AND tempo <= 140 → climb
+loudness > -10 AND tempo > 120  → steady
+loudness <= -14                 → recovery
+default                         → steady
+```
+
+The baseline makes the improvement from RAG + LLM measurable rather than claimed.
+
+---
+
+## Tech Stack
+
+| Layer | Tool |
+|---|---|
+| LLM | Groq (`llama-3.3-70b-versatile`) via OpenAI-compatible client |
+| Agentic orchestration | LangGraph 0.2.x |
+| Vector database | Qdrant |
+| Embeddings | sentence-transformers (`all-MiniLM-L6-v2`, local) |
+| Music analysis | Spotify Audio Analysis API (spotipy) |
+| Ingestion pipeline | dlt + Python script |
 | Interface | Streamlit |
-| Monitoring | Streamlit dashboard |
-| Ingestion | Python script + dlt |
+| Monitoring | Streamlit dashboard (5 charts + feedback log) |
 | Containerization | Docker + docker-compose |
 
 ---
 
-## 🤖 Agentic Architecture
-
-CycleBeat uses a 3-agent pipeline built with LangGraph:
-
-**1. Playlist Agent**
-- Receives Spotify playlist URL
-- Fetches all tracks + detailed audio analysis (sections, timestamps, energy, loudness, tempo)
-
-**2. Coach Planner Agent**
-- Queries the Qdrant knowledge base for cycling patterns matching each musical section
-- Maps energy/loudness/tempo → cycling instruction (sprint, climb, recovery, etc.)
-- Generates a full timestamped coaching script for the session
-
-**3. Live Display**
-- Streamlit reads the coaching script
-- Displays the right instruction based on current elapsed time
-- Collects 👍/👎 feedback after each session
-
----
-
-## 📦 Knowledge Base
-
-The RAG knowledge base contains cycling coaching patterns, including:
-
-- Warm-up progressions
-- Sprint intervals (15s, 30s, 45s)
-- Climbing profiles (steady, progressive, standing)
-- Recovery patterns
-- Cool-down sequences
-- Resistance guidelines per intensity level
-
-Patterns are embedded and stored in Qdrant. Each pattern is tagged with: `intensity`, `duration`, `energy_range`, `bpm_range`.
-
----
-
-## 🎵 Spotify Audio Analysis
-
-CycleBeat uses Spotify's `/audio-analysis/{id}` endpoint to extract:
-
-```json
-{
-  "sections": [
-    {
-      "start": 0.0,
-      "duration": 18.3,
-      "loudness": -14.2,
-      "tempo": 124.0,
-      "key": 5,
-      "mode": 1
-    }
-  ]
-}
-```
-
-Each section → one coaching instruction.
-
-**Fallback**: A demo CSV (`data/sample_playlist_analysis.csv`) is included for reviewers without Spotify credentials.
-
----
-
-## 📊 Monitoring Dashboard
-
-The Streamlit dashboard tracks:
-
-1. Sessions completed per day
-2. Average user rating per workout type
-3. Most used playlist genres
-4. Feedback distribution (👍 vs 👎)
-5. Average session duration
-6. Query rewriting activations ("tired", "short", "easy")
-
----
-
-## ⚙️ Setup
-
-### Prerequisites
-- Python 3.11+
-- Docker + docker-compose
-- Spotify Developer account ([developer.spotify.com](https://developer.spotify.com))
-- OpenAI API key
-
-### 1. Clone the repo
-```bash
-git clone https://github.com/your-username/cyclebeat
-cd cyclebeat
-```
-
-### 2. Configure environment
-```bash
-cp .env.example .env
-# Fill in your keys:
-# SPOTIFY_CLIENT_ID=
-# SPOTIFY_CLIENT_SECRET=
-# SPOTIFY_REDIRECT_URI=http://localhost:8888/callback
-# OPENAI_API_KEY=
-```
-
-### 3. Run with Docker
-```bash
-docker-compose up --build
-```
-
-### 4. Open the app
-```
-http://localhost:8501
-```
-
-### 5. No Spotify account? Use demo mode
-```bash
-python ingest/run_demo.py  # loads sample_playlist_analysis.csv
-```
-
----
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 cyclebeat/
 ├── agents/
-│   ├── playlist_agent.py      # Spotify fetch + audio analysis
-│   ├── coach_planner.py       # RAG + coaching script generation
-│   └── orchestrator.py        # LangGraph pipeline
-├── ingest/
-│   ├── ingest_patterns.py     # Load cycling patterns into Qdrant
-│   └── run_demo.py            # Demo mode without Spotify
-├── data/
-│   ├── cycling_patterns.json  # Knowledge base source
-│   └── sample_playlist_analysis.csv  # Fallback dataset
-├── evaluation/
-│   ├── retrieval_eval.py      # Text vs vector search comparison
-│   └── llm_eval.py            # LLM-as-Judge prompt evaluation
+│   ├── coach_planner.py         # RAG pipeline: query rewrite → hybrid retrieval → rerank → LLM generation
+│   ├── playlist_agent.py        # Spotify fetch + audio analysis ingestion
+│   └── orchestrator.py          # LangGraph graph: playlist → coach → save
 ├── app/
-│   └── streamlit_app.py       # Live coaching UI + monitoring
+│   └── streamlit_app.py         # Live coaching UI + monitoring dashboard
+├── data/
+│   ├── cycling_patterns.json    # 40-pattern knowledge base
+│   ├── demo_session.json        # Pre-generated session (no Spotify needed)
+│   └── feedback.json            # User feedback log (auto-created at runtime)
+├── evaluation/
+│   ├── baseline_rules_only.py   # Rules-only baseline generator
+│   ├── retrieval_eval.py        # Vector vs keyword vs hybrid — Hit Rate + MRR
+│   ├── llm_eval.py              # Prompt A vs B via LLM-as-Judge
+│   └── session_eval.py          # Session-level metrics (effort ratio, diversity, coherence)
+├── ingest/
+│   └── ingest_pipeline.py       # dlt staging + Qdrant vector loading
+├── scripts/
+│   └── spotify_auth.py          # One-time local Spotify token generation
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-└── README.md
+└── .env.example
 ```
 
 ---
 
-## 🔬 Evaluation
+## Setup & Run
 
-### Retrieval Evaluation
-Two approaches compared:
-- **Text search** on workout pattern tags (intensity, type)
-- **Vector search** on semantic embeddings of section descriptions
+### Option 1 — Docker (recommended)
 
-Winner selected based on hit rate and MRR on a manually labeled test set.
+```bash
+# 1. Copy and fill in your credentials
+cp .env.example .env
 
-### LLM Evaluation (LLM-as-Judge)
-Two prompt variants compared:
-- **Prompt A**: structured JSON output with resistance + instruction
-- **Prompt B**: natural language coaching cue (like a real instructor)
+# 2. (Spotify only) Generate OAuth token once, locally
+python scripts/spotify_auth.py
 
-GPT-4o rates each output on: clarity, safety, motivational tone, and timing accuracy.
+# 3. Start everything
+docker compose up --build
+```
+
+Open http://localhost:8501
+
+### Option 2 — Local Python
+
+```bash
+# 1. Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate          # macOS / Linux
+.venv\Scripts\Activate.ps1         # Windows (PowerShell)
+.venv\Scripts\activate.bat         # Windows (CMD)
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Copy and fill in your credentials
+cp .env.example .env
+
+# 4. Start Qdrant (Docker required for the vector DB only)
+docker run -p 6333:6333 qdrant/qdrant
+
+# 5. Ingest the knowledge base
+python ingest/ingest_pipeline.py
+
+# 6. Run the app
+streamlit run app/streamlit_app.py
+```
+
+### Demo mode (no Spotify account needed)
+
+```bash
+streamlit run app/streamlit_app.py
+# → select "Demo (no Spotify needed)" in the sidebar
+```
+
+The demo loads `data/demo_session.json` — a pre-generated session that works fully out of the box.
 
 ---
 
-## 🚀 What's Next
+## Environment Variables
 
-- Voice coaching via text-to-speech (ElevenLabs)
-- Heart rate zone integration (Garmin / Apple Watch)
-- Cloud deployment (Railway or Render)
-- Session history and progress tracking
+```env
+# LLM — Groq or any OpenAI-compatible endpoint
+OPENAI_API_KEY=your_groq_key
+OPENAI_BASE_URL=https://api.groq.com/openai/v1
+MODEL_NAME=llama-3.3-70b-versatile
+
+# Spotify — optional, demo mode works without
+SPOTIFY_CLIENT_ID=your_client_id
+SPOTIFY_CLIENT_SECRET=your_client_secret
+SPOTIFY_REDIRECT_URI=http://localhost:8888/callback
+
+# Qdrant
+QDRANT_HOST=localhost
+QDRANT_PORT=6333
+```
 
 ---
 
-## 👩‍💻 Author
+## Reproducibility
 
-Built as a capstone project for [LLM Zoomcamp 2026](https://github.com/DataTalksClub/llm-zoomcamp) by Ellie Pascaud.
+- All dependency versions are pinned in `requirements.txt`
+- `data/demo_session.json` is a complete pre-generated session — no Spotify credentials required to review the app
+- `data/cycling_patterns.json` is the full knowledge base — no external download needed
+- Docker Compose starts all services in the correct order with health checks
+
+---
+
+## What's Next
+
+See `BACKLOG.md` for the full roadmap. Key directions: voice coaching via TTS (ElevenLabs), heart rate zone integration (Garmin / Apple Watch), a Safety Critic agent for session validation, and cloud deployment.
+
+---
+
+*Built as a capstone project for [LLM Zoomcamp 2026](https://github.com/DataTalksClub/llm-zoomcamp) by Ellie Pascaud.*
