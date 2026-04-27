@@ -29,6 +29,7 @@ env/
 # Local outputs and logs
 *.log
 logs/
+data/feedback.json
 
 # OS / editor
 .DS_Store

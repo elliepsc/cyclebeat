@@ -83,8 +83,11 @@ def run():
 
     print("\n✅ Pipeline complete. Knowledge base ready.")
 
-    # Signal for docker-compose healthcheck
-    open("/tmp/ingest_done", "w").close()
+    # Signal for docker-compose healthcheck (Linux/Docker only)
+    try:
+        open("/tmp/ingest_done", "w").close()
+    except OSError:
+        pass
 
 
 if __name__ == "__main__":

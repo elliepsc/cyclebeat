@@ -88,10 +88,13 @@ def load_feedback() -> list:
 # ─── SIDEBAR ─────────────────────────────────────────────────────────────────
 
 st.sidebar.title("🚴 CycleBeat")
-mode = st.sidebar.radio(
-    "Mode",
-    ["🎵 Demo (no Spotify needed)", "🔗 Spotify", "📊 Monitoring"]
-)
+
+_generated_exists = os.path.exists(GENERATED_PATH)
+_mode_options = ["🎵 Demo (no Spotify needed)", "🔗 Spotify", "📊 Monitoring"]
+if _generated_exists:
+    _mode_options.insert(1, "🎯 Generated Session")
+
+mode = st.sidebar.radio("Mode", _mode_options)
 
 # ─── DEMO MODE ───────────────────────────────────────────────────────────────
 
@@ -204,6 +207,117 @@ if mode == "🎵 Demo (no Spotify needed)":
         st.success("Thanks! Feedback saved.")
 
 
+# ─── GENERATED SESSION MODE ──────────────────────────────────────────────────
+
+elif mode == "🎯 Generated Session":
+    st.title("🎯 CycleBeat — Your Generated Ride")
+    st.caption("Session generated from your Spotify playlist")
+
+    session = load_session(GENERATED_PATH)
+    total = session["session"]["total_duration_s"]
+
+    col1, col2 = st.columns(2)
+    col1.metric("Total duration", f"{total/60:.0f} min")
+    col2.metric("Tracks", len(session["tracks"]))
+
+    st.divider()
+
+    if "running" not in st.session_state:
+        st.session_state.running = False
+    if "start_time" not in st.session_state:
+        st.session_state.start_time = None
+    if "elapsed" not in st.session_state:
+        st.session_state.elapsed = 0.0
+
+    col_start, col_stop, col_reset = st.columns(3)
+    if col_start.button("▶️ Start", disabled=st.session_state.running):
+        st.session_state.running = True
+        st.session_state.start_time = time.time() - st.session_state.elapsed
+
+    if col_stop.button("⏸️ Pause", disabled=not st.session_state.running):
+        st.session_state.running = False
+        st.session_state.elapsed = time.time() - st.session_state.start_time
+
+    if col_reset.button("🔄 Reset"):
+        st.session_state.running = False
+        st.session_state.start_time = None
+        st.session_state.elapsed = 0.0
+
+    if st.session_state.running:
+        st.session_state.elapsed = time.time() - st.session_state.start_time
+
+    elapsed = st.session_state.elapsed
+    progress = min(elapsed / total, 1.0)
+
+    st.progress(progress, text=f"⏱️ {format_time(elapsed)} / {format_time(total)}")
+
+    current_cue, current_track = get_current_cue(session, elapsed)
+    next_cue, next_track = get_next_cue(session, elapsed)
+
+    ALERT_THRESHOLD = 10
+    if current_cue and next_cue:
+        time_to_next = next_cue["start_s"] - elapsed
+        if 0 < time_to_next <= ALERT_THRESHOLD:
+            st.warning(
+                f"⚠️ **Change in {time_to_next:.0f}s** — "
+                f"Get ready: {next_cue['emoji']} "
+                f"{next_cue['phase'].replace('_', ' ').title()} "
+                f"— Resistance {next_cue['resistance']}"
+            )
+
+    if current_cue:
+        remaining = current_cue["start_s"] + current_cue["duration_s"] - elapsed
+        st.markdown(f"""
+        <div style='
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+            margin: 16px 0;
+        '>
+            <div style='font-size: 64px; margin-bottom: 8px'>{current_cue['emoji']}</div>
+            <div style='font-size: 28px; font-weight: bold; color: white; margin-bottom: 12px'>
+                {current_cue['instruction']}
+            </div>
+            <div style='font-size: 20px; color: #888; margin-bottom: 8px'>
+                Resistance: {'🟥' * current_cue['resistance']}{'⬜' * (10 - current_cue['resistance'])}
+                <strong style='color: white'> {current_cue['resistance']}/10</strong>
+            </div>
+            <div style='font-size: 16px; color: #aaa'>
+                ⏳ {format_time(remaining)} remaining
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.caption(
+            f"🎵 {current_track['track_name']} — {current_track['artist']}"
+            f" | {current_cue['bpm']:.0f} BPM"
+        )
+    else:
+        st.info("Start the session to see live coaching instructions.")
+
+    if next_cue:
+        st.markdown(
+            f"**Next phase:** {next_cue['emoji']} "
+            f"{next_cue['phase'].replace('_', ' ').title()} "
+            f"— in {format_time(next_cue['start_s'] - elapsed)}"
+        )
+
+    if st.session_state.running:
+        time.sleep(1)
+        st.rerun()
+
+    st.divider()
+    st.subheader("💬 Session Feedback")
+    rating = st.radio(
+        "How was this session?", ["👍 Great", "😐 Okay", "👎 Hard"],
+        horizontal=True
+    )
+    note = st.text_input("Any notes? (optional)")
+    if st.button("Submit feedback"):
+        save_feedback(session["session"]["title"], rating, note)
+        st.success("Thanks! Feedback saved.")
+
+
 # ─── SPOTIFY MODE ────────────────────────────────────────────────────────────
 
 elif mode == "🔗 Spotify":
@@ -221,8 +335,13 @@ elif mode == "🔗 Spotify":
             try:
                 from agents.orchestrator import generate_session
                 session = generate_session(playlist_url, use_llm=use_llm, use_hybrid=use_hybrid)
-                st.success(f"✅ Session generated: {session['session']['title']}")
-                st.info("Reload the page and switch to Demo mode to start the ride.")
+                st.success(
+                    f"✅ Session generated: {session['session']['title']}"
+                )
+                st.info(
+                    "Reload the page — a **Generated Session** mode "
+                    "will appear in the sidebar to start your ride."
+                )
             except Exception as e:
                 st.error(f"Error: {e}")
                 st.info("💡 No Spotify account configured? Use Demo mode.")
@@ -274,7 +393,12 @@ elif mode == "📊 Monitoring":
         neg_by_day = df.groupby("date")["is_negative"].sum().reset_index()
         st.line_chart(neg_by_day.set_index("date"))
 
-        # Chart 5 — User text notes
+        # Chart 5 — Cumulative sessions over time
+        st.subheader("📉 Cumulative sessions over time")
+        sessions_by_day["cumulative"] = sessions_by_day["count"].cumsum()
+        st.line_chart(sessions_by_day.set_index("date")["cumulative"])
+
+        # Chart 6 — User text notes
         st.subheader("📝 User notes")
         notes = df[df["note"].notna() & (df["note"] != "")][["date", "rating", "note"]]
         if not notes.empty:

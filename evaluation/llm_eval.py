@@ -1,7 +1,7 @@
 """
 LLM Evaluation — CycleBeat
-Compares two coaching prompt styles via LLM-as-Judge (GPT-4o).
-Satisfies Zoomcamp criterion: "Multiple LLM approaches evaluated" → 2/2 points.
+Compares two coaching prompt styles via LLM-as-Judge (same model as pipeline).
+Satisfies Zoomcamp criterion: "Multiple LLM approaches evaluated" -> 2/2 points.
 """
 
 import json
@@ -10,7 +10,11 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai_client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url=os.getenv("OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
+)
+MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
 
 # ─── PROMPTS ─────────────────────────────────────────────────────────────────
 
@@ -87,7 +91,7 @@ def generate_response(prompt_template: str, case: dict) -> str:
         bpm=case["bpm"]
     )
     response = openai_client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=MODEL_NAME,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7,
         max_tokens=150
@@ -98,7 +102,7 @@ def generate_response(prompt_template: str, case: dict) -> str:
 # ─── JUDGING ─────────────────────────────────────────────────────────────────
 
 def judge(response_a: str, response_b: str, case: dict) -> dict:
-    """Use GPT-4o as a judge to score and compare two coaching instructions."""
+    """Use the LLM as a judge to score and compare two coaching instructions."""
     prompt = JUDGE_PROMPT.format(
         response_a=response_a,
         response_b=response_b,
@@ -107,7 +111,7 @@ def judge(response_a: str, response_b: str, case: dict) -> dict:
         bpm=case["bpm"]
     )
     response = openai_client.chat.completions.create(
-        model="gpt-4o",
+        model=MODEL_NAME,
         messages=[{"role": "user", "content": prompt}],
         temperature=0,
         max_tokens=300
@@ -176,7 +180,7 @@ def run_llm_evaluation():
     overall_winner = "A" if wins["A"] > wins["B"] else "B"
     prompt_name = "Structured JSON" if overall_winner == "A" else "Natural coaching language"
     print(f"✅ Best prompt: Prompt {overall_winner} ({prompt_name})")
-    print(f"   → Used in the CycleBeat pipeline.")
+    print("   → Used in the CycleBeat pipeline.")
 
     os.makedirs("evaluation", exist_ok=True)
     with open("evaluation/llm_eval_results.json", "w", encoding="utf-8") as f:

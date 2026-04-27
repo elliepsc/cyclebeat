@@ -8,7 +8,7 @@ openai==1.30.1
 
 # Agents
 langgraph==0.2.16
-langchain-core==0.2.7
+langchain-core==0.2.43
 
 # Embeddings (local, pas de clé API)
 sentence-transformers==3.0.1
@@ -20,7 +20,7 @@ qdrant-client==1.9.1
 spotipy==2.23.0
 
 # Ingestion
-dlt==0.4.12
+dlt==0.5.4
 
 # Evaluation
 numpy==1.26.4
