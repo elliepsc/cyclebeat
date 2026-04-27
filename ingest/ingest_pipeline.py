@@ -21,10 +21,14 @@ PATTERNS_PATH = os.path.join(os.path.dirname(__file__), "../data/cycling_pattern
 COLLECTION_NAME = "cycling_patterns"
 VECTOR_SIZE = 384
 
-qdrant = QdrantClient(
-    host=os.getenv("QDRANT_HOST", "localhost"),
-    port=int(os.getenv("QDRANT_PORT", 6333))
-)
+_qdrant_url = os.getenv("QDRANT_URL")
+if _qdrant_url:
+    qdrant = QdrantClient(url=_qdrant_url, api_key=os.getenv("QDRANT_API_KEY"))
+else:
+    qdrant = QdrantClient(
+        host=os.getenv("QDRANT_HOST", "localhost"),
+        port=int(os.getenv("QDRANT_PORT", 6333))
+    )
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 

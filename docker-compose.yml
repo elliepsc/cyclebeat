@@ -33,6 +33,31 @@ services:
     # Le service se termine avec exit 0 → app peut démarrer
     restart: "no"
 
+  # ── FastAPI REST API ─────────────────────────────────────────────
+  api:
+    build: .
+    container_name: cyclebeat_api
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      ingest:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/app/data
+      - ./.spotify_cache:/app/.spotify_cache
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ── Streamlit App ────────────────────────────────────────────────
   app:
     build: .
@@ -47,10 +72,10 @@ services:
       qdrant:
         condition: service_healthy
       ingest:
-        condition: service_completed_successfully   # ← attend la fin de l'ingestion
+        condition: service_completed_successfully
     volumes:
       - ./data:/app/data
-      - ./.spotify_cache:/app/.spotify_cache  # token Spotify monté depuis le local
+      - ./.spotify_cache:/app/.spotify_cache
 
 volumes:
   qdrant_data:

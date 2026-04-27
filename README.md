@@ -179,6 +179,8 @@ cyclebeat/
 │   ├── coach_planner.py         # RAG pipeline: query rewrite → hybrid retrieval → rerank → LLM generation
 │   ├── playlist_agent.py        # Spotify fetch + audio analysis ingestion
 │   └── orchestrator.py          # LangGraph graph: playlist → coach → save
+├── api/
+│   └── main.py                  # FastAPI REST API — session generation + feedback endpoints
 ├── app/
 │   └── streamlit_app.py         # Live coaching UI + monitoring dashboard
 ├── data/
@@ -196,9 +198,73 @@ cyclebeat/
 │   └── spotify_auth.py          # One-time local Spotify token generation
 ├── docker-compose.yml
 ├── Dockerfile
+├── render.yaml                  # One-click Render.com cloud deployment
 ├── requirements.txt
 └── .env.example
 ```
+
+---
+
+## REST API
+
+The FastAPI backend runs alongside Streamlit and exposes a clean REST interface.
+When running with Docker Compose, the API is available at `http://localhost:8000`.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | Liveness probe |
+| `GET` | `/session/demo` | Pre-generated demo session (JSON) |
+| `GET` | `/session/generated` | Last session generated from Spotify |
+| `POST` | `/session/generate` | Generate a session from a Spotify playlist URL |
+| `POST` | `/feedback` | Submit a session rating + note |
+| `GET` | `/feedback` | All collected feedback entries |
+| `GET` | `/feedback/stats` | Aggregated satisfaction stats |
+
+Interactive docs (Swagger UI): `http://localhost:8000/docs`
+
+**Example — generate a session:**
+```bash
+curl -X POST http://localhost:8000/session/generate \
+  -H "Content-Type: application/json" \
+  -d '{"playlist_url": "https://open.spotify.com/playlist/...", "use_llm": true, "use_hybrid": true}'
+```
+
+---
+
+## Cloud Deployment
+
+CycleBeat is deployable on any Docker-compatible cloud platform.
+The recommended stack for cloud is **Qdrant Cloud** (managed vector DB) + **Render.com** (app hosting).
+
+### Option A — Render.com (one-click, free tier)
+
+1. Create a free Qdrant Cloud cluster at [cloud.qdrant.io](https://cloud.qdrant.io) — copy the cluster URL and API key.
+
+2. Fork this repo, then go to [Render.com](https://render.com) → **New → Blueprint** and connect your fork.
+   Render detects `render.yaml` automatically and creates both services (`cyclebeat-api` and `cyclebeat-app`).
+
+3. Set these environment variables in the Render dashboard:
+
+```env
+OPENAI_API_KEY=your_groq_key
+OPENAI_BASE_URL=https://api.groq.com/openai/v1
+MODEL_NAME=llama-3.3-70b-versatile
+QDRANT_URL=https://your-cluster.cloud.qdrant.io
+QDRANT_API_KEY=your_qdrant_api_key
+```
+
+4. Render builds from the Dockerfile, runs the ingestion pipeline on startup, then launches both the API and the Streamlit app.
+
+### Option B — Any Docker host (AWS ECS, GCP Cloud Run, Railway…)
+
+```bash
+# Build and push the image
+docker build -t cyclebeat .
+docker tag cyclebeat your-registry/cyclebeat:latest
+docker push your-registry/cyclebeat:latest
+```
+
+Set `QDRANT_URL` + `QDRANT_API_KEY` in your host's environment variables (replaces the local Qdrant container).
 
 ---
 
@@ -217,7 +283,7 @@ python scripts/spotify_auth.py
 docker compose up --build
 ```
 
-Open http://localhost:8501
+Open http://localhost:8501 (Streamlit UI) and http://localhost:8000/docs (API)
 
 ### Option 2 — Local Python
 
@@ -268,9 +334,13 @@ SPOTIFY_CLIENT_ID=your_client_id
 SPOTIFY_CLIENT_SECRET=your_client_secret
 SPOTIFY_REDIRECT_URI=http://localhost:8888/callback
 
-# Qdrant
+# Qdrant — local Docker
 QDRANT_HOST=localhost
 QDRANT_PORT=6333
+
+# Qdrant Cloud (replaces local when set)
+QDRANT_URL=https://your-cluster.cloud.qdrant.io
+QDRANT_API_KEY=your_qdrant_api_key
 ```
 
 ---
@@ -286,7 +356,14 @@ QDRANT_PORT=6333
 
 ## What's Next
 
-See `BACKLOG.md` for the full roadmap. Key directions: voice coaching via TTS (ElevenLabs), heart rate zone integration (Garmin / Apple Watch), a Safety Critic agent for session validation, and cloud deployment.
+See [`FUTURE_WORK.md`](FUTURE_WORK.md) for the full architecture evolution plan.
+
+Key directions:
+- **Interface** — React web client + React Native mobile app consuming the FastAPI backend (Streamlit kept for the monitoring dashboard only)
+- **Ingestion** — dlt → Prefect for scheduled weekly pattern updates; migration path to Airflow documented
+- **Monitoring** — Prometheus metrics on FastAPI + Grafana dashboards replacing the Streamlit infra charts
+- **Agents** — Safety Critic node in LangGraph, Music Interpreter node, Rider Profile injection
+- **Data** — PostgreSQL replacing flat JSON files for multi-user sessions and feedback
 
 ---
 
