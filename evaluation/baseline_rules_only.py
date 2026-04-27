@@ -1,31 +1,32 @@
 """
 Baseline Rules-Only — CycleBeat
-Génère un script de coaching par règles simples (sans RAG, sans LLM).
-Sert de baseline pour prouver que le RAG + LLM apportent une vraie valeur.
+Generates a coaching script using pure deterministic rules (no RAG, no LLM).
+Used as baseline to prove that the full RAG + LLM pipeline adds real value.
 
-Règles :
+Rules applied per section:
   loudness > -6  AND tempo > 140  → sprint
   loudness > -6  AND tempo <= 140 → climb
   loudness > -10 AND tempo > 120  → steady
   loudness <= -14                 → recovery
-  sinon                           → steady
+  default                         → steady
 """
 
 import json
 import os
 
 RULES = [
-    {"cond": lambda l, t: l > -6  and t > 140,  "phase": "sprint",   "resistance": 8, "cadence": "105-115 RPM", "instruction": "SPRINT ! Résistance 8, cadence max."},
-    {"cond": lambda l, t: l > -6  and t <= 140, "phase": "climb",    "resistance": 9, "cadence": "65-75 RPM",  "instruction": "MONTÉE. Résistance 9, pousse fort."},
-    {"cond": lambda l, t: l > -10 and t > 120,  "phase": "steady",   "resistance": 5, "cadence": "90-100 RPM", "instruction": "Cadence. Résistance 5, maintiens."},
-    {"cond": lambda l, t: l <= -14,              "phase": "recovery", "resistance": 2, "cadence": "70-80 RPM",  "instruction": "Récup. Résistance 2, souffle."},
+    {"cond": lambda l, t: l > -6  and t > 140,  "phase": "sprint",   "resistance": 8, "cadence": "105-115 RPM", "instruction": "SPRINT! Resistance 8, max cadence — give everything!"},
+    {"cond": lambda l, t: l > -6  and t <= 140, "phase": "climb",    "resistance": 9, "cadence": "65-75 RPM",  "instruction": "CLIMB. Resistance 9, push hard through the hill."},
+    {"cond": lambda l, t: l > -10 and t > 120,  "phase": "steady",   "resistance": 5, "cadence": "90-100 RPM", "instruction": "Steady pace. Resistance 5, keep your cadence."},
+    {"cond": lambda l, t: l <= -14,              "phase": "recovery", "resistance": 2, "cadence": "70-80 RPM",  "instruction": "Recover. Resistance 2, breathe and reset."},
 ]
-DEFAULT = {"phase": "steady", "resistance": 5, "cadence": "85-95 RPM", "instruction": "Cadence régulière. Résistance 5."}
+DEFAULT = {"phase": "steady", "resistance": 5, "cadence": "85-95 RPM", "instruction": "Smooth cadence. Resistance 5, stay consistent."}
 
 EMOJI_MAP = {"sprint": "🔥", "climb": "🏔️", "steady": "🚴", "recovery": "💨"}
 
 
 def apply_rules(section: dict) -> dict:
+    """Apply the rule set to a section dict and return the matched coaching rule."""
     loudness = section["loudness"]
     tempo = section["tempo"]
     for rule in RULES:
@@ -35,7 +36,7 @@ def apply_rules(section: dict) -> dict:
 
 
 def generate_baseline_session(playlist_data: dict) -> dict:
-    """Génère un script de coaching par règles pures. Aucun LLM, aucun RAG."""
+    """Generate a full coaching session using rules only — no LLM, no RAG."""
     session_tracks = []
 
     for track in playlist_data["tracks"]:
@@ -76,14 +77,13 @@ def generate_baseline_session(playlist_data: dict) -> dict:
 
 
 if __name__ == "__main__":
-    # Test avec le demo dataset
+    # Test against the demo dataset
     demo_path = os.path.join(os.path.dirname(__file__), "../data/demo_session.json")
 
-    # Simule un playlist_data depuis la démo
     with open(demo_path) as f:
         demo = json.load(f)
 
-    # Reformate demo_session → format playlist_data pour compatibilité
+    # Reshape demo_session format into playlist_data format for compatibility
     fake_playlist = {
         "playlist_name": demo["session"]["title"],
         "total_duration_s": demo["session"]["total_duration_s"],
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     }
 
     baseline = generate_baseline_session(fake_playlist)
-    print(f"✅ Baseline généré : {len(baseline['tracks'])} tracks")
+    print(f"✅ Baseline generated: {len(baseline['tracks'])} tracks")
     for track in baseline["tracks"]:
         print(f"\n  {track['track_name']}")
         for cue in track["cues"]:

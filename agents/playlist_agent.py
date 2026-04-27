@@ -1,6 +1,6 @@
 """
 Playlist Agent — CycleBeat
-Récupère les tracks Spotify + audio analysis via token caché (pas de browser dans Docker).
+Fetches Spotify tracks and audio analysis using a cached token (no browser needed inside Docker).
 """
 
 import os
@@ -15,25 +15,24 @@ CACHE_PATH = os.getenv("SPOTIFY_CACHE_PATH", ".spotify_cache")
 
 
 def get_spotify_client() -> spotipy.Spotify:
-    """
-    Utilise le token caché généré par scripts/spotify_auth.py.
-    Pas de browser requis → fonctionne dans Docker.
-    """
+    """Return an authenticated Spotify client using a pre-cached token (no browser required)."""
     return spotipy.Spotify(auth_manager=SpotifyOAuth(
         client_id=os.getenv("SPOTIFY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
         redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI"),
         scope="playlist-read-private user-read-playback-state",
         cache_path=CACHE_PATH,
-        open_browser=False  # ← pas de browser en Docker
+        open_browser=False  # no browser needed inside Docker
     ))
 
 
 def extract_playlist_id(playlist_url: str) -> str:
+    """Extract the Spotify playlist ID from a full playlist URL."""
     return playlist_url.split("/playlist/")[-1].split("?")[0]
 
 
 def fetch_tracks(sp: spotipy.Spotify, playlist_id: str) -> List[dict]:
+    """Fetch all tracks from a playlist and their Spotify audio analysis sections."""
     results = sp.playlist_tracks(playlist_id)
     tracks_data = []
 
@@ -57,7 +56,7 @@ def fetch_tracks(sp: spotipy.Spotify, playlist_id: str) -> List[dict]:
                 for s in analysis["sections"]
             ]
         except Exception:
-            # Fallback : une seule section sur tout le morceau
+            # Fallback: single section covering the full track
             sections = [{
                 "start_s": 0.0,
                 "duration_s": round(duration_ms / 1000, 1),
@@ -77,12 +76,13 @@ def fetch_tracks(sp: spotipy.Spotify, playlist_id: str) -> List[dict]:
 
 
 def run_playlist_agent(playlist_url: str) -> dict:
+    """Fetch all tracks and compute absolute session timestamps for each track."""
     sp = get_spotify_client()
     playlist_id = extract_playlist_id(playlist_url)
     playlist_info = sp.playlist(playlist_id)
     tracks = fetch_tracks(sp, playlist_id)
 
-    # Timestamps absolus dans la session
+    # Compute absolute start timestamps within the session
     cursor = 0.0
     for track in tracks:
         track["session_start_s"] = cursor
@@ -96,6 +96,6 @@ def run_playlist_agent(playlist_url: str) -> dict:
 
 
 if __name__ == "__main__":
-    url = input("URL playlist Spotify : ")
+    url = input("Spotify playlist URL: ")
     result = run_playlist_agent(url)
     print(f"\n✅ {result['playlist_name']} — {len(result['tracks'])} tracks")

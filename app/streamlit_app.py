@@ -1,6 +1,6 @@
 """
 CycleBeat — Streamlit App
-Interface live de coaching cycling synchronisée sur la musique.
+Live cycling coaching interface synchronized to the music session timeline.
 """
 
 import json
@@ -25,12 +25,13 @@ FEEDBACK_PATH = os.path.join(os.path.dirname(__file__), "../data/feedback.json")
 # ─── UTILS ───────────────────────────────────────────────────────────────────
 
 def load_session(path: str) -> dict:
+    """Load a session JSON file from disk."""
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
-def get_current_cue(session: dict, elapsed_s: float) -> dict | None:
-    """Retourne le cue actif pour un timestamp donné."""
+def get_current_cue(session: dict, elapsed_s: float):
+    """Return the active cue and its track for the given elapsed time."""
     for track in session["tracks"]:
         for cue in track["cues"]:
             end_s = cue["start_s"] + cue["duration_s"]
@@ -39,8 +40,8 @@ def get_current_cue(session: dict, elapsed_s: float) -> dict | None:
     return None, None
 
 
-def get_next_cue(session: dict, elapsed_s: float) -> dict | None:
-    """Retourne le prochain cue."""
+def get_next_cue(session: dict, elapsed_s: float):
+    """Return the next upcoming cue after the given elapsed time."""
     all_cues = []
     for track in session["tracks"]:
         for cue in track["cues"]:
@@ -54,12 +55,14 @@ def get_next_cue(session: dict, elapsed_s: float) -> dict | None:
 
 
 def format_time(seconds: float) -> str:
+    """Format a duration in seconds as MM:SS."""
     m = int(seconds) // 60
     s = int(seconds) % 60
     return f"{m:02d}:{s:02d}"
 
 
 def save_feedback(session_title: str, rating: str, note: str):
+    """Append a feedback entry to the feedback JSON log."""
     feedback = []
     if os.path.exists(FEEDBACK_PATH):
         with open(FEEDBACK_PATH) as f:
@@ -75,6 +78,7 @@ def save_feedback(session_title: str, rating: str, note: str):
 
 
 def load_feedback() -> list:
+    """Load all collected feedback entries from disk."""
     if not os.path.exists(FEEDBACK_PATH):
         return []
     with open(FEEDBACK_PATH) as f:
@@ -86,21 +90,21 @@ def load_feedback() -> list:
 st.sidebar.title("🚴 CycleBeat")
 mode = st.sidebar.radio(
     "Mode",
-    ["🎵 Demo (sans Spotify)", "🔗 Spotify", "📊 Monitoring"]
+    ["🎵 Demo (no Spotify needed)", "🔗 Spotify", "📊 Monitoring"]
 )
 
-# ─── MODE DEMO ───────────────────────────────────────────────────────────────
+# ─── DEMO MODE ───────────────────────────────────────────────────────────────
 
-if mode == "🎵 Demo (sans Spotify)":
+if mode == "🎵 Demo (no Spotify needed)":
     st.title("🚴 CycleBeat — Demo Ride")
-    st.caption("Séance pré-générée — aucun compte requis")
+    st.caption("Pre-generated session — no account required")
 
     session = load_session(DEMO_PATH)
     total = session["session"]["total_duration_s"]
 
     col1, col2 = st.columns(2)
-    col1.metric("Durée totale", f"{total/60:.0f} min")
-    col2.metric("Morceaux", len(session["tracks"]))
+    col1.metric("Total duration", f"{total/60:.0f} min")
+    col2.metric("Tracks", len(session["tracks"]))
 
     st.divider()
 
@@ -112,7 +116,7 @@ if mode == "🎵 Demo (sans Spotify)":
         st.session_state.elapsed = 0.0
 
     col_start, col_stop, col_reset = st.columns(3)
-    if col_start.button("▶️ Démarrer", disabled=st.session_state.running):
+    if col_start.button("▶️ Start", disabled=st.session_state.running):
         st.session_state.running = True
         st.session_state.start_time = time.time() - st.session_state.elapsed
 
@@ -125,7 +129,6 @@ if mode == "🎵 Demo (sans Spotify)":
         st.session_state.start_time = None
         st.session_state.elapsed = 0.0
 
-    # Affichage live
     if st.session_state.running:
         st.session_state.elapsed = time.time() - st.session_state.start_time
 
@@ -134,25 +137,24 @@ if mode == "🎵 Demo (sans Spotify)":
 
     st.progress(progress, text=f"⏱️ {format_time(elapsed)} / {format_time(total)}")
 
-    # Cue actuel + prochain
     current_cue, current_track = get_current_cue(session, elapsed)
     next_cue, next_track = get_next_cue(session, elapsed)
 
-    # ⚠️ Alerte pré-changement (10 secondes avant)
+    # Pre-change alert 10 seconds ahead
     ALERT_THRESHOLD = 10
     if current_cue and next_cue:
         time_to_next = next_cue["start_s"] - elapsed
         if 0 < time_to_next <= ALERT_THRESHOLD:
             st.warning(
-                f"⚠️ **Changement dans {time_to_next:.0f}s** — "
-                f"Prépare-toi : {next_cue['emoji']} {next_cue['phase'].replace('_', ' ').title()} "
-                f"— Résistance {next_cue['resistance']}"
+                f"⚠️ **Change in {time_to_next:.0f}s** — "
+                f"Get ready: {next_cue['emoji']} {next_cue['phase'].replace('_', ' ').title()} "
+                f"— Resistance {next_cue['resistance']}"
             )
 
     if current_cue:
         remaining = current_cue["start_s"] + current_cue["duration_s"] - elapsed
 
-        # Instruction principale — grande et lisible sur le vélo
+        # Main instruction — large and readable during riding
         st.markdown(f"""
         <div style='
             background: linear-gradient(135deg, #1a1a2e, #16213e);
@@ -166,11 +168,11 @@ if mode == "🎵 Demo (sans Spotify)":
                 {current_cue['instruction']}
             </div>
             <div style='font-size: 20px; color: #888; margin-bottom: 8px'>
-                Résistance : {'🟥' * current_cue['resistance']}{'⬜' * (10 - current_cue['resistance'])}
+                Resistance: {'🟥' * current_cue['resistance']}{'⬜' * (10 - current_cue['resistance'])}
                 <strong style='color: white'> {current_cue['resistance']}/10</strong>
             </div>
             <div style='font-size: 16px; color: #aaa'>
-                ⏳ {format_time(remaining)} restantes
+                ⏳ {format_time(remaining)} remaining
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -178,52 +180,55 @@ if mode == "🎵 Demo (sans Spotify)":
         st.caption(f"🎵 {current_track['track_name']} — {current_track['artist']} | {current_cue['bpm']:.0f} BPM")
 
     else:
-        st.info("Lance la séance pour voir les instructions de coaching.")
+        st.info("Start the session to see live coaching instructions.")
 
-    # Prochain cue
     if next_cue:
-        st.markdown(f"**Prochaine phase :** {next_cue['emoji']} {next_cue['phase'].replace('_', ' ').title()} — dans {format_time(next_cue['start_s'] - elapsed)}")
+        st.markdown(
+            f"**Next phase:** {next_cue['emoji']} {next_cue['phase'].replace('_', ' ').title()} "
+            f"— in {format_time(next_cue['start_s'] - elapsed)}"
+        )
 
-    # Auto-refresh
+    # Auto-refresh every second while running
     if st.session_state.running:
         time.sleep(1)
         st.rerun()
 
     st.divider()
 
-    # Feedback
-    st.subheader("💬 Feedback de séance")
-    rating = st.radio("Comment était cette séance ?", ["👍 Super", "😐 Correct", "👎 Difficile"], horizontal=True)
-    note = st.text_input("Une note ? (optionnel)")
-    if st.button("Envoyer le feedback"):
+    # Session feedback
+    st.subheader("💬 Session Feedback")
+    rating = st.radio("How was this session?", ["👍 Great", "😐 Okay", "👎 Hard"], horizontal=True)
+    note = st.text_input("Any notes? (optional)")
+    if st.button("Submit feedback"):
         save_feedback(session["session"]["title"], rating, note)
-        st.success("Merci ! Feedback enregistré.")
+        st.success("Thanks! Feedback saved.")
 
 
-# ─── MODE SPOTIFY ────────────────────────────────────────────────────────────
+# ─── SPOTIFY MODE ────────────────────────────────────────────────────────────
 
 elif mode == "🔗 Spotify":
-    st.title("🎵 CycleBeat — Génère ta séance")
+    st.title("🎵 CycleBeat — Generate Your Session")
 
     playlist_url = st.text_input(
-        "URL de ta playlist Spotify",
+        "Your Spotify playlist URL",
         placeholder="https://open.spotify.com/playlist/..."
     )
-    use_llm = st.checkbox("Coaching personnalisé (LLM)", value=True)
+    use_llm = st.checkbox("Personalised coaching (LLM)", value=True)
+    use_hybrid = st.checkbox("Hybrid search (vector + keyword)", value=True)
 
-    if st.button("🚀 Générer la séance") and playlist_url:
-        with st.spinner("Analyse de ta playlist en cours..."):
+    if st.button("🚀 Generate session") and playlist_url:
+        with st.spinner("Analysing your playlist..."):
             try:
                 from agents.orchestrator import generate_session
-                session = generate_session(playlist_url, use_llm=use_llm)
-                st.success(f"✅ Séance générée : {session['session']['title']}")
-                st.info("Recharge la page et passe en mode Demo pour lancer la séance.")
+                session = generate_session(playlist_url, use_llm=use_llm, use_hybrid=use_hybrid)
+                st.success(f"✅ Session generated: {session['session']['title']}")
+                st.info("Reload the page and switch to Demo mode to start the ride.")
             except Exception as e:
-                st.error(f"Erreur : {e}")
-                st.info("💡 Si tu n'as pas de compte Spotify configuré, utilise le mode Demo.")
+                st.error(f"Error: {e}")
+                st.info("💡 No Spotify account configured? Use Demo mode.")
 
 
-# ─── MODE MONITORING ─────────────────────────────────────────────────────────
+# ─── MONITORING MODE ─────────────────────────────────────────────────────────
 
 elif mode == "📊 Monitoring":
     st.title("📊 CycleBeat — Dashboard")
@@ -231,7 +236,7 @@ elif mode == "📊 Monitoring":
     feedback = load_feedback()
 
     if not feedback:
-        st.info("Aucun feedback encore. Lance une séance et donne ton avis !")
+        st.info("No feedback yet. Run a session and rate it!")
     else:
         import pandas as pd
 
@@ -240,39 +245,39 @@ elif mode == "📊 Monitoring":
 
         # KPIs
         col1, col2, col3 = st.columns(3)
-        col1.metric("Séances totales", len(df))
-        col2.metric("👍 Satisfaction", f"{(df['rating'].str.contains('Super').sum() / len(df) * 100):.0f}%")
-        col3.metric("Sessions cette semaine", len(df[df["date"] >= (pd.Timestamp.now() - pd.Timedelta(days=7)).date()]))
+        col1.metric("Total sessions", len(df))
+        col2.metric("👍 Satisfaction", f"{(df['rating'].str.contains('Great').sum() / len(df) * 100):.0f}%")
+        col3.metric("Sessions this week", len(df[df["date"] >= (pd.Timestamp.now() - pd.Timedelta(days=7)).date()]))
 
         st.divider()
 
-        # Chart 1 — Séances par jour
-        st.subheader("📈 Séances par jour")
+        # Chart 1 — Sessions per day
+        st.subheader("📈 Sessions per day")
         sessions_by_day = df.groupby("date").size().reset_index(name="count")
         st.bar_chart(sessions_by_day.set_index("date"))
 
-        # Chart 2 — Répartition des ratings
-        st.subheader("⭐ Répartition des feedbacks")
+        # Chart 2 — Rating breakdown
+        st.subheader("⭐ Feedback breakdown")
         rating_counts = df["rating"].value_counts().reset_index()
         rating_counts.columns = ["Rating", "Count"]
         st.bar_chart(rating_counts.set_index("Rating"))
 
-        # Chart 3 — Séances par playlist
-        st.subheader("🎵 Séances par playlist")
+        # Chart 3 — Sessions per playlist
+        st.subheader("🎵 Sessions per playlist")
         session_counts = df["session"].value_counts().reset_index()
         session_counts.columns = ["Playlist", "Count"]
         st.bar_chart(session_counts.set_index("Playlist"))
 
-        # Chart 4 — Feedbacks négatifs dans le temps
-        st.subheader("👎 Feedbacks difficiles dans le temps")
-        df["is_negative"] = df["rating"].str.contains("Difficile")
+        # Chart 4 — Negative feedback over time
+        st.subheader("👎 Hard-rated sessions over time")
+        df["is_negative"] = df["rating"].str.contains("Hard")
         neg_by_day = df.groupby("date")["is_negative"].sum().reset_index()
         st.line_chart(neg_by_day.set_index("date"))
 
-        # Chart 5 — Tableau des notes textuelles
-        st.subheader("📝 Notes utilisateurs")
+        # Chart 5 — User text notes
+        st.subheader("📝 User notes")
         notes = df[df["note"].notna() & (df["note"] != "")][["date", "rating", "note"]]
         if not notes.empty:
             st.dataframe(notes, use_container_width=True)
         else:
-            st.caption("Aucune note textuelle encore.")
+            st.caption("No text notes yet.")

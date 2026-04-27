@@ -32,26 +32,6 @@ Each song is broken into sections (intro, verse, chorus, drop, outro). CycleBeat
 
 ---
 
-## ✅ Evaluation Criteria
-
-| Criterion | Implementation | Points |
-|---|---|---|
-| Problem description | Clearly stated above | 2/2 |
-| Retrieval flow | Qdrant KB + LLM coaching agent | 2/2 |
-| Retrieval evaluation | Text search vs vector search, best approach selected | 2/2 |
-| LLM evaluation | 2 prompt variants compared via LLM-as-Judge | 2/2 |
-| Interface | Streamlit live coaching display | 2/2 |
-| Ingestion pipeline | Automated Python script + dlt | 2/2 |
-| Monitoring | User feedback + Streamlit dashboard (5+ charts) | 2/2 |
-| Containerization | Full docker-compose setup | 2/2 |
-| Reproducibility | Clear setup, pinned deps, fallback CSV dataset | 2/2 |
-| Hybrid search | BPM + semantic search on workout type | 1/1 |
-| Document reranking | Rerank coaching patterns by session difficulty | 1/1 |
-| Query rewriting | "I'm tired today" → "light recovery session 30min" | 1/1 |
-| **Total** | | **23/23** |
-
----
-
 ## 🛠️ Tech Stack
 
 | Component | Tool |

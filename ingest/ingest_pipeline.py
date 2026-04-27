@@ -1,6 +1,6 @@
 """
 Ingestion Pipeline — CycleBeat
-Charge les cycling patterns dans Qdrant via dlt + sentence-transformers.
+Loads cycling patterns into Qdrant via dlt staging + sentence-transformers embeddings.
 """
 
 import json
@@ -30,6 +30,7 @@ embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 @dlt.source
 def cycling_patterns_source(path: str = PATTERNS_PATH):
+    """dlt source that yields all cycling patterns from the JSON knowledge base."""
     @dlt.resource(name="cycling_patterns", write_disposition="replace")
     def patterns():
         with open(path, encoding="utf-8") as f:
@@ -39,6 +40,7 @@ def cycling_patterns_source(path: str = PATTERNS_PATH):
 
 
 def load_into_qdrant(patterns: list):
+    """Recreate the Qdrant collection and upsert all pattern vectors."""
     existing = [c.name for c in qdrant.get_collections().collections]
     if COLLECTION_NAME in existing:
         qdrant.delete_collection(COLLECTION_NAME)
@@ -58,29 +60,30 @@ def load_into_qdrant(patterns: list):
         points.append(PointStruct(id=i, vector=embedder.encode(text).tolist(), payload=p))
 
     qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
-    print(f"✅ {len(points)} patterns ingérés dans Qdrant.")
+    print(f"✅ {len(points)} patterns ingested into Qdrant.")
 
 
 def run():
-    print("🚀 Pipeline d'ingestion CycleBeat...\n")
+    """Run the full ingestion pipeline: dlt staging then Qdrant vector loading."""
+    print("🚀 CycleBeat ingestion pipeline...\n")
 
-    # Étape 1 — dlt staging
+    # Step 1 — dlt staging into DuckDB
     pipeline = dlt.pipeline(
         pipeline_name="cyclebeat_ingestion",
         destination="duckdb",
         dataset_name="cycling_data"
     )
     pipeline.run(cycling_patterns_source())
-    print("   dlt : staging OK")
+    print("   dlt: staging OK")
 
-    # Étape 2 — Qdrant
+    # Step 2 — Load vectors into Qdrant
     with open(PATTERNS_PATH, encoding="utf-8") as f:
         patterns = json.load(f)
     load_into_qdrant(patterns)
 
-    print("\n✅ Pipeline terminé. Knowledge base prête.")
+    print("\n✅ Pipeline complete. Knowledge base ready.")
 
-    # Signal de complétion pour docker-compose
+    # Signal for docker-compose healthcheck
     open("/tmp/ingest_done", "w").close()
 
 

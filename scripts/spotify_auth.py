@@ -1,9 +1,9 @@
 """
 spotify_auth.py — CycleBeat
-À lancer UNE FOIS en local pour générer le token Spotify.
-Le token est sauvegardé dans .spotify_cache → monté dans Docker.
+Run ONCE locally to generate and cache the Spotify token.
+The token is saved to .spotify_cache and mounted into Docker at runtime.
 
-Usage :
+Usage:
     python scripts/spotify_auth.py
 """
 
@@ -16,7 +16,9 @@ load_dotenv()
 
 CACHE_PATH = ".spotify_cache"
 
+
 def authenticate():
+    """Open a browser to authenticate with Spotify and persist the token to disk."""
     sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
         client_id=os.getenv("SPOTIFY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
@@ -26,11 +28,11 @@ def authenticate():
         open_browser=True
     ))
 
-    # Force l'authentification
     user = sp.current_user()
-    print(f"\n✅ Authentifié en tant que : {user['display_name']}")
-    print(f"   Token sauvegardé → {CACHE_PATH}")
-    print(f"\n   Tu peux maintenant lancer docker-compose up --build")
+    print(f"\n✅ Authenticated as: {user['display_name']}")
+    print(f"   Token saved → {CACHE_PATH}")
+    print(f"\n   You can now run: docker-compose up --build")
+
 
 if __name__ == "__main__":
     authenticate()

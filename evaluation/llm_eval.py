@@ -1,7 +1,7 @@
 """
 LLM Evaluation — CycleBeat
-Compare deux prompts de coaching via LLM-as-Judge (GPT-4o).
-Satisfait le critère : "Multiple LLM approaches evaluated" → 2/2
+Compares two coaching prompt styles via LLM-as-Judge (GPT-4o).
+Satisfies Zoomcamp criterion: "Multiple LLM approaches evaluated" → 2/2 points.
 """
 
 import json
@@ -14,72 +14,73 @@ openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # ─── PROMPTS ─────────────────────────────────────────────────────────────────
 
-PROMPT_A = """Tu es un coach de cycling indoor. Génère une instruction de coaching
-au format JSON structuré avec les champs : instruction, resistance, effort_level, duration_hint.
-Pattern : {pattern}
-Morceau : {track_name} ({bpm} BPM)"""
+PROMPT_A = """You are an indoor cycling coach. Generate a structured coaching instruction
+in JSON format with fields: instruction, resistance, effort_level, duration_hint.
+Pattern: {pattern}
+Track: {track_name} ({bpm} BPM)"""
 
-PROMPT_B = """Tu es un instructeur RPM professionnel, motivant et précis.
-Génère une instruction courte (1-2 phrases max), en tutoiement, énergique et encourageante.
-Adapte-toi exactement au moment de la séance.
-Pattern : {pattern}
-Morceau : {track_name} ({bpm} BPM)"""
+PROMPT_B = """You are a professional RPM instructor — motivating, precise, and energetic.
+Generate a short coaching instruction (1-2 sentences max). Use direct address, be encouraging.
+Adapt to the exact moment of the session.
+Pattern: {pattern}
+Track: {track_name} ({bpm} BPM)"""
 
-JUDGE_PROMPT = """Tu es un expert en coaching sportif. Évalue ces deux instructions de coaching cycling.
+JUDGE_PROMPT = """You are a sports coaching expert. Evaluate these two indoor cycling coaching instructions.
 
-Instruction A : {response_a}
-Instruction B : {response_b}
+Instruction A: {response_a}
+Instruction B: {response_b}
 
-Contexte : phase={phase}, résistance={resistance}, BPM={bpm}
+Context: phase={phase}, resistance={resistance}, BPM={bpm}
 
-Note chaque instruction de 1 à 5 sur ces critères :
-- clarity : est-ce clair et compréhensible sur un vélo en plein effort ?
-- motivation : est-ce suffisamment motivant et énergique ?
-- precision : les consignes sont-elles précises (résistance, effort) ?
-- naturalness : est-ce naturel, comme un vrai coach parlerait ?
+Score each instruction from 1 to 5 on these criteria:
+- clarity: is it clear and understandable while riding at effort?
+- motivation: is it energetic and motivating enough?
+- precision: are the cues specific (resistance, effort)?
+- naturalness: does it sound like a real coach would say it?
 
-Réponds uniquement en JSON valide :
+Reply only in valid JSON:
 {{
   "A": {{"clarity": 0, "motivation": 0, "precision": 0, "naturalness": 0, "total": 0}},
   "B": {{"clarity": 0, "motivation": 0, "precision": 0, "naturalness": 0, "total": 0}},
-  "winner": "A ou B",
-  "reason": "explication courte"
+  "winner": "A or B",
+  "reason": "short explanation"
 }}"""
 
-# ─── CAS DE TEST ─────────────────────────────────────────────────────────────
+# ─── TEST CASES ──────────────────────────────────────────────────────────────
 
 TEST_CASES = [
     {
-        "pattern": {"phase": "sprint", "resistance": 8, "effort": "hard", "label": "Sprint long"},
+        "pattern": {"phase": "sprint", "resistance": 8, "effort": "hard", "label": "Long sprint"},
         "track_name": "Blinding Lights",
         "bpm": 171
     },
     {
-        "pattern": {"phase": "climb", "resistance": 9, "effort": "very_hard", "label": "Montée debout"},
+        "pattern": {"phase": "climb", "resistance": 9, "effort": "very_hard", "label": "Standing climb"},
         "track_name": "Lose Yourself",
         "bpm": 171
     },
     {
-        "pattern": {"phase": "recovery", "resistance": 2, "effort": "very_easy", "label": "Récupération longue"},
+        "pattern": {"phase": "recovery", "resistance": 2, "effort": "very_easy", "label": "Long recovery"},
         "track_name": "Levitating",
         "bpm": 103
     },
     {
-        "pattern": {"phase": "warm_up", "resistance": 3, "effort": "easy", "label": "Échauffement doux"},
+        "pattern": {"phase": "warm_up", "resistance": 3, "effort": "easy", "label": "Gentle warm-up"},
         "track_name": "Don't Stop Me Now",
         "bpm": 156
     },
     {
-        "pattern": {"phase": "steady", "resistance": 6, "effort": "moderate_hard", "label": "Cadence soutenue"},
+        "pattern": {"phase": "steady", "resistance": 6, "effort": "moderate_hard", "label": "Sustained cadence"},
         "track_name": "Levitating",
         "bpm": 103
     },
 ]
 
 
-# ─── GÉNÉRATION ──────────────────────────────────────────────────────────────
+# ─── GENERATION ──────────────────────────────────────────────────────────────
 
 def generate_response(prompt_template: str, case: dict) -> str:
+    """Generate a coaching instruction from a prompt template and test case."""
     prompt = prompt_template.format(
         pattern=json.dumps(case["pattern"], ensure_ascii=False),
         track_name=case["track_name"],
@@ -94,9 +95,10 @@ def generate_response(prompt_template: str, case: dict) -> str:
     return response.choices[0].message.content.strip()
 
 
-# ─── JUGEMENT ────────────────────────────────────────────────────────────────
+# ─── JUDGING ─────────────────────────────────────────────────────────────────
 
 def judge(response_a: str, response_b: str, case: dict) -> dict:
+    """Use GPT-4o as a judge to score and compare two coaching instructions."""
     prompt = JUDGE_PROMPT.format(
         response_a=response_a,
         response_b=response_b,
@@ -116,13 +118,14 @@ def judge(response_a: str, response_b: str, case: dict) -> dict:
         return {"winner": "?", "reason": "parse error"}
 
 
-# ─── ÉVALUATION ──────────────────────────────────────────────────────────────
+# ─── EVALUATION ──────────────────────────────────────────────────────────────
 
 def run_llm_evaluation():
+    """Run the full LLM-as-Judge evaluation and print aggregated scores."""
     print("\n🤖 CycleBeat — LLM Evaluation (LLM-as-Judge)")
     print("=" * 60)
-    print("  Prompt A : JSON structuré")
-    print("  Prompt B : Langage naturel coaching")
+    print("  Prompt A: Structured JSON coaching output")
+    print("  Prompt B: Natural instructor-style coaching")
     print("=" * 60)
 
     all_results = []
@@ -156,11 +159,11 @@ def run_llm_evaluation():
         }
         all_results.append(result)
 
-        print(f"    Vainqueur : Prompt {winner} — {verdict.get('reason', '')[:80]}")
+        print(f"    Winner: Prompt {winner} — {verdict.get('reason', '')[:80]}")
 
-    # ─── Résultats agrégés ───
-    print("\n📊 Scores moyens par critère :")
-    print(f"{'Critère':<15} {'Prompt A':>10} {'Prompt B':>10}")
+    # Aggregated results
+    print("\n📊 Average scores by criterion:")
+    print(f"{'Criterion':<15} {'Prompt A':>10} {'Prompt B':>10}")
     print("─" * 35)
 
     for metric in ["clarity", "motivation", "precision", "naturalness"]:
@@ -168,18 +171,17 @@ def run_llm_evaluation():
         avg_b = sum(scores["B"][metric]) / len(scores["B"][metric])
         print(f"{metric:<15} {avg_a:>10.2f} {avg_b:>10.2f}")
 
-    print(f"\n🏆 Victoires — Prompt A: {wins['A']} | Prompt B: {wins['B']}")
+    print(f"\n🏆 Wins — Prompt A: {wins['A']} | Prompt B: {wins['B']}")
 
     overall_winner = "A" if wins["A"] > wins["B"] else "B"
-    prompt_name = "JSON structuré" if overall_winner == "A" else "Langage naturel coaching"
-    print(f"✅ Meilleur prompt : Prompt {overall_winner} ({prompt_name})")
-    print(f"   → Utilisé dans le pipeline CycleBeat.")
+    prompt_name = "Structured JSON" if overall_winner == "A" else "Natural coaching language"
+    print(f"✅ Best prompt: Prompt {overall_winner} ({prompt_name})")
+    print(f"   → Used in the CycleBeat pipeline.")
 
-    # Sauvegarde
     os.makedirs("evaluation", exist_ok=True)
     with open("evaluation/llm_eval_results.json", "w", encoding="utf-8") as f:
         json.dump(all_results, f, ensure_ascii=False, indent=2)
-    print("\n💾 Résultats sauvegardés → evaluation/llm_eval_results.json")
+    print("\n💾 Results saved → evaluation/llm_eval_results.json")
 
 
 if __name__ == "__main__":
