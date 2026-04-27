@@ -1,0 +1,68 @@
+{
+  "session": {
+    "title": "CycleBeat — Demo Ride",
+    "total_duration_s": 2700,
+    "generated_by": "CycleBeat Coach Agent (demo)"
+  },
+  "tracks": [
+    {
+      "track_name": "Levitating",
+      "artist": "Dua Lipa",
+      "start_s": 0,
+      "duration_s": 203,
+      "cues": [
+        {"start_s": 0,   "duration_s": 30, "phase": "warm_up", "instruction": "On démarre doucement. Résistance 3, pédale en rythme, on réveille les jambes.", "resistance": 3, "effort": "easy", "emoji": "🌀", "bpm": 103},
+        {"start_s": 30,  "duration_s": 40, "phase": "warm_up", "instruction": "Le corps se réveille. Résistance 4, sens la chaleur monter dans les cuisses.", "resistance": 4, "effort": "easy_moderate", "emoji": "🌀", "bpm": 103},
+        {"start_s": 70,  "duration_s": 45, "phase": "steady",  "instruction": "Bonne cadence. Résistance 5, on reste posé, on installe le rythme.", "resistance": 5, "effort": "moderate", "emoji": "🚴", "bpm": 103},
+        {"start_s": 115, "duration_s": 45, "phase": "build",   "instruction": "Ça monte ! Résistance 6, sens le tempo grimper. C'est parti.", "resistance": 6, "effort": "moderate_hard", "emoji": "📈", "bpm": 103},
+        {"start_s": 160, "duration_s": 43, "phase": "steady",  "instruction": "On pousse. Résistance 6, maintiens la cadence.", "resistance": 6, "effort": "moderate_hard", "emoji": "🚴", "bpm": 103}
+      ]
+    },
+    {
+      "track_name": "Blinding Lights",
+      "artist": "The Weeknd",
+      "start_s": 203,
+      "duration_s": 200,
+      "cues": [
+        {"start_s": 203, "duration_s": 15, "phase": "build",    "instruction": "Prépare-toi ! Dans quelques secondes on sprinte. Résistance 6, cadence qui monte.", "resistance": 6, "effort": "moderate_hard", "emoji": "📈", "bpm": 171},
+        {"start_s": 218, "duration_s": 30, "phase": "sprint",   "instruction": "🔥 SPRINT 30 secondes ! Résistance 8, bras relâchés, jambes en feu !", "resistance": 8, "effort": "hard", "emoji": "🔥", "bpm": 171},
+        {"start_s": 248, "duration_s": 20, "phase": "recovery", "instruction": "Bien. Résistance 3, relâche les épaules, reprends ta respiration.", "resistance": 3, "effort": "easy", "emoji": "💨", "bpm": 171},
+        {"start_s": 268, "duration_s": 30, "phase": "sprint",   "instruction": "🔥 SPRINT 30 secondes ! Résistance 8, tout donner !", "resistance": 8, "effort": "hard", "emoji": "🔥", "bpm": 171},
+        {"start_s": 298, "duration_s": 20, "phase": "recovery", "instruction": "Récup. Résistance 3, souffle bien.", "resistance": 3, "effort": "easy", "emoji": "💨", "bpm": 171},
+        {"start_s": 318, "duration_s": 30, "phase": "interval", "instruction": "⚡ ON ! Résistance 8, sprint 20 secondes, donne tout !", "resistance": 8, "effort": "hard", "emoji": "⚡", "bpm": 171},
+        {"start_s": 348, "duration_s": 55, "phase": "steady",   "instruction": "Cadence régulière. Résistance 5, on respire.", "resistance": 5, "effort": "moderate", "emoji": "🚴", "bpm": 171}
+      ]
+    },
+    {
+      "track_name": "Don't Stop Me Now",
+      "artist": "Queen",
+      "start_s": 403,
+      "duration_s": 209,
+      "cues": [
+        {"start_s": 403, "duration_s": 15, "phase": "build",    "instruction": "La montée arrive. Ajoute la résistance progressivement. Résistance 6 maintenant.", "resistance": 6, "effort": "moderate_hard", "emoji": "📈", "bpm": 156},
+        {"start_s": 418, "duration_s": 45, "phase": "climb",    "instruction": "🏔️ Montée assis. Résistance 7, lent mais régulier. Pousse en rythme.", "resistance": 7, "effort": "hard", "emoji": "🏔️", "bpm": 156},
+        {"start_s": 463, "duration_s": 10, "phase": "climb",    "instruction": "Lève-toi ! Résistance 8, debout sur les pédales, poids du corps en avant.", "resistance": 8, "effort": "very_hard", "emoji": "🏔️", "bpm": 156},
+        {"start_s": 473, "duration_s": 30, "phase": "climb",    "instruction": "🏔️ DEBOUT ! Résistance 8, lève-toi de la selle, mains sur le guidon, pousse !", "resistance": 8, "effort": "very_hard", "emoji": "🏔️", "bpm": 156},
+        {"start_s": 503, "duration_s": 20, "phase": "recovery", "instruction": "Bravo. Descends la résistance à 3. Reprends le rythme doucement.", "resistance": 3, "effort": "easy", "emoji": "💨", "bpm": 156},
+        {"start_s": 523, "duration_s": 89, "phase": "steady",   "instruction": "On pousse. Résistance 6, maintiens la cadence. C'est ici que ça se construit.", "resistance": 6, "effort": "moderate_hard", "emoji": "🚴", "bpm": 156}
+      ]
+    },
+    {
+      "track_name": "Lose Yourself",
+      "artist": "Eminem",
+      "start_s": 612,
+      "duration_s": 326,
+      "cues": [
+        {"start_s": 612, "duration_s": 20, "phase": "build",     "instruction": "On monte progressivement. Résistance 6 → 7 → 8. Prends ton temps, ça vient.", "resistance": 7, "effort": "hard", "emoji": "📈", "bpm": 171},
+        {"start_s": 632, "duration_s": 45, "phase": "climb",     "instruction": "🏔️ RÉSISTANCE MAX. Résistance 10, debout, mains basses, poids du corps sur les pédales !", "resistance": 10, "effort": "max", "emoji": "🏔️", "bpm": 171},
+        {"start_s": 677, "duration_s": 25, "phase": "recovery",  "instruction": "Longue récup. Résistance 2, laisse les jambes tourner librement.", "resistance": 2, "effort": "very_easy", "emoji": "💨", "bpm": 171},
+        {"start_s": 702, "duration_s": 30, "phase": "sprint",    "instruction": "🔥 1 MINUTE DE SPRINT. Résistance 8, gère ton effort, ne lâche pas.", "resistance": 8, "effort": "hard", "emoji": "🔥", "bpm": 171},
+        {"start_s": 732, "duration_s": 15, "phase": "recovery",  "instruction": "Récup courte. Résistance 3, souffle, on repart vite.", "resistance": 3, "effort": "easy", "emoji": "💨", "bpm": 171},
+        {"start_s": 747, "duration_s": 30, "phase": "sprint",    "instruction": "🔥 DERNIER SPRINT ! Résistance 8, tout ce qu'il reste !", "resistance": 8, "effort": "hard", "emoji": "🔥", "bpm": 171},
+        {"start_s": 777, "duration_s": 25, "phase": "cool_down", "instruction": "Dernier effort passé. On commence le retour au calme. Résistance 2, pédale douce.", "resistance": 2, "effort": "very_easy", "emoji": "✨", "bpm": 171},
+        {"start_s": 802, "duration_s": 60, "phase": "cool_down", "instruction": "C'est fini. Résistance 1, pédale légère, respire. Belle séance aujourd'hui.", "resistance": 1, "effort": "very_easy", "emoji": "✨", "bpm": 171},
+        {"start_s": 862, "duration_s": 76, "phase": "cool_down", "instruction": "On redescend. Résistance 2, pédale tranquille, tu as tout donné.", "resistance": 2, "effort": "very_easy", "emoji": "✨", "bpm": 171}
+      ]
+    }
+  ]
+}
