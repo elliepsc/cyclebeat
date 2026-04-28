@@ -6,6 +6,7 @@ Loads cycling patterns into Qdrant via dlt staging + sentence-transformers embed
 import json
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -32,12 +33,24 @@ else:
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 
+def wait_for_qdrant(max_attempts: int = 30, delay_s: float = 2.0):
+    """Wait until Qdrant accepts requests before loading the collection."""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            qdrant.get_collections()
+            return
+        except Exception as exc:
+            if attempt == max_attempts:
+                raise RuntimeError("Qdrant did not become ready in time") from exc
+            time.sleep(delay_s)
+
+
 @dlt.source
-def cycling_patterns_source(path: str = PATTERNS_PATH):
+def cycling_patterns_source(patterns_path: str = PATTERNS_PATH):
     """dlt source that yields all cycling patterns from the JSON knowledge base."""
     @dlt.resource(name="cycling_patterns", write_disposition="replace")
     def patterns():
-        with open(path, encoding="utf-8") as f:
+        with open(patterns_path, encoding="utf-8") as f:
             for p in json.load(f):
                 yield p
     return patterns()
@@ -81,6 +94,7 @@ def run():
     print("   dlt: staging OK")
 
     # Step 2 — Load vectors into Qdrant
+    wait_for_qdrant()
     with open(PATTERNS_PATH, encoding="utf-8") as f:
         patterns = json.load(f)
     load_into_qdrant(patterns)

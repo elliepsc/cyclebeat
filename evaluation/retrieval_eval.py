@@ -1,6 +1,6 @@
 """
 Retrieval Evaluation — CycleBeat
-Compares vector search vs text search vs hybrid search on Hit Rate and MRR.
+Compares vector search vs text search vs hybrid search on Hit@1, Hit@3, and MRR.
 Embeddings: sentence-transformers all-MiniLM-L6-v2.
 """
 
@@ -86,9 +86,9 @@ def hybrid_search(query: str, top_k: int = 5, alpha: float = 0.7) -> list:
     return [item["payload"] for item in fused[:top_k]]
 
 
-def hit_rate(results: list, expected: str) -> int:
-    """Return 1 if the expected phase appears in top-k results, 0 otherwise."""
-    return int(any(r["phase"] == expected for r in results))
+def hit_at_k(results: list, expected: str, k: int) -> int:
+    """Return 1 if the expected phase appears in the first k results."""
+    return int(any(r["phase"] == expected for r in results[:k]))
 
 
 def mrr(results: list, expected: str) -> float:
@@ -101,17 +101,24 @@ def mrr(results: list, expected: str) -> float:
 
 def evaluate(fn, label: str) -> dict:
     """Evaluate a retrieval function over the full test set and print per-query results."""
-    hits, rrs = [], []
+    hits_1, hits_3, rrs = [], [], []
     print(f"\n  {label}")
     print("  " + "─" * 55)
     for t in TEST_SET:
-        results = fn(t["query"])
-        h = hit_rate(results, t["expected_phase"])
+        results = fn(t["query"], top_k=3)
+        h1 = hit_at_k(results, t["expected_phase"], 1)
+        h3 = hit_at_k(results, t["expected_phase"], 3)
         r = mrr(results, t["expected_phase"])
-        hits.append(h)
+        hits_1.append(h1)
+        hits_3.append(h3)
         rrs.append(r)
-        print(f"  {'✅' if h else '❌'} [{t['expected_phase']:12s}] {t['query'][:50]}")
-    return {"approach": label, "hit_rate": round(np.mean(hits), 3), "mrr": round(np.mean(rrs), 3)}
+        print(f"  {'✅' if h3 else '❌'} [{t['expected_phase']:12s}] {t['query'][:50]}")
+    return {
+        "approach": label,
+        "hit@1": round(np.mean(hits_1), 3),
+        "hit@3": round(np.mean(hits_3), 3),
+        "mrr": round(np.mean(rrs), 3),
+    }
 
 
 def run_evaluation():
@@ -121,12 +128,12 @@ def run_evaluation():
     r_txt = evaluate(text_search, "Text Search (keyword)")
     r_hyb = evaluate(hybrid_search, "Hybrid Search (vector + keyword, alpha=0.7)")
 
-    print(f"\n{'Approach':<45} {'Hit Rate':>10} {'MRR':>8}")
-    print("─" * 63)
+    print(f"\n{'Approach':<45} {'Hit@1':>8} {'Hit@3':>8} {'MRR':>8}")
+    print("─" * 72)
     for r in [r_vec, r_txt, r_hyb]:
-        print(f"{r['approach']:<45} {r['hit_rate']:>10.3f} {r['mrr']:>8.3f}")
+        print(f"{r['approach']:<45} {r['hit@1']:>8.3f} {r['hit@3']:>8.3f} {r['mrr']:>8.3f}")
 
-    winner = max([r_vec, r_txt, r_hyb], key=lambda x: x["hit_rate"])
+    winner = max([r_vec, r_txt, r_hyb], key=lambda x: (x["hit@1"], x["mrr"], x["hit@3"]))
     print(f"\n✅ Best approach: {winner['approach']}")
 
     os.makedirs("evaluation", exist_ok=True)

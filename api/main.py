@@ -11,18 +11,19 @@ from datetime import datetime
 from typing import Optional
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, _root)
 
 app = FastAPI(
     title="CycleBeat API",
     version="1.0.0",
     description=(
-        "REST API for CycleBeat — generates timestamped cycling coaching sessions "
-        "from a Spotify playlist using hybrid RAG + LLM."
+        "REST API for CycleBeat — generates timestamped cycling coaching "
+        "sessions from a Spotify playlist using hybrid RAG + LLM."
     ),
 )
 
@@ -71,6 +72,19 @@ def _save_feedback(entry: dict):
     feedback.append(entry)
     with open(FEEDBACK_PATH, "w", encoding="utf-8") as f:
         json.dump(feedback, f, ensure_ascii=False, indent=2)
+    try:
+        from db.runtime import save_feedback as _db_save
+        _db_save(entry["session"], entry["rating"], entry.get("note", ""))
+    except Exception:
+        pass
+
+
+def _persist_session(session: dict, playlist_url: str = ""):
+    try:
+        from db.runtime import save_session as _db_save
+        _db_save(session, playlist_url)
+    except Exception:
+        pass
 
 
 # ─── ROUTES ──────────────────────────────────────────────────────────────────
@@ -83,7 +97,7 @@ def health():
 
 @app.get("/session/demo")
 def get_demo_session():
-    """Return the pre-generated demo session (no Spotify credentials required)."""
+    """Return the pre-generated demo session (no Spotify credentials needed)."""
     if not os.path.exists(DEMO_PATH):
         raise HTTPException(status_code=404, detail="Demo session not found.")
     return _load_json(DEMO_PATH)
@@ -114,6 +128,7 @@ def generate_session(req: SessionRequest):
             use_llm=req.use_llm,
             use_hybrid=req.use_hybrid,
         )
+        _persist_session(session, req.playlist_url)
         return session
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

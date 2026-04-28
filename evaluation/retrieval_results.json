@@ -1,0 +1,20 @@
+[
+  {
+    "approach": "Vector Search (sentence-transformers)",
+    "hit@1": 0.8,
+    "hit@3": 0.9,
+    "mrr": 0.85
+  },
+  {
+    "approach": "Text Search (keyword)",
+    "hit@1": 0.7,
+    "hit@3": 1.0,
+    "mrr": 0.833
+  },
+  {
+    "approach": "Hybrid Search (vector + keyword, alpha=0.7)",
+    "hit@1": 0.8,
+    "hit@3": 0.9,
+    "mrr": 0.85
+  }
+]

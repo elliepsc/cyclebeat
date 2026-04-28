@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
 
   # ── Vector Database ──────────────────────────────────────────────
@@ -10,11 +8,6 @@ services:
       - "6333:6333"
     volumes:
       - qdrant_data:/qdrant/storage
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
 
   # ── Ingestion (one-shot, se termine proprement) ──────────────────
   ingest:
@@ -26,8 +19,7 @@ services:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
     depends_on:
-      qdrant:
-        condition: service_healthy
+      - qdrant
     volumes:
       - ./data:/app/data
     # Le service se termine avec exit 0 → app peut démarrer
@@ -45,7 +37,7 @@ services:
       - QDRANT_PORT=6333
     depends_on:
       qdrant:
-        condition: service_healthy
+        condition: service_started
       ingest:
         condition: service_completed_successfully
     volumes:
@@ -70,12 +62,26 @@ services:
       - QDRANT_PORT=6333
     depends_on:
       qdrant:
-        condition: service_healthy
+        condition: service_started
       ingest:
         condition: service_completed_successfully
     volumes:
       - ./data:/app/data
       - ./.spotify_cache:/app/.spotify_cache
+
+  # ── Plotly Dash Dashboard ────────────────────────────────────────
+  dashboard:
+    build: .
+    container_name: cyclebeat_dashboard
+    ports:
+      - "8050:8050"
+    env_file: .env
+    depends_on:
+      ingest:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/app/data
+    command: python app/dashboard.py
 
 volumes:
   qdrant_data:

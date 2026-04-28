@@ -90,11 +90,17 @@ def load_feedback() -> list:
 st.sidebar.title("🚴 CycleBeat")
 
 _generated_exists = os.path.exists(GENERATED_PATH)
-_mode_options = ["🎵 Demo (no Spotify needed)", "🔗 Spotify", "📊 Monitoring"]
+_mode_options = ["🎵 Demo (no Spotify needed)", "🔗 Spotify"]
 if _generated_exists:
     _mode_options.insert(1, "🎯 Generated Session")
 
 mode = st.sidebar.radio("Mode", _mode_options)
+
+st.sidebar.divider()
+st.sidebar.markdown(
+    "📊 **Monitoring dashboard**  \n[→ open on port 8050](http://localhost:8050)",
+    unsafe_allow_html=False,
+)
 
 # ─── DEMO MODE ───────────────────────────────────────────────────────────────
 
@@ -156,8 +162,9 @@ if mode == "🎵 Demo (no Spotify needed)":
 
     if current_cue:
         remaining = current_cue["start_s"] + current_cue["duration_s"] - elapsed
+        res = current_cue['resistance']
+        res_bar = '🟥' * res + '⬜' * (10 - res)
 
-        # Main instruction — large and readable during riding
         st.markdown(f"""
         <div style='
             background: linear-gradient(135deg, #1a1a2e, #16213e);
@@ -171,8 +178,8 @@ if mode == "🎵 Demo (no Spotify needed)":
                 {current_cue['instruction']}
             </div>
             <div style='font-size: 20px; color: #888; margin-bottom: 8px'>
-                Resistance: {'🟥' * current_cue['resistance']}{'⬜' * (10 - current_cue['resistance'])}
-                <strong style='color: white'> {current_cue['resistance']}/10</strong>
+                Resistance: {res_bar}
+                <strong style='color: white'> {res}/10</strong>
             </div>
             <div style='font-size: 16px; color: #aaa'>
                 ⏳ {format_time(remaining)} remaining
@@ -180,15 +187,19 @@ if mode == "🎵 Demo (no Spotify needed)":
         </div>
         """, unsafe_allow_html=True)
 
-        st.caption(f"🎵 {current_track['track_name']} — {current_track['artist']} | {current_cue['bpm']:.0f} BPM")
+        st.caption(
+            f"🎵 {current_track['track_name']} — {current_track['artist']}"
+            f" | {current_cue['bpm']:.0f} BPM"
+        )
 
     else:
         st.info("Start the session to see live coaching instructions.")
 
     if next_cue:
+        phase_label = next_cue['phase'].replace('_', ' ').title()
         st.markdown(
-            f"**Next phase:** {next_cue['emoji']} {next_cue['phase'].replace('_', ' ').title()} "
-            f"— in {format_time(next_cue['start_s'] - elapsed)}"
+            f"**Next phase:** {next_cue['emoji']} {phase_label}"
+            f" — in {format_time(next_cue['start_s'] - elapsed)}"
         )
 
     # Auto-refresh every second while running
@@ -267,6 +278,8 @@ elif mode == "🎯 Generated Session":
 
     if current_cue:
         remaining = current_cue["start_s"] + current_cue["duration_s"] - elapsed
+        res = current_cue['resistance']
+        res_bar = '🟥' * res + '⬜' * (10 - res)
         st.markdown(f"""
         <div style='
             background: linear-gradient(135deg, #1a1a2e, #16213e);
@@ -280,8 +293,8 @@ elif mode == "🎯 Generated Session":
                 {current_cue['instruction']}
             </div>
             <div style='font-size: 20px; color: #888; margin-bottom: 8px'>
-                Resistance: {'🟥' * current_cue['resistance']}{'⬜' * (10 - current_cue['resistance'])}
-                <strong style='color: white'> {current_cue['resistance']}/10</strong>
+                Resistance: {res_bar}
+                <strong style='color: white'> {res}/10</strong>
             </div>
             <div style='font-size: 16px; color: #aaa'>
                 ⏳ {format_time(remaining)} remaining
@@ -346,62 +359,3 @@ elif mode == "🔗 Spotify":
                 st.error(f"Error: {e}")
                 st.info("💡 No Spotify account configured? Use Demo mode.")
 
-
-# ─── MONITORING MODE ─────────────────────────────────────────────────────────
-
-elif mode == "📊 Monitoring":
-    st.title("📊 CycleBeat — Dashboard")
-
-    feedback = load_feedback()
-
-    if not feedback:
-        st.info("No feedback yet. Run a session and rate it!")
-    else:
-        import pandas as pd
-
-        df = pd.DataFrame(feedback)
-        df["date"] = pd.to_datetime(df["timestamp"]).dt.date
-
-        # KPIs
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total sessions", len(df))
-        col2.metric("👍 Satisfaction", f"{(df['rating'].str.contains('Great').sum() / len(df) * 100):.0f}%")
-        col3.metric("Sessions this week", len(df[df["date"] >= (pd.Timestamp.now() - pd.Timedelta(days=7)).date()]))
-
-        st.divider()
-
-        # Chart 1 — Sessions per day
-        st.subheader("📈 Sessions per day")
-        sessions_by_day = df.groupby("date").size().reset_index(name="count")
-        st.bar_chart(sessions_by_day.set_index("date"))
-
-        # Chart 2 — Rating breakdown
-        st.subheader("⭐ Feedback breakdown")
-        rating_counts = df["rating"].value_counts().reset_index()
-        rating_counts.columns = ["Rating", "Count"]
-        st.bar_chart(rating_counts.set_index("Rating"))
-
-        # Chart 3 — Sessions per playlist
-        st.subheader("🎵 Sessions per playlist")
-        session_counts = df["session"].value_counts().reset_index()
-        session_counts.columns = ["Playlist", "Count"]
-        st.bar_chart(session_counts.set_index("Playlist"))
-
-        # Chart 4 — Negative feedback over time
-        st.subheader("👎 Hard-rated sessions over time")
-        df["is_negative"] = df["rating"].str.contains("Hard")
-        neg_by_day = df.groupby("date")["is_negative"].sum().reset_index()
-        st.line_chart(neg_by_day.set_index("date"))
-
-        # Chart 5 — Cumulative sessions over time
-        st.subheader("📉 Cumulative sessions over time")
-        sessions_by_day["cumulative"] = sessions_by_day["count"].cumsum()
-        st.line_chart(sessions_by_day.set_index("date")["cumulative"])
-
-        # Chart 6 — User text notes
-        st.subheader("📝 User notes")
-        notes = df[df["note"].notna() & (df["note"] != "")][["date", "rating", "note"]]
-        if not notes.empty:
-            st.dataframe(notes, use_container_width=True)
-        else:
-            st.caption("No text notes yet.")
