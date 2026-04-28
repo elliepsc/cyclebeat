@@ -9,7 +9,7 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
 
-  # ── Ingestion (one-shot, se termine proprement) ──────────────────
+  # ── Ingestion (one-shot) ─────────────────────────────────────────
   ingest:
     build: .
     container_name: cyclebeat_ingest
@@ -18,11 +18,27 @@ services:
     environment:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
+      - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
     depends_on:
       - qdrant
     volumes:
       - ./data:/app/data
-    # Le service se termine avec exit 0 → app peut démarrer
+    restart: "no"
+
+  # ── dbt transforms (one-shot, runs after ingestion) ──────────────
+  dbt:
+    build: .
+    container_name: cyclebeat_dbt
+    command: >
+      bash -c "dbt run --project-dir dbt --profiles-dir dbt &&
+               dbt test --project-dir dbt --profiles-dir dbt"
+    environment:
+      - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
+    depends_on:
+      ingest:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/app/data
     restart: "no"
 
   # ── FastAPI REST API ─────────────────────────────────────────────
@@ -35,6 +51,7 @@ services:
     environment:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
+      - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
     depends_on:
       qdrant:
         condition: service_started
@@ -50,7 +67,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Streamlit App ────────────────────────────────────────────────
+  # ── Dash Coaching UI ─────────────────────────────────────────────
   app:
     build: .
     container_name: cyclebeat_app
@@ -60,6 +77,7 @@ services:
     environment:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
+      - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
     depends_on:
       qdrant:
         condition: service_started
@@ -68,14 +86,17 @@ services:
     volumes:
       - ./data:/app/data
       - ./.spotify_cache:/app/.spotify_cache
+    command: python app/coaching.py
 
-  # ── Plotly Dash Dashboard ────────────────────────────────────────
+  # ── Plotly Dash Monitoring Dashboard ────────────────────────────
   dashboard:
     build: .
     container_name: cyclebeat_dashboard
     ports:
       - "8050:8050"
     env_file: .env
+    environment:
+      - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
     depends_on:
       ingest:
         condition: service_completed_successfully
@@ -83,5 +104,32 @@ services:
       - ./data:/app/data
     command: python app/dashboard.py
 
+  # ── Prometheus ───────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: cyclebeat_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - api
+
+  # ── Grafana ──────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: cyclebeat_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=cyclebeat
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+
 volumes:
   qdrant_data:
+  grafana_data:

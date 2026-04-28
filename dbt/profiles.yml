@@ -1,0 +1,10 @@
+cyclebeat:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      # path is relative to the directory where dbt is invoked (project root).
+      # Override with RUNTIME_DB_PATH env var in Docker.
+      path: "{{ env_var('RUNTIME_DB_PATH', 'data/cyclebeat_runtime.duckdb') }}"
+      threads: 4
+      schema: main

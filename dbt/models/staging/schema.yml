@@ -1,0 +1,35 @@
+version: 2
+
+models:
+  - name: stg_sessions
+    description: "Cleaned sessions — one row per generated coaching session."
+    columns:
+      - name: title
+        tests: [not_null]
+      - name: duration_s
+        tests: [not_null]
+      - name: track_count
+        tests: [not_null]
+
+  - name: stg_feedback
+    description: "Cleaned feedback with normalised rating label."
+    columns:
+      - name: session_title
+        tests: [not_null]
+      - name: rating
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Great', 'Okay', 'Hard', 'Unknown']
+
+  - name: stg_patterns
+    description: "40-pattern knowledge base with effort_bucket derived field."
+    columns:
+      - name: id
+        tests: [not_null, unique]
+      - name: phase
+        tests: [not_null]
+      - name: effort_bucket
+        tests:
+          - accepted_values:
+              values: ['low', 'medium', 'high']

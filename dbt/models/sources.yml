@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: main
+    description: "Raw runtime tables written by the FastAPI layer and ingestion pipeline."
+    tables:
+      - name: sessions
+        description: "One row per generated coaching session (title, duration, track count)."
+      - name: feedback
+        description: "One row per user feedback submission (rating, note, timestamp)."
+      - name: patterns
+        description: "40-pattern cycling knowledge base — written during ingestion."

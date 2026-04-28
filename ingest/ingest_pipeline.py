@@ -10,11 +10,11 @@ import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import dlt
-from sentence_transformers import SentenceTransformer
-from qdrant_client import QdrantClient
-from qdrant_client.models import VectorParams, Distance, PointStruct
-from dotenv import load_dotenv
+import dlt  # noqa: E402
+from sentence_transformers import SentenceTransformer  # noqa: E402
+from qdrant_client import QdrantClient  # noqa: E402
+from qdrant_client.models import VectorParams, Distance, PointStruct  # noqa: E402
+from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv()
 
@@ -98,6 +98,14 @@ def run():
     with open(PATTERNS_PATH, encoding="utf-8") as f:
         patterns = json.load(f)
     load_into_qdrant(patterns)
+
+    # Step 3 — Mirror patterns into the runtime DuckDB for dbt
+    try:
+        from db.runtime import save_patterns
+        save_patterns(patterns)
+        print("   duckdb: patterns mirrored OK")
+    except Exception as exc:
+        print(f"   duckdb: pattern mirror skipped ({exc})")
 
     print("\n✅ Pipeline complete. Knowledge base ready.")
 

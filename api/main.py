@@ -1,7 +1,6 @@
 """
 CycleBeat — FastAPI REST API
-Production-ready backend decoupled from the Streamlit UI.
-Exposes session generation, demo access, and feedback endpoints.
+Exposes session generation, demo access, feedback endpoints, and Prometheus metrics.
 """
 
 import json
@@ -33,6 +32,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+    Instrumentator().instrument(app).expose(app)
+except ImportError:
+    pass
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "../data")
 DEMO_PATH = os.path.join(DATA_DIR, "demo_session.json")
