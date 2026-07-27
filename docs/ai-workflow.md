@@ -1,13 +1,13 @@
-# Journal du workflow IA
+# AI workflow log
 
-## Session 2026-07-27 — Phase transverse — Commit des artefacts agents et ADR
+## Session 2026-07-27 — Cross-cutting phase — Commit of agent artifacts and ADRs
 
-**Boucle** : context → audit working tree → edit → diff → commit → push
-**Outil/modèle** : Codex / GPT-5
-**Prompt initial** : « commit et push »
-**Itérations notables** : le repo était sur `main` avec des fichiers non suivis ; application de la règle projet "pas de commit direct sur main" en créant une branche dédiée avant push.
-**Corrigé par la review humaine** : fichiers déjà présents dans le working tree avant intervention ; aucune correction humaine supplémentaire dans cette session.
-**Partage des rôles** : écrit main humaine : artefacts agents, kit data-agents, ADR bonus / délégué : vérification Git, exclusion de `dbt/.user.yml`, création du journal, commit et push.
-**Vérification** : scan regex secrets sur les fichiers ajoutés ; `dbt/.user.yml` identifié comme fichier local non committé. `make lint` tenté, bloqué car `make` n'est pas disponible dans le shell Windows courant.
-**Leçon** : même pour un simple commit, vérifier les fichiers locaux évite de publier un identifiant utilisateur dbt.
-**À capitaliser dans CLAUDE.md** : ajouter explicitement `dbt/.user.yml` aux fichiers locaux à ne pas committer.
+**Loop**: context → audit working tree → edit → diff → commit → push
+**Tool/model**: Codex / GPT-5
+**Initial prompt**: "commit and push"
+**Notable iterations**: the repo was on `main` with untracked files; applied the project rule "no direct commit to main" by creating a dedicated branch before pushing.
+**Corrected by human review**: files were already present in the working tree before intervention; no additional human correction in this session.
+**Role split**: written by the human: agent artifacts, data-agents kit, bonus ADRs / delegated: Git verification, exclusion of `dbt/.user.yml`, log creation, commit and push.
+**Verification**: regex secret scan on the added files; `dbt/.user.yml` identified as a local uncommitted file. `make lint` attempted, blocked because `make` is not available in the current Windows shell.
+**Lesson**: even for a simple commit, checking local files avoids publishing a dbt user identifier.
+**To capitalize in CLAUDE.md**: explicitly add `dbt/.user.yml` to the local files not to commit.

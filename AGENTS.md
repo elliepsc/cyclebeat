@@ -1,13 +1,13 @@
-# AGENTS.md — CycleBeat (Codex / autres agents)
+# AGENTS.md — CycleBeat (Codex / other agents)
 
-La référence est **`CLAUDE.md`** à la racine — lis-le en entier et applique-le.
-Ce fichier n'est qu'un pointeur (Codex lit AGENTS.md) : ne jamais forker les règles.
+The reference is **`CLAUDE.md`** at the root — read it in full and apply it.
+This file is only a pointer (Codex reads AGENTS.md): never fork the rules.
 
-Rappels non négociables si CLAUDE.md est inaccessible :
-1. Sources de vérité : code du repo > Annexe E du plan V3 > plan V3 > plan V2 §6-9.
-2. Rien d'inventé : ambiguïté → question ou 2 options chiffrées.
-3. Une phase = une branche + une PR ; DoD = `make lint && make test-unit && make dbt` verts.
-4. Interdits : secrets/.env ; openapi.yaml modifié sans backend+front dans la même PR ;
-   SQL hors repositories/ et dbt/ ; dépendance non justifiée ; brique payante (coût zéro).
-5. Formules E.2 (confidence, normalisation BPM, zones) : normatives, aucune variante.
-6. Chaque session se termine par une entrée dans docs/ai-workflow.md.
+Non-negotiable reminders if CLAUDE.md is unreachable:
+1. Truth sources: repo code > Appendix E of the V3 plan > V3 plan > V2 plan §6-9.
+2. Nothing invented: ambiguity → question or 2 quantified options.
+3. One phase = one branch + one PR; DoD = `make lint && make test-unit && make dbt` green.
+4. Prohibitions: secrets/.env; openapi.yaml modified without backend+front in the same PR;
+   SQL outside repositories/ and dbt/; unjustified dependency; paid brick (zero cost).
+5. E.2 formulas (confidence, BPM normalization, zones): normative, no variant.
+6. Every session ends with an entry in docs/ai-workflow.md.
