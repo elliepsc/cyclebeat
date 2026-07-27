@@ -39,6 +39,7 @@ data/*.duckdb.wal
 dbt/target/
 dbt/dbt_packages/
 dbt/logs/
+dbt/.user.yml
 *.duckdb
 
 # OS / editor
