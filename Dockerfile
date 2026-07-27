@@ -8,9 +8,16 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Dépendances Python
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# uv : gestionnaire de dépendances et de toolchain
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/usr/local
+
+# Dépendances Python — résolution figée par uv.lock, groupes dev exclus
+COPY pyproject.toml uv.lock .python-version ./
+RUN uv sync --locked --no-dev
 
 # Code source
 COPY . .

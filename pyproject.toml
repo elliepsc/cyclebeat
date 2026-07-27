@@ -1,0 +1,79 @@
+[project]
+name = "cyclebeat"
+version = "0.1.0"
+description = "CycleBeat — BPM-driven cycling session planner (data pipeline + API + coaching UI)"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+
+# Migrated 1:1 from requirements.txt (phase 0, runbook step 4).
+# Constraint operators are preserved as-is; exact resolution lives in uv.lock.
+dependencies = [
+    # Core
+    "python-dotenv==1.0.1",
+    "pandas==2.2.2",
+    "requests>=2.32.0",
+    # LLM (Groq via OpenAI-compatible client)
+    "openai==1.30.1",
+    # Agents (v1 leftover — removed by runbook step 3)
+    "langgraph==0.2.16",
+    "langchain-core==0.2.43",
+    # Embeddings (local, no API key)
+    "sentence-transformers==3.0.1",
+    # Vector DB (v1 leftover — removed by runbook step 3)
+    "qdrant-client==1.9.1",
+    # Spotify (v1 leftover — removed by runbook step 3)
+    "spotipy==2.23.0",
+    # Ingestion
+    "dlt[duckdb]==0.5.4",
+    # Evaluation
+    "numpy==1.26.4",
+    # API
+    "fastapi==0.111.0",
+    "uvicorn==0.30.1",
+    "pydantic>=2.7,<3",
+    # Dashboard
+    "dash>=2.17.0",
+    "plotly>=5.22.0",
+    # dbt
+    "dbt-duckdb>=1.8.0",
+    # Monitoring
+    "prometheus-fastapi-instrumentator==6.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==8.2.2",
+    "ruff>=0.6.0",
+    "mypy>=1.11",
+]
+
+[tool.uv]
+# No installable package yet: the repo is still a set of top-level modules
+# (api/, db/, ingest/, ...). A `cyclebeat/` package arrives with the V3 rewrite.
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["dbt/dbt_packages", "dbt/target", "dbt/logs", "data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+# E.6 requires strict mypy on `cyclebeat/` and `api/`. `cyclebeat/` does not
+# exist yet, and today's `api/main.py` is v1 code rewritten contract-first in
+# phases 4-5 — so `make typecheck` is red on purpose and is not gating yet.
+python_version = "3.11"
+files = ["api"]
+strict = true
+follow_imports = "silent"
+
+[[tool.mypy.overrides]]
+# v1 leftovers without type stubs — scoped out until the phase 0 purge.
+module = ["qdrant_client.*", "spotipy.*", "langgraph.*", "dlt.*", "dash.*", "plotly.*"]
+ignore_missing_imports = true

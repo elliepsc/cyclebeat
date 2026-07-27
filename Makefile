@@ -1,17 +1,29 @@
-.PHONY: setup lint test-unit test-integration dbt ingest api front eval audit
+.PHONY: setup lock lint typecheck test-unit test-integration dbt ingest api front eval audit
 
-PYTHON ?= python
-PIP ?= $(PYTHON) -m pip
-DBT ?= dbt
+# Everything runs through uv: it provisions the Python 3.11 toolchain itself
+# (see .python-version) and resolves from uv.lock, so no global pip is involved.
+UV ?= uv
+RUN ?= $(UV) run
+DBT ?= $(RUN) dbt
 
 setup:
-	$(PIP) install -r requirements.txt
+	$(UV) sync
 
+lock:
+	$(UV) lock
+
+# Scoped to the code that survives the phase 0 purge (runbook step 3).
+# Widen to the whole repo once agents/, app/, evaluation/ and scripts/ are gone.
 lint:
-	$(PYTHON) -m compileall api agents app db ingest evaluation scripts
+	$(RUN) ruff check api db ingest
+
+# Not gating yet: strict mypy is red on the v1 api/main.py, which phases 4-5
+# rewrite contract-first. Configured now so the tooling is in place.
+typecheck:
+	$(RUN) mypy
 
 test-unit:
-	$(PYTHON) -m pytest
+	$(RUN) pytest
 
 test-integration:
 	@echo "No integration test suite is defined yet." && exit 1
@@ -20,16 +32,16 @@ dbt:
 	$(DBT) build --project-dir dbt --profiles-dir dbt
 
 ingest:
-	$(PYTHON) -m ingest.ingest_pipeline
+	$(RUN) python -m ingest.ingest_pipeline
 
 api:
-	$(PYTHON) -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+	$(RUN) uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 front:
 	@echo "No frontend is defined yet." && exit 1
 
 eval:
-	$(PYTHON) evaluation/session_eval.py
+	$(RUN) python evaluation/session_eval.py
 
 audit:
 	@echo "No audit target is defined yet." && exit 1
