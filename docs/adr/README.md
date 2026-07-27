@@ -19,9 +19,9 @@ Lightweight format (MADR-inspired): **Context → Options → Decision → Conse
 
 | ADR | Topic | Status |
 |---|---|---|
-| adr-001-v3-repositioning | Why V3 (purge Spotify/Qdrant, DE-first, AI Dev Tools target) | To write (Phase 0) |
-| adr-002-airflow | Airflow vs Prefect | To write (Phase 0) |
-| adr-003-render-no-disk | No Render disk: demo DB baked into the image (D3) | To write (Phase 0) |
+| [adr-001-v3-repositioning](adr-001-v3-repositioning.md) | Why V3 (purge Spotify/Qdrant, DE-first, AI Dev Tools target) | Accepted |
+| [adr-002-airflow](adr-002-airflow.md) | Airflow vs Prefect | Accepted |
+| [adr-003-render-no-disk](adr-003-render-no-disk.md) | No Render disk: demo DB baked into the image (D3) | Accepted |
 
 ### Bonus (B series — V3.2 plan) — **all `Gated`**
 > Common opening condition: the **core V3.1 must be deployed, live, and tested from a clean clone**,
@@ -35,6 +35,7 @@ Lightweight format (MADR-inspired): **Context → Options → Decision → Conse
 | [adr-b4-cloud-warehouse](adr-b4-cloud-warehouse.md) | B4 | Local DuckDB vs BigQuery/MotherDuck; Terraform IaC; cost guardrails | Proposed · Gated |
 | [adr-b5-cross-model-judge](adr-b5-cross-model-judge.md) | B5 | LLM judge on a model different from the generator | Proposed · Gated |
 | [adr-b6-k8s-optional](adr-b6-k8s-optional.md) | B6 | K8s outside the core track (only if DevOps target) | Proposed · Gated |
+| [adr-b7-dataops](adr-b7-dataops.md) | B7 | DataOps / data-reliability layer (gates, Elementary, alerting, runbook) | Proposed · Gated |
 
 ## Discipline reminder
 
