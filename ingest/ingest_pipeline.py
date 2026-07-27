@@ -11,10 +11,10 @@ import time
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import dlt  # noqa: E402
-from sentence_transformers import SentenceTransformer  # noqa: E402
-from qdrant_client import QdrantClient  # noqa: E402
-from qdrant_client.models import VectorParams, Distance, PointStruct  # noqa: E402
 from dotenv import load_dotenv  # noqa: E402
+from qdrant_client import QdrantClient  # noqa: E402
+from qdrant_client.models import Distance, PointStruct, VectorParams  # noqa: E402
+from sentence_transformers import SentenceTransformer  # noqa: E402
 
 load_dotenv()
 
@@ -51,8 +51,7 @@ def cycling_patterns_source(patterns_path: str = PATTERNS_PATH):
     @dlt.resource(name="cycling_patterns", write_disposition="replace")
     def patterns():
         with open(patterns_path, encoding="utf-8") as f:
-            for p in json.load(f):
-                yield p
+            yield from json.load(f)
     return patterns()
 
 

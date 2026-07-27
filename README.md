@@ -261,7 +261,8 @@ cyclebeat/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── render.yaml                  # One-click Render.com cloud deployment
-├── requirements.txt
+├── pyproject.toml               # Dependencies and tooling config (uv)
+├── uv.lock                      # Fully pinned, reproducible resolution
 └── .env.example
 ```
 
@@ -339,7 +340,7 @@ Set `QDRANT_URL` + `QDRANT_API_KEY` in your host's environment variables (replac
 cp .env.example .env
 
 # 2. (Spotify only) Generate OAuth token once, locally
-python scripts/spotify_auth.py
+uv run python scripts/spotify_auth.py
 
 # 3. Start everything
 docker compose up --build
@@ -350,14 +351,13 @@ Open http://localhost:8501 (Streamlit UI) and http://localhost:8000/docs (API)
 ### Option 2 — Local Python
 
 ```bash
-# 1. Create and activate a virtual environment
-python -m venv .venv
-source .venv/bin/activate          # macOS / Linux
-.venv\Scripts\Activate.ps1         # Windows (PowerShell)
-.venv\Scripts\activate.bat         # Windows (CMD)
+# 1. Install uv (once) — https://docs.astral.sh/uv/getting-started/installation/
+#    macOS / Linux : curl -LsSf https://astral.sh/uv/install.sh | sh
+#    Windows       : powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-# 2. Install dependencies
-pip install -r requirements.txt
+# 2. Create the environment and install dependencies
+#    uv provisions Python 3.11 itself and installs exactly what uv.lock pins.
+make setup                         # equivalent to: uv sync
 
 # 3. Copy and fill in your credentials
 cp .env.example .env
@@ -366,16 +366,19 @@ cp .env.example .env
 docker run -p 6333:6333 qdrant/qdrant
 
 # 5. Ingest the knowledge base
-python ingest/ingest_pipeline.py
+make ingest
 
 # 6. Run the app
-streamlit run app/streamlit_app.py
+uv run streamlit run app/streamlit_app.py
 ```
+
+There is no virtualenv to activate: `uv run <cmd>` executes inside the project
+environment, and every `make` target already wraps its command in `uv run`.
 
 ### Demo mode (no Spotify account needed)
 
 ```bash
-streamlit run app/streamlit_app.py
+uv run streamlit run app/streamlit_app.py
 # → select "Demo (no Spotify needed)" in the sidebar
 ```
 
@@ -409,7 +412,7 @@ QDRANT_API_KEY=your_qdrant_api_key
 
 ## Reproducibility
 
-- All dependency versions are pinned in `requirements.txt`
+- Dependencies are declared in `pyproject.toml` and fully pinned in `uv.lock` (committed); `uv sync` reproduces the exact environment, and `uv` also provisions the Python version from `.python-version`
 - `data/demo_session.json` is a complete pre-generated session — no Spotify credentials required to review the app
 - `data/cycling_patterns.json` is the full knowledge base — no external download needed
 - Docker Compose starts all services in the correct order with health checks

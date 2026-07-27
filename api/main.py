@@ -7,7 +7,6 @@ import json
 import os
 import sys
 from datetime import datetime
-from typing import Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -56,7 +55,7 @@ class SessionRequest(BaseModel):
 class FeedbackRequest(BaseModel):
     session_title: str
     rating: str  # "Great", "Okay", "Hard"
-    note: Optional[str] = ""
+    note: str | None = ""
 
 
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -136,7 +135,7 @@ def generate_session(req: SessionRequest):
         _persist_session(session, req.playlist_url)
         return session
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/feedback", status_code=201)
