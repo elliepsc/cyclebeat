@@ -26,6 +26,10 @@ Conflict detected → the highest source wins AND you flag it.
   line by line, exact order, no omission or merging. Every new behavior ships
   its test in the same commit. A step deemed useless →
   ask, don't delete.
+- **Re-verify, don't remember.** A runbook step believed "already done" is re-run
+  through its own verification command before being skipped. In particular:
+  `git ls-remote origin` before relying on an archive/safety branch, and cut work
+  branches from `origin/main` after a fetch, never from local `main`.
 - **Task end**: phase checklist updated in the PR + an ai-workflow.md entry
   (prompt/objective, what worked, what human review corrected). Invoke the
   `ai-workflow-scribe` subagent.
@@ -99,6 +103,14 @@ pacing ≥ 0.3 s. Any live eval: 5-case sample first.
   heuristic.
 - Music API quotas: never re-fetch in CI/review — committed demo snapshot.
 - Groq free tier ≈ 6,000 TPM: throttle via LiteLLM upstream, don't suffer the 429s.
+- Removing a heavy dependency can remove a runtime import something else was
+  silently relying on (dlt 0.5.4 needs `pkg_resources`/setuptools, previously
+  supplied by torch). After any dependency removal run `make test-unit` — lint
+  does not catch a break at package-import time.
+- When a phase exit criterion is a `grep` for forbidden names, the assertion
+  tests are the only place those names may appear.
+- No non-ASCII in the stdout of anything a Makefile target runs: the Windows
+  console is cp1252 and `make ingest` crashed on an emoji.
 - The v1 leftovers (Spotify, Qdrant, LangGraph, the v1 UI) were removed by the
   phase 0 purge. `POST /session/generate` is a deliberate 501 until the V3
   resolver (phase 2) and the contract-first rewrite (phase 4) land — do not
