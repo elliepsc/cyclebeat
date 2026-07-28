@@ -1,0 +1,53 @@
+name: CI
+
+# Phase 0 skeleton (runbook E.1 #6): lint + unit tests + dbt build.
+# Integration tests, evals and the deploy step are added by phases 8 and 9.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Zero cost (E.8): a new push cancels the superseded run instead of paying for it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      RUNTIME_DB_PATH: ${{ github.workspace }}/data/cyclebeat_runtime.duckdb
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      # uv provisions the Python 3.11 toolchain itself (.python-version) and
+      # installs strictly what uv.lock pins — a drifted lock fails here.
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Lint
+        run: make lint
+
+      - name: Unit tests
+        run: make test-unit
+
+      # dbt reads the runtime DuckDB, so the demo knowledge base
+      # (data/cycling_patterns.json, committed) is ingested first. No network,
+      # no API quota consumed (E.8).
+      - name: Ingest demo knowledge base
+        run: make ingest
+
+      - name: dbt build
+        run: make dbt

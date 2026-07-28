@@ -12,10 +12,10 @@ setup:
 lock:
 	$(UV) lock
 
-# Scoped to the code that survives the phase 0 purge (runbook step 3).
-# Widen to the whole repo once agents/, app/, evaluation/ and scripts/ are gone.
+# agents/, app/, evaluation/ and scripts/ are gone (runbook step 3), so this is
+# now the whole Python surface of the repo.
 lint:
-	$(RUN) ruff check api db ingest
+	$(RUN) ruff check api db ingest tests
 
 # Not gating yet: strict mypy is red on the v1 api/main.py, which phases 4-5
 # rewrite contract-first. Configured now so the tooling is in place.
@@ -40,8 +40,10 @@ api:
 front:
 	@echo "No frontend is defined yet." && exit 1
 
+# The v1 evaluation/ suite was purged (ADR-001); the V3 coach/copilot evals
+# arrive in phase 6. Fails explicitly rather than being absent (runbook step 4).
 eval:
-	$(RUN) python evaluation/session_eval.py
+	@echo "No evaluation suite is defined yet (phase 6)." && exit 1
 
 audit:
 	@echo "No audit target is defined yet." && exit 1

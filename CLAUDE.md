@@ -99,8 +99,10 @@ pacing ≥ 0.3 s. Any live eval: 5-case sample first.
   heuristic.
 - Music API quotas: never re-fetch in CI/review — committed demo snapshot.
 - Groq free tier ≈ 6,000 TPM: throttle via LiteLLM upstream, don't suffer the 429s.
-- The repo still contains v1 leftovers (Spotify, Qdrant, LangGraph, Streamlit)
-  until phase 0 is executed — build nothing on top of them.
+- The v1 leftovers (Spotify, Qdrant, LangGraph, the v1 UI) were removed by the
+  phase 0 purge. `POST /session/generate` is a deliberate 501 until the V3
+  resolver (phase 2) and the contract-first rewrite (phase 4) land — do not
+  reconnect it to anything before then.
 
 ## Phases
 
