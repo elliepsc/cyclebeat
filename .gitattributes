@@ -1,0 +1,18 @@
+# Line endings — LF everywhere, enforced for every clone.
+#
+# This repo is developed on Windows but runs on Linux: CI on ubuntu-latest, the
+# stack in Docker, and `make` from WSL. A CRLF worktree breaks GNU make with
+# "\r: command not found" and makes a Windows Git (autocrlf=true) and a WSL Git
+# (autocrlf=false) disagree on whether the tree is dirty, on the same checkout.
+# `text=auto` still auto-detects binary files and leaves them untouched.
+
+* text=auto eol=lf
+
+# Binary — never converted, never diffed as text.
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.duckdb binary
+*.parquet binary
