@@ -22,6 +22,7 @@ Lightweight format (MADR-inspired): **Context → Options → Decision → Conse
 | [adr-001-v3-repositioning](adr-001-v3-repositioning.md) | Why V3 (purge Spotify/Qdrant, DE-first, AI Dev Tools target) | Accepted |
 | [adr-002-airflow](adr-002-airflow.md) | Airflow vs Prefect | Accepted |
 | [adr-003-render-no-disk](adr-003-render-no-disk.md) | No Render disk: demo DB baked into the image (D3) | Accepted |
+| [adr-004-bpm-resolution-floor](adr-004-bpm-resolution-floor.md) | BPM floor: librosa on CC audio + CSV; Deezer/GetSongBPM as enrichment | Accepted (coverage pending phase-1 spike) |
 
 ### Bonus (B series — V3.2 plan) — **all `Gated`**
 > Common opening condition: the **core V3.1 must be deployed, live, and tested from a clean clone**,
