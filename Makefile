@@ -13,9 +13,10 @@ lock:
 	$(UV) lock
 
 # agents/, app/, evaluation/ and scripts/ are gone (runbook step 3), so this is
-# now the whole Python surface of the repo.
+# now the whole Python surface of the repo. `tools/` joined it in phase 1: without
+# it the spike code would escape the definition of done entirely.
 lint:
-	$(RUN) ruff check api db ingest tests
+	$(RUN) ruff check api db ingest tests tools
 
 # Not gating yet: strict mypy is red on the v1 api/main.py, which phases 4-5
 # rewrite contract-first. Configured now so the tooling is in place.
