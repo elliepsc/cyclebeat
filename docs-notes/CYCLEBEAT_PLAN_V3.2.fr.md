@@ -11,6 +11,71 @@
 
 ---
 
+## ÉTAT D'EXÉCUTION — mis à jour le 2026-07-29
+
+> **État mutable, pas du contenu de plan.** Cette section consigne où en est réellement
+> l'exécution ; le reste du fichier est la spécification bonus et ne bouge pas avec elle. Elle est
+> placée ici parce que la règle 3 du §0 conditionne chaque module bonus à l'avancement du core —
+> en particulier 3(b), *« le spike sources (phase 1) est vert »*. Vérifié contre
+> `origin/main` = `6e8039f`, pas de mémoire.
+
+### 🔴 Gate bonus : FERMÉE — aucun module B ne peut démarrer
+
+| Condition règle 3 du §0 | État |
+|---|---|
+| (a) Core V3.1 déployé, vivant, testé depuis un clone propre | ❌ Non démarré — les phases 2–11 sont intactes |
+| (b) Spike sources (phase 1) vert | ❌ **Outillage livré, mesure non lancée** — voir plus bas |
+| (c) `homebarista Track 1` soldé | ❓ Hors périmètre de ce repo, non vérifiable ici |
+
+### Fait
+
+| Phase | État | Preuve |
+|---|---|---|
+| **0. Purge & setup** | ✅ **FAITE**, critères de sortie atteints | Briques v1 purgées (Spotify/Qdrant/LangGraph/Dash) ; grep `spotipy\|qdrant\|langgraph` sur `api db ingest` vide sur `origin/main` ; hygiène secrets vérifiée et non supposée (`.env` jamais tracké) ; CI `build` **success** sur `main` ; ADR-001/002/003 committés. PR #3, #4. |
+| **1. Spike sources** | 🟡 **OUVERTE** — outillage mergé, **mesure non lancée** | PR #7 mergée : `tools/spike/` (script PEP 723 + cœur E.2 stdlib seul), 46 tests unitaires, 3 fixtures committées, runbook, squelette de rapport. **Le critère de sortie §15 — « rapport chiffré » — n'est PAS atteint.** |
+
+Transverse, hors numérotation des phases :
+
+- **Chaîne de truth-sources réparée** (PR #5). `CLAUDE.md` désignait
+  `docs-notes/CYCLEBEAT_PLAN_V3.md` comme truth-source #2 alors que `.gitignore` l'excluait :
+  quiconque clonait obtenait les règles sans leur source. Les plans, ce fichier et
+  `DECISIONS_SESSION_2026-07.md` sont désormais trackés.
+- **Filet de sécurité rendu immuable.** Tag annoté `v1-llm-zoomcamp-archive` → `c7bb63a`, poussé
+  et vérifié sur origin. La branche `archive/*` ne doit jamais passer au sweep : elle affiche
+  `0 commit hors de main` tout en étant le seul pointeur nommé vers l'arbre d'avant-purge.
+- **Environnement de dev et workflow de contribution documentés dans le README** (PR #6).
+  `make lint && make test-unit` n'était pas exécutable en l'état : Windows et WSL ne peuvent
+  partager `.venv/` (`Scripts/` vs `bin/`, `os error 5` sur drvfs), et la procédure
+  branche → PR → merge ne vivait que dans une note locale gitignored.
+
+### Reste à faire — dans l'ordre
+
+1. **Clore la phase 1. Bloquant, et cela demande une action humaine.** Selon E.7 le modèle
+   prépare et s'arrête ; un résultat de spike n'est jamais simulé.
+   - Créer un `client_id` Jamendo gratuit (**le décisif** — il débloque l'audio CC complet sur
+     lequel se mesure le socle ADR-004). Optionnellement une clé GetSongBPM, qui impose un
+     **backlink obligatoire**. Deezer ne demande aucune clé.
+   - Lancer `tools/spike/source_coverage.py` (commencer par un échantillon 5 cas, E.8), committer
+     `data/spike/raw_output.json`, remplir `docs/spikes/phase1-source-coverage.md` à partir de lui.
+   - Appliquer la règle §15 : **Deezer exploitable < 50 % → recommander le pivot CSV + Jamendo +
+     librosa**. Promouvoir ADR-004 de `Accepted (principle)` à `Accepted` chiffré, ou écrire
+     ADR-005 si librosa déçoit.
+2. **Phases 2–11 : non démarrées.** Rien ne peut commencer avant la clôture de la 1 — règle
+   bloquante du §15.
+3. **Dettes à solder** (ci-dessous).
+
+### Dettes ouvertes et conflits signalés
+
+| # | Élément | Pourquoi ça compte |
+|---|---|---|
+| 1 | **Entrées `docs/ai-workflow.md` manquantes pour les PR #6 et #7** | `CLAUDE.md` exige une entrée par PR ; c'est le critère 2 de la grille, le plus souvent perdu parce que rédigé a posteriori. Rattrapé dans la même PR que cet état. |
+| 2 | **Conflit de langue, non résolu** | Le §E.6 du V3 dit *« docs en français »* ; `CLAUDE.md` dit *« repo docs in English »*. Tranché vers l'anglais par l'ordre des truth-sources (le repo tel qu'il est — 12 ADR, README, ai-workflow sont anglais). **Le texte du plan n'a délibérément pas été édité** : amender une truth-source n'est pas un effet de bord. Décision à prendre. |
+| 3 | **La truth-source #4 n'existe pas** | `CLAUDE.md` cite `docs-notes/CYCLEBEAT_PLAN_V2.md §6-9` comme truth-source #4, et E.2 dit *« reprendre V2 §6 comme spec normative »*. **Ce fichier n'est pas dans le repo.** E.2 se suffit, donc rien n'a été inventé — mais la référence est invérifiable. |
+| 4 | **Deux désambiguïsations E.2** portées par `tools/spike/e2.py` | E.2 est écrit pour des entiers ; le code manipule des flottants. Les zones sont attribuées sur le BPM arrondi (aucun flottant ne tombe entre deux bandes), et comme E.2 fixe les *scores* de confidence mais pas quelle valeur devient `bpm_effective`, le spike prend la moyenne des sources concordantes et reporte l'arbitrage librosa dans son propre bucket plutôt que d'inventer un score. **Le resolver de phase 2 devra trancher proprement.** |
+| 5 | **Branches mergées non nettoyées** | `chore/dev-env-setup`, `docs/session-2026-07-sync`, `phase-1/source-spike` affichent toutes `0` commit hors de `main` et peuvent être supprimées. `archive/v1-llm-zoomcamp` affiche `0` aussi et ne doit **jamais** l'être. |
+
+---
+
 ## 0. NATURE DE V3.2 — À LIRE AVANT TOUT
 
 Trois règles non négociables, dans l'esprit reviewer senior :
