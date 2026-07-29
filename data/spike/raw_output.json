@@ -1,0 +1,941 @@
+{
+  "generated_at": "2026-07-29T17:43:42+0200",
+  "endpoints": {
+    "deezer_chart": "https://api.deezer.com/chart/0/tracks",
+    "deezer_track": "https://api.deezer.com/track/{track_id}",
+    "deezer_search": "https://api.deezer.com/search",
+    "jamendo_tracks": "https://api.jamendo.com/v3.0/tracks/",
+    "jamendo_tags": [
+      "electronic",
+      "rock",
+      "pop",
+      "energetic"
+    ],
+    "getsongbpm": "https://api.getsong.co/search/"
+  },
+  "http_calls": 0,
+  "cache_hits": 119,
+  "pacing_seconds": 0.3,
+  "measurements": [
+    {
+      "set_name": "mainstream",
+      "artist": "Shakira",
+      "title": "Dai Dai",
+      "deezer_id": "4015341011",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 117.45383522727273,
+      "librosa_window_b": 117.45383522727273,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Tame Impala",
+      "title": "Dracula (JENNIE Remix)",
+      "deezer_id": "3818963601",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 117.45383522727273,
+      "librosa_window_b": 117.45383522727273,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Mauvais Djo",
+      "title": "Pilé (Gospel)",
+      "deezer_id": "4020979891",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 129.19921875,
+      "librosa_window_b": 129.19921875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Temper City",
+      "title": "Self Aware",
+      "deezer_id": "3848530521",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 161.4990234375,
+      "librosa_window_b": 161.4990234375,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Leto",
+      "title": "Pineapple",
+      "deezer_id": "3940103361",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 123.046875,
+      "librosa_window_b": 123.046875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 30.058163265306124,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "ANOTR",
+      "title": "Talk To You (ft. 54 Ultra)",
+      "deezer_id": "3784724892",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 129.19921875,
+      "librosa_window_b": 129.19921875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Naïka",
+      "title": "ONE TRACK MIND",
+      "deezer_id": "3650665212",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 92.28515625,
+      "librosa_window_b": 123.046875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 30.01238095238095,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Mauvais Djo",
+      "title": "Maladie",
+      "deezer_id": "4045099331",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 129.19921875,
+      "librosa_window_b": 129.19921875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Daft Punk",
+      "title": "Get Lucky (Radio Edit - feat. Pharrell Williams and Nile Rodgers)",
+      "deezer_id": "66609426",
+      "deezer_bpm_raw": 116.13,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 117.45383522727273,
+      "librosa_window_b": 117.45383522727273,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Aya Nakamura",
+      "title": "Sexy Nana",
+      "deezer_id": "3995047821",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 99.38401442307692,
+      "librosa_window_b": 151.99908088235293,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 30.01238095238095,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Michael Jackson",
+      "title": "Billie Jean",
+      "deezer_id": "4603408",
+      "deezer_bpm_raw": 117.1,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 117.45383522727273,
+      "librosa_window_b": 117.45383522727273,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Mauvais Djo",
+      "title": "Pilé",
+      "deezer_id": "4072209741",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 129.19921875,
+      "librosa_window_b": 129.19921875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 30.01238095238095,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "GIMS",
+      "title": "Soleil",
+      "deezer_id": "3935276381",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 129.19921875,
+      "librosa_window_b": 129.19921875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 30.058163265306124,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "disiz",
+      "title": "melodrama",
+      "deezer_id": "3558373981",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 103.359375,
+      "librosa_window_b": 103.359375,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Michael Jackson",
+      "title": "Beat It",
+      "deezer_id": "4763165",
+      "deezer_bpm_raw": 138.7,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 135.99917763157896,
+      "librosa_window_b": 135.99917763157896,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "HUGEL",
+      "title": "Jamaican (Bam Bam)",
+      "deezer_id": "3889748961",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 123.046875,
+      "librosa_window_b": 123.046875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Jul",
+      "title": "Parfum quartier",
+      "deezer_id": "410780162",
+      "deezer_bpm_raw": 141.1,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 92.28515625,
+      "librosa_window_b": 95.703125,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 30.058163265306124,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Bad Bunny",
+      "title": "NUEVAYoL",
+      "deezer_id": "3171002981",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 107.666015625,
+      "librosa_window_b": 117.45383522727273,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 30.058163265306124,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Disney",
+      "title": "Zoo (De \"Zootopie 2\")",
+      "deezer_id": "3589389921",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 129.19921875,
+      "librosa_window_b": 129.19921875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "GIMS",
+      "title": "VIVE LA MONNAIE",
+      "deezer_id": "4155445532",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 129.19921875,
+      "librosa_window_b": 129.19921875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 30.058163265306124,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Ofenbach",
+      "title": "Four To The Floor",
+      "deezer_id": "4033909541",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 129.19921875,
+      "librosa_window_b": 129.19921875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 30.058163265306124,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "HUGEL",
+      "title": "Movin' To The Sun",
+      "deezer_id": "4019797791",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 123.046875,
+      "librosa_window_b": 123.046875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Adele",
+      "title": "Skyfall",
+      "deezer_id": "82715364",
+      "deezer_bpm_raw": 149.8,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 143.5546875,
+      "librosa_window_b": 143.5546875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Tom Odell",
+      "title": "Another Love",
+      "deezer_id": "65723649",
+      "deezer_bpm_raw": 116.8,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 117.45383522727273,
+      "librosa_window_b": 117.45383522727273,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Zaho",
+      "title": "Comme Caroline (feat. MC Solaar)",
+      "deezer_id": "3814069442",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 129.19921875,
+      "librosa_window_b": 129.19921875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "GIMS",
+      "title": "SPA",
+      "deezer_id": "3758716202",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 129.19921875,
+      "librosa_window_b": 129.19921875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 30.058163265306124,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Céline Dion",
+      "title": "J'irai où tu iras (with Jean-Jacques Goldman)",
+      "deezer_id": "4762941",
+      "deezer_bpm_raw": 175.2,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 172.265625,
+      "librosa_window_b": 172.265625,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Oasis",
+      "title": "Wonderwall",
+      "deezer_id": "985745702",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 117.45383522727273,
+      "librosa_window_b": 117.45383522727273,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Myles Smith",
+      "title": "Stargazing",
+      "deezer_id": "2758844701",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 123.046875,
+      "librosa_window_b": 123.046875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mainstream",
+      "artist": "Jul",
+      "title": "C'est la cité",
+      "deezer_id": "1426733732",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 123.046875,
+      "librosa_window_b": 123.046875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "Adele",
+      "title": "Someone Like You",
+      "deezer_id": "8086136",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 135.99917763157896,
+      "librosa_window_b": 135.99917763157896,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "Bill Withers",
+      "title": "Ain't No Sunshine",
+      "deezer_id": "2312047",
+      "deezer_bpm_raw": 159.6,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 161.4990234375,
+      "librosa_window_b": 161.4990234375,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "Dua Lipa",
+      "title": "Levitating",
+      "deezer_id": "1124841682",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 103.359375,
+      "librosa_window_b": 103.359375,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "Pharrell Williams",
+      "title": "Happy",
+      "deezer_id": "701326562",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 161.4990234375,
+      "librosa_window_b": 161.4990234375,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "Daft Punk",
+      "title": "Get Lucky",
+      "deezer_id": null,
+      "deezer_bpm_raw": null,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": null,
+      "librosa_window_b": null,
+      "audio_kind": null,
+      "audio_seconds": null,
+      "latency_ms": {
+        "deezer_search": 0.0
+      },
+      "errors": {
+        "deezer": "no search hit",
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "Michael Jackson",
+      "title": "Billie Jean",
+      "deezer_id": "4603408",
+      "deezer_bpm_raw": 117.1,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 117.45383522727273,
+      "librosa_window_b": 117.45383522727273,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "The Weeknd",
+      "title": "Blinding Lights",
+      "deezer_id": "908604612",
+      "deezer_bpm_raw": 170.84,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 86.1328125,
+      "librosa_window_b": 86.1328125,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "Calvin Harris",
+      "title": "Feels",
+      "deezer_id": "374051471",
+      "deezer_bpm_raw": 101.08,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 99.38401442307692,
+      "librosa_window_b": 103.359375,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "David Guetta",
+      "title": "Titanium",
+      "deezer_id": "62847142",
+      "deezer_bpm_raw": 126.05,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 123.046875,
+      "librosa_window_b": 123.046875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "Avicii",
+      "title": "Levels",
+      "deezer_id": "14383880",
+      "deezer_bpm_raw": 126,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 123.046875,
+      "librosa_window_b": 123.046875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "Swedish House Mafia",
+      "title": "Don't You Worry Child",
+      "deezer_id": "60842359",
+      "deezer_bpm_raw": 128.8,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 129.19921875,
+      "librosa_window_b": 129.19921875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "Queen",
+      "title": "Don't Stop Me Now",
+      "deezer_id": "4092329741",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 103.359375,
+      "librosa_window_b": 161.4990234375,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "AC/DC",
+      "title": "Thunderstruck",
+      "deezer_id": "92720102",
+      "deezer_bpm_raw": 133.4,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 135.99917763157896,
+      "librosa_window_b": 135.99917763157896,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "Foo Fighters",
+      "title": "The Pretender",
+      "deezer_id": "4311597",
+      "deezer_bpm_raw": 172.99,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 172.265625,
+      "librosa_window_b": 172.265625,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "Eminem",
+      "title": "Till I Collapse",
+      "deezer_id": "916445",
+      "deezer_bpm_raw": 85.6,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 123.046875,
+      "librosa_window_b": 172.265625,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "Kanye West",
+      "title": "Stronger",
+      "deezer_id": "1178682",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 103.359375,
+      "librosa_window_b": 103.359375,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "Darude",
+      "title": "Sandstorm",
+      "deezer_id": "11390027",
+      "deezer_bpm_raw": 136,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 135.99917763157896,
+      "librosa_window_b": 135.99917763157896,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "The Prodigy",
+      "title": "Firestarter",
+      "deezer_id": "62126191",
+      "deezer_bpm_raw": 141.6,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 143.5546875,
+      "librosa_window_b": 143.5546875,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "Justice",
+      "title": "Genesis",
+      "deezer_id": "10284907",
+      "deezer_bpm_raw": 116.8,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 135.99917763157896,
+      "librosa_window_b": 135.99917763157896,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    },
+    {
+      "set_name": "mixed",
+      "artist": "ODESZA",
+      "title": "Say My Name",
+      "deezer_id": "82182346",
+      "deezer_bpm_raw": 0,
+      "getsongbpm_bpm_raw": null,
+      "librosa_window_a": 117.45383522727273,
+      "librosa_window_b": 151.99908088235293,
+      "audio_kind": "deezer_preview",
+      "audio_seconds": 29.98625850340136,
+      "latency_ms": {
+        "deezer_search": 0.0,
+        "deezer": 0.0
+      },
+      "errors": {
+        "getsongbpm": "no GETSONGBPM_API_KEY set"
+      }
+    }
+  ]
+}

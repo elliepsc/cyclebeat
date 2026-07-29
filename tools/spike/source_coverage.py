@@ -70,8 +70,15 @@ JAMENDO_TAGS = ("electronic", "rock", "pop", "energetic")
 
 WINDOW_A = (30.0, 60.0)  # 30 s -> 90 s
 WINDOW_B = (90.0, 60.0)  # 90 s -> 150 s
-MIN_WINDOW_SECONDS = 15.0  # below this a window cannot carry a tempo estimate
 SAMPLE_RATE = 22050
+
+# Shortest window that can carry a tempo estimate. Derived from E.2's own lower bound
+# rather than picked: at 70 BPM, 10 s contains ~11.7 beats, enough for the autocorrelation
+# to lock on. It was 15 s in the first run, and that silently broke the measurement — a
+# Deezer preview is 29.986 s, just under the resulting 2x15 s floor, so four of five tracks
+# were reported `too_short` over 14 milliseconds. A threshold on the instrument must not be
+# able to decide the result.
+MIN_WINDOW_SECONDS = 10.0
 
 
 @dataclass
@@ -154,15 +161,39 @@ class PacedSession:
 
 
 def _tempo(y, sr: int) -> float | None:
-    """Single tempo estimate. librosa moved `tempo` between 0.9 and 0.10 — support both."""
+    """Single tempo estimate. librosa moved `tempo` between 0.9 and 0.10 — support both.
+
+    Probed against librosa 0.10.2.post1 rather than assumed, after two wrong guesses:
+    `hasattr(librosa.feature, "rhythm")` is **False** (the submodule is not exposed as an
+    attribute until explicitly imported), so both `getattr(..., None)` and `try/except
+    AttributeError` on that path fall through to the deprecated `librosa.beat.tempo`,
+    which warns today and disappears in librosa 1.0. `librosa.feature.tempo` is the
+    re-export that actually resolves.
+    """
     import librosa
 
-    estimator = getattr(getattr(librosa, "feature", None), "rhythm", None)
-    func = getattr(estimator, "tempo", None) or librosa.beat.tempo
+    func = getattr(librosa.feature, "tempo", None) or librosa.beat.tempo
     values = func(y=y, sr=sr)
     if values is None or len(values) == 0:
         return None
     return float(values[0])
+
+
+def plan_windows(duration: float) -> list[tuple[float, float]]:
+    """Choose the two (offset, length) windows to estimate tempo on.
+
+    Pure and side-effect free so it can be tested without librosa — the first run proved
+    this logic can silently decide the result on its own.
+
+    Full tracks get the two disjoint 60 s windows; anything shorter is split in half; a
+    track too short for two viable windows returns [] and is reported `too_short`.
+    """
+    if duration >= WINDOW_B[0] + MIN_WINDOW_SECONDS:
+        return [WINDOW_A, WINDOW_B]
+    if duration >= 2 * MIN_WINDOW_SECONDS:
+        half = duration / 2
+        return [(0.0, half), (half, half)]
+    return []
 
 
 def analyse_audio(path: Path) -> tuple[float | None, float | None, float | None]:
@@ -175,14 +206,8 @@ def analyse_audio(path: Path) -> tuple[float | None, float | None, float | None]
     import librosa
 
     duration = float(librosa.get_duration(path=str(path)))
-
-    if duration >= WINDOW_B[0] + MIN_WINDOW_SECONDS:
-        windows = [WINDOW_A, WINDOW_B]
-    elif duration >= 2 * MIN_WINDOW_SECONDS:
-        # Short track (a Deezer 30 s preview lands here): split it in two halves.
-        half = duration / 2
-        windows = [(0.0, half), (half, half)]
-    else:
+    windows = plan_windows(duration)
+    if not windows:
         return None, None, duration
 
     estimates: list[float | None] = []
