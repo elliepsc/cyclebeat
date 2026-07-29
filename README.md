@@ -1,3 +1,12 @@
+> ⚠️ **STATUS — this README describes the v1 (LLM-Zoomcamp) product and is superseded.**
+> The project is being repositioned to a DE-first data product targeting the AI Dev Tools grid
+> (see `docs/adr/adr-001-v3-repositioning.md` and `docs-notes/CYCLEBEAT_PLAN_V3.md`). Known
+> discrepancies with the current/target code: **Streamlit → Dash** (`app/coaching.py`,
+> `app/dashboard.py`; `app/streamlit_app.py` does **not** exist), **Spotify → Deezer/Jamendo/CSV**
+> (Spotify audio endpoints are dead for new apps), **Qdrant is being purged**, **Prefect → Airflow**
+> (ADR-002). A full rewrite is a Phase-0 deliverable. Do not follow the run instructions below as-is.
+> Session audit & decisions: `docs-notes/DECISIONS_SESSION_2026-07.md`.
+
 # 🚴 CycleBeat — Agentic Music-to-Coaching Session Designer
 
 [![Python](https://img.shields.io/badge/python-3.11-blue)](Dockerfile)
