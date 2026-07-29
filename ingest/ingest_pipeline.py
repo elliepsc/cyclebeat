@@ -1,48 +1,34 @@
 """
 Ingestion Pipeline — CycleBeat
-Loads cycling patterns into Qdrant via dlt staging + sentence-transformers embeddings.
+Stages the cycling patterns knowledge base into DuckDB via dlt.
+
+Phase 0 purge: the Qdrant vector loading step is gone (ADR-001). What remains is
+the dlt staging plus the mirror into the runtime DuckDB that dbt reads. The V3
+multi-source ingestion (Deezer/Jamendo/CSV → lake) replaces this in phase 2.
 """
 
 import json
 import os
 import sys
-import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import dlt  # noqa: E402
 from dotenv import load_dotenv  # noqa: E402
-from qdrant_client import QdrantClient  # noqa: E402
-from qdrant_client.models import Distance, PointStruct, VectorParams  # noqa: E402
-from sentence_transformers import SentenceTransformer  # noqa: E402
+
+from db.runtime import save_patterns  # noqa: E402
 
 load_dotenv()
 
 PATTERNS_PATH = os.path.join(os.path.dirname(__file__), "../data/cycling_patterns.json")
-COLLECTION_NAME = "cycling_patterns"
-VECTOR_SIZE = 384
-
-_qdrant_url = os.getenv("QDRANT_URL")
-if _qdrant_url:
-    qdrant = QdrantClient(url=_qdrant_url, api_key=os.getenv("QDRANT_API_KEY"))
-else:
-    qdrant = QdrantClient(
-        host=os.getenv("QDRANT_HOST", "localhost"),
-        port=int(os.getenv("QDRANT_PORT", 6333))
-    )
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
+PIPELINE_NAME = "cyclebeat_ingestion"
+DATASET_NAME = "cycling_data"
 
 
-def wait_for_qdrant(max_attempts: int = 30, delay_s: float = 2.0):
-    """Wait until Qdrant accepts requests before loading the collection."""
-    for attempt in range(1, max_attempts + 1):
-        try:
-            qdrant.get_collections()
-            return
-        except Exception as exc:
-            if attempt == max_attempts:
-                raise RuntimeError("Qdrant did not become ready in time") from exc
-            time.sleep(delay_s)
+def load_patterns(patterns_path: str = PATTERNS_PATH) -> list[dict]:
+    """Read the cycling patterns knowledge base from disk."""
+    with open(patterns_path, encoding="utf-8") as f:
+        return json.load(f)
 
 
 @dlt.source
@@ -50,69 +36,33 @@ def cycling_patterns_source(patterns_path: str = PATTERNS_PATH):
     """dlt source that yields all cycling patterns from the JSON knowledge base."""
     @dlt.resource(name="cycling_patterns", write_disposition="replace")
     def patterns():
-        with open(patterns_path, encoding="utf-8") as f:
-            yield from json.load(f)
+        yield from load_patterns(patterns_path)
     return patterns()
 
 
-def load_into_qdrant(patterns: list):
-    """Recreate the Qdrant collection and upsert all pattern vectors."""
-    existing = [c.name for c in qdrant.get_collections().collections]
-    if COLLECTION_NAME in existing:
-        qdrant.delete_collection(COLLECTION_NAME)
+def run(patterns_path: str = PATTERNS_PATH) -> int:
+    """Run the ingestion pipeline: dlt staging, then mirror into the runtime DuckDB.
 
-    qdrant.create_collection(
-        collection_name=COLLECTION_NAME,
-        vectors_config=VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE)
-    )
-
-    points = []
-    for i, p in enumerate(patterns):
-        text = (
-            f"Phase: {p['phase']}. Label: {p['label']}. "
-            f"Effort: {p['effort']}. Tags: {', '.join(p['tags'])}. "
-            f"Instruction: {p['instruction']}"
-        )
-        points.append(PointStruct(id=i, vector=embedder.encode(text).tolist(), payload=p))
-
-    qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
-    print(f"✅ {len(points)} patterns ingested into Qdrant.")
-
-
-def run():
-    """Run the full ingestion pipeline: dlt staging then Qdrant vector loading."""
-    print("🚀 CycleBeat ingestion pipeline...\n")
+    Returns the number of patterns ingested.
+    """
+    print("CycleBeat ingestion pipeline...")
 
     # Step 1 — dlt staging into DuckDB
     pipeline = dlt.pipeline(
-        pipeline_name="cyclebeat_ingestion",
+        pipeline_name=PIPELINE_NAME,
         destination="duckdb",
-        dataset_name="cycling_data"
+        dataset_name=DATASET_NAME,
     )
-    pipeline.run(cycling_patterns_source())
+    pipeline.run(cycling_patterns_source(patterns_path))
     print("   dlt: staging OK")
 
-    # Step 2 — Load vectors into Qdrant
-    wait_for_qdrant()
-    with open(PATTERNS_PATH, encoding="utf-8") as f:
-        patterns = json.load(f)
-    load_into_qdrant(patterns)
+    # Step 2 — Mirror patterns into the runtime DuckDB read by dbt
+    patterns = load_patterns(patterns_path)
+    save_patterns(patterns)
+    print(f"   duckdb: {len(patterns)} patterns mirrored OK")
 
-    # Step 3 — Mirror patterns into the runtime DuckDB for dbt
-    try:
-        from db.runtime import save_patterns
-        save_patterns(patterns)
-        print("   duckdb: patterns mirrored OK")
-    except Exception as exc:
-        print(f"   duckdb: pattern mirror skipped ({exc})")
-
-    print("\n✅ Pipeline complete. Knowledge base ready.")
-
-    # Signal for docker-compose healthcheck (Linux/Docker only)
-    try:
-        open("/tmp/ingest_done", "w").close()
-    except OSError:
-        pass
+    print("Pipeline complete. Knowledge base ready.")
+    return len(patterns)
 
 
 if __name__ == "__main__":

@@ -20,8 +20,9 @@ app = FastAPI(
     title="CycleBeat API",
     version="1.0.0",
     description=(
-        "REST API for CycleBeat — generates timestamped cycling coaching "
-        "sessions from a Spotify playlist using hybrid RAG + LLM."
+        "REST API for CycleBeat — serves cycling coaching sessions, demo "
+        "content and feedback. Session generation is being rebuilt on the V3 "
+        "BPM resolver; the contract-first rewrite lands in phase 4."
     ),
 )
 
@@ -49,7 +50,6 @@ FEEDBACK_PATH = os.path.join(DATA_DIR, "feedback.json")
 class SessionRequest(BaseModel):
     playlist_url: str
     use_llm: bool = True
-    use_hybrid: bool = True
 
 
 class FeedbackRequest(BaseModel):
@@ -83,14 +83,6 @@ def _save_feedback(entry: dict):
         pass
 
 
-def _persist_session(session: dict, playlist_url: str = ""):
-    try:
-        from db.runtime import save_session as _db_save
-        _db_save(session, playlist_url)
-    except Exception:
-        pass
-
-
 # ─── ROUTES ──────────────────────────────────────────────────────────────────
 
 @app.get("/health")
@@ -118,24 +110,25 @@ def get_generated_session():
     return _load_json(GENERATED_PATH)
 
 
-@app.post("/session/generate", status_code=201)
+@app.post("/session/generate", status_code=501)
 def generate_session(req: SessionRequest):
     """
-    Generate a full coaching session from a Spotify playlist URL.
-    Runs the complete pipeline: playlist fetch -> RAG -> LLM generation.
-    Saves the result to data/generated_session.json and returns it.
+    Not implemented — session generation is being rebuilt.
+
+    The V1 implementation (Spotify playlist fetch -> Qdrant hybrid RAG ->
+    LangGraph orchestrator) was removed by the phase 0 purge (ADR-001). The
+    replacement is the V3 BPM resolver (phase 2) exposed through a
+    contract-first endpoint (phase 4). Until then this endpoint fails
+    explicitly rather than silently serving demo data as if it were generated.
     """
-    try:
-        from agents.orchestrator import generate_session as _generate
-        session = _generate(
-            req.playlist_url,
-            use_llm=req.use_llm,
-            use_hybrid=req.use_hybrid,
-        )
-        _persist_session(session, req.playlist_url)
-        return session
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+    raise HTTPException(
+        status_code=501,
+        detail=(
+            "Session generation is not implemented yet: the V1 pipeline was "
+            "purged (ADR-001) and the V3 BPM resolver is not built. "
+            "Use GET /session/demo for a pre-generated session."
+        ),
+    )
 
 
 @app.post("/feedback", status_code=201)
