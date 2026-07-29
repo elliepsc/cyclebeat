@@ -11,6 +11,68 @@
 
 ---
 
+## EXECUTION STATUS — updated 2026-07-29
+
+> **Mutable state, not plan content.** This section records where execution actually stands; the
+> rest of this file is the bonus specification and does not change with it. It sits here because
+> §0 rule 3 gates every bonus module on core progress — in particular 3(b), *"the source spike
+> (phase 1) is green"*. Verified against `origin/main` = `6e8039f`, not from memory.
+
+### 🔴 Bonus gate: CLOSED — no B-module may start
+
+| §0 rule 3 condition | State |
+|---|---|
+| (a) V3.1 core deployed, live, tested from a clean clone | ❌ Not started — phases 2–11 are untouched |
+| (b) Source spike (phase 1) green | ❌ **Tooling shipped, measurement not run** — see below |
+| (c) `homebarista Track 1` closed | ❓ Out of this repo's scope, not verifiable here |
+
+### Done
+
+| Phase | State | Evidence |
+|---|---|---|
+| **0. Purge & setup** | ✅ **DONE**, exit criteria met | v1 bricks purged (Spotify/Qdrant/LangGraph/Dash); `spotipy\|qdrant\|langgraph` grep over `api db ingest` empty on `origin/main`; secret hygiene verified, not assumed (`.env` never tracked); CI `build` **success** on `main`; ADR-001/002/003 committed. PRs #3, #4. |
+| **1. Source spike** | 🟡 **OPEN** — tooling merged, **measurement not run** | PR #7 merged: `tools/spike/` (PEP 723 script + stdlib-only E.2 core), 46 unit tests, 3 committed fixtures, runbook, report skeleton. **§15 exit criterion — "rapport chiffré" — is NOT met.** |
+
+Cross-cutting, outside the phase numbering:
+
+- **Truth-source chain repaired** (PR #5). `CLAUDE.md` named `docs-notes/CYCLEBEAT_PLAN_V3.md` as
+  truth-source #2 while `.gitignore` excluded it: anyone cloning got the rules without the source.
+  The plans, this file and `DECISIONS_SESSION_2026-07.md` are now tracked.
+- **Safety net made immutable.** Annotated tag `v1-llm-zoomcamp-archive` → `c7bb63a`, pushed and
+  verified on origin. The `archive/*` branch must never be swept: it reports `0 commits not on
+  main` while being the only named pointer to the pre-purge tree.
+- **Development environment and contributing workflow documented in the README** (PR #6).
+  `make lint && make test-unit` was not runnable out of the box: Windows and WSL cannot share
+  `.venv/` (`Scripts/` vs `bin/`, `os error 5` on drvfs), and the branch → PR → merge procedure
+  lived only in a gitignored local note.
+
+### Remaining — in order
+
+1. **Close phase 1. Blocking, and it needs a human.** Per E.7 the model prepares and stops; a
+   spike result is never simulated.
+   - Create a free Jamendo `client_id` (**the decisive one** — it unlocks the full CC audio the
+     ADR-004 floor is measured on). Optionally a GetSongBPM key, which carries a **mandatory
+     backlink obligation**. Deezer needs no key.
+   - Run `tools/spike/source_coverage.py` (start with a 5-case sample, E.8), commit
+     `data/spike/raw_output.json`, fill `docs/spikes/phase1-source-coverage.md` from it.
+   - Apply the §15 rule: **Deezer usable < 50 % → recommend the CSV + Jamendo + librosa pivot**.
+     Promote ADR-004 from `Accepted (principle)` to `Accepted` with figures, or write ADR-005 if
+     librosa disappoints.
+2. **Phases 2–11: not started.** Nothing may start before 1 closes — §15's blocking rule.
+3. **Debts to settle** (below).
+
+### Open debts and flagged conflicts
+
+| # | Item | Why it matters |
+|---|---|---|
+| 1 | **`docs/ai-workflow.md` entries missing for PR #6 and #7** | `CLAUDE.md` requires one entry per PR; it is grid criterion 2, the one most often lost by being written after the fact. Backfilled in the same PR as this status. |
+| 2 | **Language conflict, unresolved** | §E.6 of V3 says *"docs en français"*; `CLAUDE.md` says *"repo docs in English"*. Resolved toward English by truth-source order (the repo as it is — 12 ADRs, README, ai-workflow are English). **The plan text was deliberately not edited**: amending a truth-source is not a side effect. Needs a decision. |
+| 3 | **Truth-source #4 does not exist** | `CLAUDE.md` names `docs-notes/CYCLEBEAT_PLAN_V2.md §6-9` as truth-source #4 and E.2 says *"reprendre V2 §6 comme spec normative"*. **That file is not in the repository.** E.2 is self-sufficient, so nothing was invented — but the reference is unverifiable. |
+| 4 | **Two E.2 disambiguations** carried by `tools/spike/e2.py` | E.2 is written for integers; the code handles floats. Zones are assigned on the rounded BPM (no float falls between bands), and since E.2 fixes confidence *scores* but not which value becomes `bpm_effective`, the spike takes the mean of agreeing sources and reports librosa arbitration as its own bucket rather than inventing a score. **The phase-2 resolver must settle this properly.** |
+| 5 | **Merged branches not swept** | `chore/dev-env-setup`, `docs/session-2026-07-sync`, `phase-1/source-spike` all report `0` commits not on `main` and can be deleted. `archive/v1-llm-zoomcamp` reports `0` too and must **never** be deleted. |
+
+---
+
 ## 0. NATURE OF V3.2 — READ FIRST
 
 Three non-negotiable rules, in the senior-lead reviewer spirit:
