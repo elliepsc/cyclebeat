@@ -361,14 +361,29 @@ of this affects the repository.
 `make` is already available; only `uv`'s environment path needs redirecting, to a
 location on the Linux filesystem (also much faster than `/mnt/c`).
 
-**One-time setup.** Append the helper to `~/.bashrc`:
+**What the helper does.** `uv` reads the environment variable `UV_PROJECT_ENVIRONMENT`
+to decide *where* to put the project's virtual environment. Unset, it defaults to
+`.venv/` in the repo — the Windows one. The helper points it at
+`~/.venvs/<repo-name>` instead, on the Linux side, so both operating systems keep their
+own environment and neither tries to overwrite the other's. It does nothing else: no
+install, no repo state change. It is a convenience wrapper around one `export`.
+
+**One-time setup.** Append it to `~/.bashrc`. The snippet below is copy-pasteable as-is
+by anyone, on any clone path — it derives both the repo root and the environment name
+from git, so there is nothing to edit:
 
 ```bash
 cat >> ~/.bashrc <<'EOF'
 
+# Give this repo a Linux-side uv environment (see README, "Development environment").
 cyclebeat() {
-  cd "/mnt/c/Users/Ellie Pro/Documents/Projets Data/projets_github/cyclebeat" || return
-  export UV_PROJECT_ENVIRONMENT="$HOME/.venvs/cyclebeat"
+  local root
+  root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+    echo "cyclebeat: run this from inside the clone" >&2
+    return 1
+  }
+  cd "$root" || return 1
+  export UV_PROJECT_ENVIRONMENT="$HOME/.venvs/$(basename "$root")"
 }
 EOF
 ```
@@ -377,13 +392,14 @@ Then reload it once: `source ~/.bashrc`.
 
 **Every new terminal.** The function is defined in every shell, but the `export` it
 performs only lives in the shell that ran it — so it has to be *called*, not merely
-defined. First command in any new terminal:
+defined. It is not something that "expires" and has to be recreated; it just has to be
+invoked once per terminal. `cd` into the clone, then:
 
 ```bash
 cyclebeat
 ```
 
-It moves you to the repo and exports `UV_PROJECT_ENVIRONMENT`. Only then:
+It moves you to the repo root and exports `UV_PROJECT_ENVIRONMENT`. Only then:
 
 ```bash
 make lint && make test-unit
@@ -396,6 +412,10 @@ environment (`uv` provisions CPython 3.11 itself); later runs reuse it.
 Why a function rather than a plain `export` in `~/.bashrc`: `UV_PROJECT_ENVIRONMENT` is
 not scoped to a project, so exporting it globally would make *every* uv project on the
 machine share this one environment.
+
+**Not on Windows+WSL?** On a plain Linux or macOS clone none of this applies — there is
+only one `uv`, `.venv/` is native, and `make lint && make test-unit` works directly
+after `make setup`.
 
 ### Windows PowerShell
 
@@ -411,6 +431,86 @@ The first installs `make` (`ezwinports` 4.4.1 — prefer it over `GnuWin32.Make`
 `%USERPROFILE%\.local\bin`, which is not on `PATH` by default, so every Makefile target
 would otherwise fail on `uv: command not found`. **Reopen the terminal**, then run
 `make lint && make test-unit` — no per-session step is needed on this side.
+
+---
+
+## Contributing workflow — branches and pull requests
+
+One phase (or chore) = one branch = one pull request. **`main` never receives a direct
+commit**, and it only ever moves through a merged PR — a local merge produces no
+reviewable diff and no CI gate on the result.
+
+### The loop
+
+Run these one at a time; the placeholders (`<slug>`) are meant to be replaced, not
+pasted.
+
+```bash
+git checkout main
+git fetch origin
+git merge --ff-only origin/main
+```
+
+```bash
+git checkout -b phase-N/<slug>
+```
+
+Work, then commit and publish **the branch** — never `git push origin main`:
+
+```bash
+git add -A
+git commit -m "feat: ..."
+git push -u origin phase-N/<slug>
+```
+
+`--ff-only` is deliberate: plain `git pull` silently creates a merge commit when local
+`main` has drifted, while `--ff-only` refuses and tells you. Always `git fetch` before
+cutting a branch, or the staleness is baked into it.
+
+### Merging the pull request yourself
+
+Pushing a branch does not open a PR. Two ways to do it:
+
+**In the browser.** The `git push` output prints a
+`https://github.com/<owner>/<repo>/pull/new/<branch>` link — open it, click **Create
+pull request**, then **Merge pull request** and **Confirm merge**. Nothing you type in
+the terminal can substitute for this step: `git fetch` only copies what GitHub already
+has, so until the merge happens server-side, `origin/main` will not move.
+
+**With the GitHub CLI**, if `gh` is installed and authenticated (`gh auth login`):
+
+```bash
+gh pr create --fill
+gh pr merge --merge
+```
+
+Check state before merging with `gh pr view --json state,mergeable,mergeableState` —
+`mergeable: true` plus `mergeableState: clean` means no conflict and no blocking check.
+
+### After the merge
+
+```bash
+git checkout main
+git fetch origin
+git merge --ff-only origin/main
+```
+
+Then, and only then, clean up the branch — **after proving it holds nothing unique**:
+
+```bash
+git rev-list --count origin/main..origin/phase-N/<slug>   # MUST print 0
+git branch -d phase-N/<slug>
+git push origin --delete phase-N/<slug>
+```
+
+Never delete on the strength of "the PR says merged": a commit pushed to a branch
+*after* its PR was merged exists nowhere else, and the PR still shows green. Any count
+other than `0` is the number of commits deletion would destroy — inspect them with
+`git log origin/main..origin/<branch>` and land them first. Use `-d`, never `-D`: `-d`
+refuses to delete an unmerged branch, which is exactly the check worth keeping.
+
+`archive/*` branches are the exception and must never be swept: they can report `0`
+while being the only named pointer to a tree whose files were later removed on `main`.
 
 ---
 
