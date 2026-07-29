@@ -1,9 +1,17 @@
+# Planning notes. Most of docs-notes/ is raw working material and stays local;
+# the files a reader needs to follow the repo's own truth-source chain are
+# committed. `docs-notes/*` (not `docs-notes/`) is required: git cannot
+# re-include a file whose parent directory is excluded.
+docs-notes/*
+!docs-notes/CYCLEBEAT_PLAN_V3.md
+!docs-notes/CYCLEBEAT_PLAN_V3.2.md
+!docs-notes/CYCLEBEAT_PLAN_V3.2.fr.md
+!docs-notes/DECISIONS_SESSION_2026-07.md
+!docs-notes/PEER_REVIEW.md
+
 BACKLOG.md
 ROADMAP_V1_RENFORCEE.md
 ROADMAP_V2_FULL.md
-PEER_REVIEW.md
-docs-notes/
-FUTURE_WORK.md
 chatgpt.md
 
 # Environment and local secrets
