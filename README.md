@@ -340,6 +340,80 @@ Set `QDRANT_URL` + `QDRANT_API_KEY` in your host's environment variables (replac
 
 ---
 
+## Development environment
+
+> Unlike the rest of this README, this section describes the **current V3 toolchain**
+> and is expected to survive the Phase-0 rewrite. It exists because the definition of
+> done — `make lint && make test-unit` — is not runnable out of the box on this setup.
+
+The repo sits on a Windows path and is used from two shells: Windows (PowerShell) and
+WSL at `/mnt/c/...`. **They cannot share the same virtual environment.** Windows `uv`
+creates `.venv/` with a `Scripts/` layout; Linux `uv` expects `bin/`, considers the
+environment foreign, and tries to recreate it — which fails on the `drvfs` mount with
+`failed to remove directory .venv/Scripts: Input/output error (os error 5)`.
+
+Each OS therefore gets its own environment. **Do not delete `.venv/`** to "fix" the
+error: it is the Windows environment and it is working. `.venv/` is gitignored, so none
+of this affects the repository.
+
+### WSL — recommended
+
+`make` is already available; only `uv`'s environment path needs redirecting, to a
+location on the Linux filesystem (also much faster than `/mnt/c`).
+
+**One-time setup.** Append the helper to `~/.bashrc`:
+
+```bash
+cat >> ~/.bashrc <<'EOF'
+
+cyclebeat() {
+  cd "/mnt/c/Users/Ellie Pro/Documents/Projets Data/projets_github/cyclebeat" || return
+  export UV_PROJECT_ENVIRONMENT="$HOME/.venvs/cyclebeat"
+}
+EOF
+```
+
+Then reload it once: `source ~/.bashrc`.
+
+**Every new terminal.** The function is defined in every shell, but the `export` it
+performs only lives in the shell that ran it — so it has to be *called*, not merely
+defined. First command in any new terminal:
+
+```bash
+cyclebeat
+```
+
+It moves you to the repo and exports `UV_PROJECT_ENVIRONMENT`. Only then:
+
+```bash
+make lint && make test-unit
+```
+
+Skipping `cyclebeat` is the single most common failure: `uv` falls back to the Windows
+`.venv/` and raises the `os error 5` above. The first run after setup builds the Linux
+environment (`uv` provisions CPython 3.11 itself); later runs reuse it.
+
+Why a function rather than a plain `export` in `~/.bashrc`: `UV_PROJECT_ENVIRONMENT` is
+not scoped to a project, so exporting it globally would make *every* uv project on the
+machine share this one environment.
+
+### Windows PowerShell
+
+Two prerequisites, both missing on a fresh setup:
+
+```powershell
+winget install --id ezwinports.make
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path","User") + ";$env:USERPROFILE\.local\bin", "User")
+```
+
+The first installs `make` (`ezwinports` 4.4.1 — prefer it over `GnuWin32.Make`, still on
+3.81). The second puts `uv` on `PATH`: the installer drops it in
+`%USERPROFILE%\.local\bin`, which is not on `PATH` by default, so every Makefile target
+would otherwise fail on `uv: command not found`. **Reopen the terminal**, then run
+`make lint && make test-unit` — no per-session step is needed on this side.
+
+---
+
 ## Setup & Run
 
 ### Option 1 — Docker (recommended)
