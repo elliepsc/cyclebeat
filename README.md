@@ -388,7 +388,19 @@ cyclebeat() {
 EOF
 ```
 
-Then reload it once: `source ~/.bashrc`.
+**Then reload the file, once:**
+
+```bash
+source ~/.bashrc
+```
+
+`cat >>` appended text to a file on disk; it did not change the shell you are currently
+sitting in, which read `~/.bashrc` when it started. `source` re-reads the file into
+that running shell, which is what makes `cyclebeat` exist without opening a new
+terminal. You only ever need this on the terminal where you ran the `cat >>` — every
+terminal opened afterwards reads `~/.bashrc` on startup and gets the function for free.
+
+If `cyclebeat` returns `command not found`, that reload is what is missing.
 
 **Every new terminal.** The function is defined in every shell, but the `export` it
 performs only lives in the shell that ran it — so it has to be *called*, not merely
@@ -467,25 +479,62 @@ git push -u origin phase-N/<slug>
 `main` has drifted, while `--ff-only` refuses and tells you. Always `git fetch` before
 cutting a branch, or the staleness is baked into it.
 
-### Merging the pull request yourself
+### Opening and merging the pull request
 
-Pushing a branch does not open a PR. Two ways to do it:
+**When.** Right after `git push -u origin <branch>` succeeds. Pushing a branch does
+*not* open a pull request, and opening one does *not* merge it — they are three
+separate actions, and the last two happen **on GitHub, not in your terminal**.
 
-**In the browser.** The `git push` output prints a
-`https://github.com/<owner>/<repo>/pull/new/<branch>` link — open it, click **Create
-pull request**, then **Merge pull request** and **Confirm merge**. Nothing you type in
-the terminal can substitute for this step: `git fetch` only copies what GitHub already
-has, so until the merge happens server-side, `origin/main` will not move.
+This is the step most easily mistaken for a bug. `git fetch` only downloads what GitHub
+already has, and `git merge --ff-only origin/main` only replays what `fetch` brought
+back. Neither can merge anything: the merge is computed server-side, by GitHub, when
+somebody clicks the button. Until then `origin/main` does not move, and re-running
+those commands will keep printing `Already up to date.` — correctly. If you are waiting
+for a file to appear on `main`, the thing to do is not another git command; it is the
+click below.
 
-**With the GitHub CLI**, if `gh` is installed and authenticated (`gh auth login`):
+**How, in the browser.** The `git push` output prints the exact link to use:
+
+```
+remote: Create a pull request for '<branch>' on GitHub by visiting:
+remote:      https://github.com/<owner>/<repo>/pull/new/<branch>
+```
+
+1. Open that URL. If the branch already has a PR, GitHub redirects you to it instead.
+2. Check the base branch reads `base: main` and the diff is what you expect.
+3. Click **Create pull request**. The PR now exists — still unmerged.
+4. On the PR page, click the green **Merge pull request**, then **Confirm merge**.
+5. GitHub offers **Delete branch**. Do not use it here — see the deletion proof below.
+
+Only once step 4 is done does `origin/main` move, and only then is it worth running
+`git fetch` locally.
+
+**How, with the GitHub CLI**, if `gh` is installed and authenticated (`gh auth login`):
 
 ```bash
 gh pr create --fill
+```
+
+```bash
 gh pr merge --merge
 ```
 
-Check state before merging with `gh pr view --json state,mergeable,mergeableState` —
-`mergeable: true` plus `mergeableState: clean` means no conflict and no blocking check.
+Check state before merging:
+
+```bash
+gh pr view --json state,mergeable,mergeableState
+```
+
+`state: OPEN` with `mergeable: true` and `mergeableState: clean` means no conflict and
+no blocking check — the merge will go through. `mergeableState: dirty` means conflicts
+to resolve first, `blocked` means a required check or review is missing.
+
+**Verifying it actually landed.** Never trust the PR badge alone — confirm against the
+remote:
+
+```bash
+git fetch origin && git cat-file -e origin/main:path/to/expected/file && echo "on main"
+```
 
 ### After the merge
 
