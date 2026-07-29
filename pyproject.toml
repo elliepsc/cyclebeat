@@ -5,35 +5,27 @@ description = "CycleBeat — BPM-driven cycling session planner (data pipeline +
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 
-# Migrated 1:1 from requirements.txt (phase 0, runbook step 4).
+# Migrated 1:1 from requirements.txt (phase 0, runbook step 4), then reduced to
+# what the purged repo actually imports (phase 0, runbook step 3).
 # Constraint operators are preserved as-is; exact resolution lives in uv.lock.
 dependencies = [
     # Core
     "python-dotenv==1.0.1",
-    "pandas==2.2.2",
     "requests>=2.32.0",
-    # LLM (Groq via OpenAI-compatible client)
-    "openai==1.30.1",
-    # Agents (v1 leftover — removed by runbook step 3)
-    "langgraph==0.2.16",
-    "langchain-core==0.2.43",
-    # Embeddings (local, no API key)
-    "sentence-transformers==3.0.1",
-    # Vector DB (v1 leftover — removed by runbook step 3)
-    "qdrant-client==1.9.1",
-    # Spotify (v1 leftover — removed by runbook step 3)
-    "spotipy==2.23.0",
     # Ingestion
     "dlt[duckdb]==0.5.4",
-    # Evaluation
-    "numpy==1.26.4",
+    # dlt 0.5.4 imports `pkg_resources` at import time without declaring
+    # setuptools. It used to arrive transitively via torch/sentence-transformers;
+    # purging those broke `import dlt`, so it is now declared explicitly.
+    # Dropped when dlt is upgraded in phase 2.
+    "setuptools>=70,<81",
+    # Warehouse — imported directly by db/runtime.py, so declared explicitly
+    # instead of relying on the dlt[duckdb]/dbt-duckdb transitive pin.
+    "duckdb==0.10.2",
     # API
     "fastapi==0.111.0",
     "uvicorn==0.30.1",
     "pydantic>=2.7,<3",
-    # Dashboard
-    "dash>=2.17.0",
-    "plotly>=5.22.0",
     # dbt
     "dbt-duckdb>=1.8.0",
     # Monitoring
@@ -63,6 +55,9 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# The repo is still a set of top-level modules (api/, db/, ingest/), not an
+# installed package, so the project root has to be importable from the tests.
+pythonpath = ["."]
 
 [tool.mypy]
 # E.6 requires strict mypy on `cyclebeat/` and `api/`. `cyclebeat/` does not
@@ -74,6 +69,6 @@ strict = true
 follow_imports = "silent"
 
 [[tool.mypy.overrides]]
-# v1 leftovers without type stubs — scoped out until the phase 0 purge.
-module = ["qdrant_client.*", "spotipy.*", "langgraph.*", "dlt.*", "dash.*", "plotly.*"]
+# Third-party packages without bundled type stubs.
+module = ["dlt.*"]
 ignore_missing_imports = true

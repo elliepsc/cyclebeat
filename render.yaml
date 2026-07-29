@@ -1,19 +1,14 @@
 ###############################################################################
 # CycleBeat — Render.com deployment config
 #
-# Prerequisites (set once in Render dashboard → Environment):
-#   OPENAI_API_KEY     → your Groq API key
-#   OPENAI_BASE_URL    → https://api.groq.com/openai/v1
-#   MODEL_NAME         → llama-3.3-70b-versatile
-#   QDRANT_URL         → your Qdrant Cloud cluster URL
-#   QDRANT_API_KEY     → your Qdrant Cloud API key
-#   SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI (optional)
+# Phase 0 purge (ADR-001): the Spotify/Qdrant env vars and the UI service are
+# gone — those bricks no longer exist in the repo. What remains is the API
+# service. The full deployment pipeline (auto-deploy on green main, React
+# front) is phase 9; this file is kept coherent, not finished.
 #
 # Deploy:
-#   1. Create a free Qdrant Cloud cluster at https://cloud.qdrant.io
-#   2. Connect this repo to Render (New → Blueprint)
-#   3. Fill env vars in the Render dashboard
-#   4. Render builds and deploys both services automatically
+#   1. Connect this repo to Render (New → Blueprint)
+#   2. Render builds and deploys the API service
 ###############################################################################
 
 services:
@@ -27,53 +22,8 @@ services:
     plan: free
     healthCheckPath: /health
     envVars:
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_BASE_URL
-        value: https://api.groq.com/openai/v1
-      - key: MODEL_NAME
-        value: llama-3.3-70b-versatile
-      - key: QDRANT_URL
-        sync: false
-      - key: QDRANT_API_KEY
-        sync: false
-      - key: SPOTIFY_CLIENT_ID
-        sync: false
-      - key: SPOTIFY_CLIENT_SECRET
-        sync: false
-      - key: SPOTIFY_REDIRECT_URI
-        sync: false
+      - key: RUNTIME_DB_PATH
+        value: /app/data/cyclebeat_runtime.duckdb
     startCommand: >
-      sh -c "python ingest/ingest_pipeline.py &&
+      sh -c "python -m ingest.ingest_pipeline &&
              uvicorn api.main:app --host 0.0.0.0 --port $PORT"
-
-  # ── Streamlit UI ───────────────────────────────────────────────────────────
-  - type: web
-    name: cyclebeat-app
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    plan: free
-    healthCheckPath: /_stcore/health
-    envVars:
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_BASE_URL
-        value: https://api.groq.com/openai/v1
-      - key: MODEL_NAME
-        value: llama-3.3-70b-versatile
-      - key: QDRANT_URL
-        sync: false
-      - key: QDRANT_API_KEY
-        sync: false
-      - key: SPOTIFY_CLIENT_ID
-        sync: false
-      - key: SPOTIFY_CLIENT_SECRET
-        sync: false
-      - key: SPOTIFY_REDIRECT_URI
-        sync: false
-    startCommand: >
-      streamlit run app/streamlit_app.py
-      --server.port $PORT
-      --server.address 0.0.0.0
-      --server.headless true

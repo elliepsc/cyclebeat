@@ -1,26 +1,12 @@
 services:
 
-  # ── Vector Database ──────────────────────────────────────────────
-  qdrant:
-    image: qdrant/qdrant:v1.9.2
-    container_name: cyclebeat_qdrant
-    ports:
-      - "6333:6333"
-    volumes:
-      - qdrant_data:/qdrant/storage
-
   # ── Ingestion (one-shot) ─────────────────────────────────────────
   ingest:
     build: .
     container_name: cyclebeat_ingest
-    command: python ingest/ingest_pipeline.py
-    env_file: .env
+    command: python -m ingest.ingest_pipeline
     environment:
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
       - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
-    depends_on:
-      - qdrant
     volumes:
       - ./data:/app/data
     restart: "no"
@@ -47,62 +33,19 @@ services:
     container_name: cyclebeat_api
     ports:
       - "8000:8000"
-    env_file: .env
     environment:
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
       - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
     depends_on:
-      qdrant:
-        condition: service_started
       ingest:
         condition: service_completed_successfully
     volumes:
       - ./data:/app/data
-      - ./.spotify_cache:/app/.spotify_cache
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # ── Dash Coaching UI ─────────────────────────────────────────────
-  app:
-    build: .
-    container_name: cyclebeat_app
-    ports:
-      - "8501:8501"
-    env_file: .env
-    environment:
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
-      - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
-    depends_on:
-      qdrant:
-        condition: service_started
-      ingest:
-        condition: service_completed_successfully
-    volumes:
-      - ./data:/app/data
-      - ./.spotify_cache:/app/.spotify_cache
-    command: python app/coaching.py
-
-  # ── Plotly Dash Monitoring Dashboard ────────────────────────────
-  dashboard:
-    build: .
-    container_name: cyclebeat_dashboard
-    ports:
-      - "8050:8050"
-    env_file: .env
-    environment:
-      - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
-    depends_on:
-      ingest:
-        condition: service_completed_successfully
-    volumes:
-      - ./data:/app/data
-    command: python app/dashboard.py
 
   # ── Prometheus ───────────────────────────────────────────────────
   prometheus:
@@ -131,5 +74,4 @@ services:
       - prometheus
 
 volumes:
-  qdrant_data:
   grafana_data:

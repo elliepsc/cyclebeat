@@ -2,34 +2,29 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Dépendances système
+# System dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# uv : gestionnaire de dépendances et de toolchain
+# uv: dependency and toolchain manager
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/usr/local
 
-# Dépendances Python — résolution figée par uv.lock, groupes dev exclus
+# Python dependencies — resolution frozen by uv.lock, dev groups excluded
 COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --locked --no-dev
 
-# Code source
+# Source code
 COPY . .
 
-# Ingestion de la knowledge base au démarrage
-RUN python -c "import json; print('Build OK')"
+# The image serves the API. The React UI lands in phase 5 with its own service.
+EXPOSE 8000
 
-EXPOSE 8501
+HEALTHCHECK CMD curl --fail http://localhost:8000/health || exit 1
 
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
-
-CMD ["streamlit", "run", "app/streamlit_app.py", \
-     "--server.port=8501", \
-     "--server.address=0.0.0.0", \
-     "--server.headless=true"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
