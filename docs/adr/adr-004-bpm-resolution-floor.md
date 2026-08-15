@@ -1,8 +1,15 @@
 # ADR-004 — BPM resolution floor: librosa on CC audio, APIs as enrichment
 
-- **Status**: Accepted (principle) · coverage figures pending the phase-1 source spike
+- **Status**: **Superseded by [ADR-005](adr-005-deezer-preview-backbone.md)** (2026-08-14)
 - **Date**: 2026-07-28
 - **Owner**: Ellie
+
+> **Superseded — do not implement.** The decisive test this ADR called for (librosa on **full
+> Creative-Commons Jamendo audio**) was never run: the owner declined the Jamendo account, and the
+> catalogue turned out to be the wrong one for the product. ADR-005 re-fixes the backbone to
+> **librosa on the Deezer 30 s preview** — a path the phase-1 spike had already measured — and drops
+> the Jamendo dependency. The text below is kept unedited as the record of the decision that was
+> reversed; ADR-005 only makes sense read against it.
 
 ## Context
 
