@@ -1,6 +1,6 @@
 # ADR-004 — BPM resolution floor: librosa on CC audio, APIs as enrichment
 
-- **Status**: **Superseded by [ADR-005](adr-005-deezer-preview-backbone.md)** (2026-08-14)
+- **Status**: **Superseded by [ADR-005](adr-005-deezer-preview-backbone.md)** — supersede effective 2026-08-15 (ADR-005 written 2026-08-14)
 - **Date**: 2026-07-28
 - **Owner**: Ellie
 
