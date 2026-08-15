@@ -1,26 +1,34 @@
 # Phase-1 spike — real BPM coverage of the free sources
 
-> ## ⚠️ PARTIAL RUN — Deezer measured, the decisive ADR-004 test was NOT
+> ## FINAL — complete for the backbone that was retained (ADR-005)
 >
-> Two of the three sets ran. **`indie_cc` — librosa on full Creative-Commons audio, the
-> decisive test of the ADR-004 floor — was not measured**, because the owner chose not to
-> create a Jamendo account. GetSongBPM was not measured either (no key). Those rows read
-> `NOT MEASURED` throughout and are never counted as zero.
+> This report is closed. It measures the path the project actually builds on: **`librosa` computed
+> locally on the Deezer public 30 s preview**, with the Deezer `bpm` field as cross-validation
+> enrichment. Both sets that exercise that path ran and are reported below.
 >
-> The §15 go/no-go below is therefore **decidable for Deezer and undecided for the floor**.
+> **`indie_cc` (librosa on full Creative-Commons Jamendo audio) is not "pending" — it is moot.**
+> It was the decisive test of **ADR-004**, which [ADR-005](../adr/adr-005-deezer-preview-backbone.md)
+> supersedes: the CC catalogue is the wrong one for the product and the Jamendo dependency was
+> dropped. GetSongBPM was not measured either (no key); it remains an unadopted optional source.
+> Those rows read `NOT MEASURED` throughout and are never counted as zero.
 
-- **Date of run**: 2026-07-29
-- **Sets measured**: `mainstream` (30 tracks), `mixed` (20 tracks) — `indie_cc` skipped
+- **Date of run**: 2026-07-29 · **report finalized**: 2026-08-15 under ADR-005
+- **Sets measured**: `mainstream` (30 tracks), `mixed` (20 tracks) — 50 records total
+- **Audio analysed**: Deezer 30 s preview for 49/50 records (1 track had no preview)
 - **Raw evidence**: `data/spike/raw_output.json` (committed)
 - **Reproduce offline**: `uv run --script tools/spike/source_coverage.py --report`
 
 ## Why this spike exists
 
-ADR-004 decided the *shape* of BPM resolution — `librosa` on full Creative-Commons audio plus
-CSV as the **guaranteed floor**, `Deezer.bpm` and `GetSongBPM` as **enrichment** that raises
-confidence but never blocks — and deferred its coverage figures to this spike. §15 makes the
-exit criterion blocking: *"Rapport chiffré ; si Deezer < 50% exploitable → pivot CSV+Jamendo
-assumé"*.
+§15 makes the phase-1 exit criterion blocking, with a quantified decision rule:
+*"Rapport chiffré ; si Deezer < 50 % exploitable → pivot assumé"*. The spike had to establish,
+on real playlists and before the phase-2 resolver was built on top of an assumption, how much BPM
+the free sources actually deliver.
+
+It was designed under ADR-004, which made **librosa on full CC audio the guaranteed floor**. The
+figures below triggered the §15 rule, and the pivot that followed is ADR-005: **Deezer `bpm` is
+demoted from candidate backbone to enrichment, and the backbone becomes librosa on the Deezer
+preview** — real mainstream catalogue, no gate-kept account.
 
 ## Method
 
@@ -28,7 +36,6 @@ assumé"*.
 |---|---|---|---|
 | `mainstream` | `GET https://api.deezer.com/chart/0/tracks?limit=30` then `/track/{id}` | 30 | Deezer 30 s preview |
 | `mixed` | `data/spike/playlist_mixed.csv` → `/search` → `/track/{id}` | 20 | Deezer 30 s preview |
-| `indie_cc` | `GET https://api.jamendo.com/v3.0/tracks/` | **0 — NOT MEASURED** | would have been full CC track |
 
 A Deezer `bpm` counts only when present **and** `!= 0`. E.2 normalization
 (`while bpm > 180: /= 2`, `while bpm < 70: *= 2`) is applied before any comparison, so a
@@ -44,7 +51,7 @@ cross-source agreement, reused rather than invented.
 |---|---:|---:|---:|---:|---:|
 | `mainstream` | 30 | **7 — 23.3 %** | NOT MEASURED | 26 — 86.7 % | 5/6 — 83.3 % |
 | `mixed` | 20 | **13 — 65.0 %** | NOT MEASURED | 15 — 75.0 % | 8/11 — 72.7 % |
-| `indie_cc` | — | NOT MEASURED | NOT MEASURED | **NOT MEASURED** | NOT MEASURED |
+| **Total** | **50** | **20 — 40.0 %** | NOT MEASURED | **41 — 82.0 %** | 13/17 — 76.5 % |
 
 ### librosa breakdown
 
@@ -52,16 +59,7 @@ cross-source agreement, reused rather than invented.
 |---|---:|---:|---:|
 | `mainstream` | 26 | 4 | 0 |
 | `mixed` | 15 | 4 | 1 |
-
-### Confidence distribution (E.2)
-
-| Set | `cross_validated` 0.9 | `single_source` 0.6 | `librosa_arbitrated` | `review` 0.3 | `unknown` (NULL) |
-|---|---:|---:|---:|---:|---:|
-| `mainstream` | 5 | 21 | 1 | 0 | 3 |
-| `mixed` | 8 | 6 | 3 | 0 | 3 |
-
-With only two effective sources (Deezer + librosa), most tracks land on `single_source` 0.6.
-`cross_validated` 0.9 requires two sources that agree, so it is capped by Deezer's coverage.
+| **Total** | **41** | **8** | **1** |
 
 ### Latency
 
@@ -71,14 +69,46 @@ Observed during the live fetch earlier the same day — **not reproducible from 
 artifact, and recorded as an observation only**: ≈ 63 ms median (`mainstream`), ≈ 78 ms
 (`mixed`). Deezer latency is not a constraint at this scale.
 
+## Expected confidence distribution under the ADR-005 backbone (E.2)
+
+This is the figure the phase-2 resolver plans against. Recomputed from
+`data/spike/raw_output.json` over the two measured sets (50 tracks), applying the E.2 rule
+unchanged:
+
+| Set | `cross_validated` 0.9 | `single_source` 0.6 | `librosa_arbitrated` | `review` 0.3 | `unknown` (NULL) |
+|---|---:|---:|---:|---:|---:|
+| `mainstream` | 5 | 21 | 1 | 0 | 3 |
+| `mixed` | 8 | 6 | 3 | 0 | 3 |
+| **Total** | **13** | **27** | **4** | **0** | **6** |
+
+| Method | Tracks | Share of the catalogue |
+|---|---:|---:|
+| **`single_source` 0.6** | **27** | **54 %** |
+| `cross_validated` 0.9 | 13 | 26 % |
+| `unknown` — bpm NULL, excluded from the planner | 6 | 12 % |
+| librosa-arbitrated (score unfixed by E.2) | 4 | 8 % |
+| `review` 0.3 | 0 | 0 % |
+
+**`single_source` 0.6 is the dominant regime, and that is a structural property of the ADR-005
+backbone, not an accident of this sample.** With two effective sources, a track reaches
+`cross_validated` 0.9 only when Deezer *also* carries a usable `bpm` — so 0.9 is capped by the
+Deezer field's own coverage, which is **23.3 % on current chart releases** against **65 % on
+classics**. The practical consequence for phase 2 and for the product: **confidence is lowest
+exactly on the new music a rider builds a playlist from today**, and any demo assembled from
+classics will overstate the confidence the product actually achieves.
+
+Two figures the planner must be dimensioned for: **12 % of tracks resolve to no BPM at all**
+(bpm NULL → excluded, counted in `mart_data_quality`), and **8 % land in librosa arbitration**,
+whose score E.2 does not fix — see open point 3.
+
 ## Verdict
 
 ### §15 rule: **PIVOT triggered** — Deezer 23.3 % on `mainstream`, well below 50 %
 
-The rule is met literally on the set it was written for. Taken alone, **Deezer is not a
-viable backbone.**
+The rule is met literally on the set it was written for. Taken alone, **Deezer is not a viable
+backbone.** ADR-005 is that pivot, taken against these numbers rather than by default.
 
-### The finding that matters most: Deezer's coverage splits by catalogue age
+### The finding that drove the pivot: Deezer's coverage splits by catalogue age
 
 | Set | Composition | Deezer `bpm` usable |
 |---|---|---:|
@@ -89,50 +119,50 @@ Nearly a threefold gap on the same field, same API, same run. The observed contr
 catalogue age; **that is a hypothesis, not a proven cause** — genre, popularity and region
 were not controlled for, and 50 tracks is a small sample. But the direction is unambiguous and
 it is the operationally relevant one: **BPM is sparsest exactly on the new releases a user
-would build a playlist from today.** A demo on classics would look far healthier than the
-product actually is.
+would build a playlist from today.**
 
-### librosa on 30 s previews: high, but weaker evidence than it looks
+### librosa on 30 s previews: 82 % overall, with a documented error bar
 
-86.7 % / 75 % usable is well above the "70-80 %, unreliable alone" framing ADR-004 supersedes.
-**Two caveats keep this from settling the question:**
+41/50 usable (86.7 % / 75.0 % per set) is well above the "70-80 %, unreliable alone" framing the
+v1 backlog carried. Under ADR-005 this is the backbone figure, so its two weaknesses are stated
+as **accepted costs, not as blockers** — they are why the real-world number sits *below* 82 %:
 
 1. **The two windows are not really independent.** On a 30 s preview they are two adjacent
-   15 s halves of the same clip. On a full track they would be 30-90 s and 90-150 s — genuinely
-   disjoint musical passages. Agreement between adjacent halves is a weaker claim than the
-   ADR-004 floor test would produce.
+   15 s halves of the same clip. On a full track they would be genuinely disjoint musical
+   passages, and agreement between them would be a stronger claim than what is measured here.
 2. **A preview is a curated 30 s excerpt**, usually the most rhythmically stable part of the
    track. It flatters a tempo estimator.
 
-So this number supports the ADR-004 direction — librosa is not the weak link — but it **does
-not substitute for the unmeasured full-CC-audio test**.
+Neither is fixable within the ADR-005 backbone — the preview *is* the audio the project is
+allowed to analyse — so both are carried forward as known bias, in ADR-005 "Honest costs".
+A third, structural: a 30 s preview yields a **per-track BPM only** (tempo assumed ≈ constant);
+the full track duration comes from Deezer metadata.
 
 ### Cross-validation works when it has something to cross-validate
 
 Where Deezer and librosa both produced a value, they agreed within ±3 BPM after normalization
-in 83.3 % / 72.7 % of cases. The E.2 design is sound; it is starved of sources, not broken.
+in 13/17 cases — 76.5 % (83.3 % / 72.7 % per set). The E.2 design is sound; it is starved of
+sources, not broken.
 
 ## Consequences
 
-1. **ADR-004 is not contradicted; it is reinforced on its weakest premise.** Deezer as
-   enrichment rather than backbone is exactly what these numbers describe.
-2. **ADR-004 cannot yet be promoted** from `Accepted (principle)` to `Accepted` with figures:
-   its central claim — the floor holds on full CC audio with no third-party API — remains
-   **unmeasured**.
-3. **Dropping the CC source has a measured cost.** Deezer + librosa-on-preview leaves most
-   tracks at `single_source` 0.6, and on current chart music Deezer contributes to barely a
-   quarter of them. A decision to stay Deezer-only should be taken against these numbers, and
-   recorded in an ADR-005 superseding ADR-004 — not by default.
-4. **Phase 2 has an open input**: E.2 fixes confidence *scores* but not which value becomes
-   `bpm_effective`, nor the score after librosa arbitration (1 and 3 tracks here). The resolver
-   must settle it.
-
-## What would close this spike
-
-Measuring `indie_cc`: a free Jamendo `client_id`, then
-`uv run --script tools/spike/source_coverage.py --fetch --set indie_cc`. Roughly ten minutes,
-and it is the only missing number. Any legally-held local audio works too — ADR-004 says *"full
-Creative-Commons Jamendo audio (or any legally-held local audio)"*.
+1. **ADR-004 is superseded, not refuted on librosa.** Its central claim — that librosa is not
+   the weak link — is supported by these numbers. What failed is its *catalogue*: the CC/Jamendo
+   floor was the wrong music for the product and required an account the owner declined, so its
+   decisive test was never run and phase 1 could not close on a measurement.
+2. **ADR-005 is taken against measured figures, not by default.** Deezer + librosa-on-preview
+   leaves 54 % of tracks at `single_source` 0.6, and on current chart music Deezer contributes to
+   barely a quarter of them. That cost is accepted knowingly, in exchange for a real, recognizable
+   catalogue and a single source for metadata *and* playback.
+3. **Robustness is deliberately lower than under ADR-004.** The backbone now depends on Deezer
+   continuing to serve public preview URLs — the exact failure mode Spotify demonstrated in 2024.
+   Mitigation is in ADR-005: permanent preview caching in the lake (E.8), CSV + manual as the
+   independent floor.
+4. **Phase 2 has two open inputs**, both visible in the table above: E.2 fixes confidence *scores*
+   but not which value becomes `bpm_effective`, nor the score after librosa arbitration (4 tracks,
+   8 %). The resolver must settle both.
+5. **Phase-1 exit criterion (§15) is MET**: numbered report finalized on the retained backbone,
+   ADR-005 accepted, ADR-004 superseded. Phase 2 may open.
 
 ## Cost (E.8)
 
@@ -161,11 +191,15 @@ library instead of guessing — `librosa.feature.tempo` is the re-export that re
 ## Open points
 
 1. **Language conflict.** §E.6 of the V3 plan says *"docs en français"*; `CLAUDE.md` says
-   *"repo docs in English"*. Resolved toward English by truth-source order. The plan text was
-   deliberately not edited — amending a truth-source is not a side effect. Needs a decision.
-2. **Truth-source #4 does not exist.** `CLAUDE.md` names `docs-notes/CYCLEBEAT_PLAN_V2.md
-   §6-9`; the file is not in the repository. E.2 is self-sufficient, so nothing was invented,
-   but the reference is unverifiable.
+   *"repo docs in English"*. Resolved toward English by truth-source order. Still not arbitrated
+   in the plan itself.
+2. **The committed raw output predates the instrument.** `data/spike/raw_output.json` records
+   `jamendo_tracks` / `jamendo_tags` in its `endpoints` provenance block, because it was written
+   before the Jamendo path was pruned from `tools/spike/source_coverage.py` under ADR-005. The
+   artifact is unchanged and every figure above still recomputes from it; the provenance block
+   simply describes the instrument as it stood on 2026-07-29.
 3. **Two E.2 disambiguations** are carried by `tools/spike/e2.py`, both marked in the code:
    zones assigned on the rounded BPM, and the mean of agreeing sources as `bpm_effective`.
-4. **GetSongBPM carries a mandatory backlink obligation** — to weigh if it is ever adopted.
+   Neither is normative — the phase-2 resolver must fix them, together with the arbitration score.
+4. **GetSongBPM carries a mandatory backlink obligation** — to weigh if it is ever adopted. It
+   stays in the `raw.resolutions.source` enum, unmeasured and unadopted.
