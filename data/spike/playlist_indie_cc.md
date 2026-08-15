@@ -1,5 +1,13 @@
 # Spike fixture — Profile 3: Indie / Creative Commons
 
+> **SUPERSEDED — this set was never run and will not be.**
+> It was the decisive test of **ADR-004**, which
+> [ADR-005](../../docs/adr/adr-005-deezer-preview-backbone.md) supersedes: the Creative-Commons
+> catalogue is the wrong music for the product and required a Jamendo account the owner declined.
+> The BPM backbone is now `librosa` on the **Deezer 30 s preview**. The `indie_cc` set was removed
+> from `tools/spike/source_coverage.py`, so this fixture is no longer runnable. It is kept unedited
+> below as the record of what was planned and why it was dropped.
+
 **Role.** The decisive test of the ADR-004 floor: librosa BPM computed on **full, legally
 streamable Creative-Commons audio** (Jamendo). This is the guaranteed path that depends on no
 gate-kept third-party BPM API.

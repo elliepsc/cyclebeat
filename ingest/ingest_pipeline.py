@@ -4,7 +4,7 @@ Stages the cycling patterns knowledge base into DuckDB via dlt.
 
 Phase 0 purge: the Qdrant vector loading step is gone (ADR-001). What remains is
 the dlt staging plus the mirror into the runtime DuckDB that dbt reads. The V3
-multi-source ingestion (Deezer/Jamendo/CSV → lake) replaces this in phase 2.
+multi-source ingestion (Deezer/CSV → lake) replaces this in phase 2.
 """
 
 import json

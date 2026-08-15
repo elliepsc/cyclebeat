@@ -286,7 +286,7 @@ Estimation honnête : **32-40 jours effectifs** (V2 : 16-20 j pour le cœur DE ;
 | Phase | Contenu | Critère de sortie (bloquant) |
 |---|---|---|
 | 0. Purge & setup | Purger le repo (Spotify, Qdrant, LangGraph, Streamlit → branche `archive/v1`), hygiène secrets selon E.1 (vérifié 2026-07-09 : `.env` jamais tracké — re-vérifier, filter-repo seulement si nécessaire), CLAUDE.md/AGENTS.md, Makefile, CI squelette, ADR-001 "pourquoi V3" | CI verte sur repo purgé ; aucun secret dans l'historique (vérifié, pas supposé) |
-| 1. Spike sources | = V2 phase 1 : couverture réelle Deezer/Jamendo chiffrée sur 3 playlists | Rapport chiffré ; si Deezer < 50% exploitable → pivot CSV+Jamendo assumé |
+| 1. Spike sources | = V2 phase 1 : couverture réelle Deezer/Jamendo chiffrée sur 3 playlists | Rapport chiffré ; si Deezer < 50% exploitable → pivot CSV+Jamendo assumé — **✅ close 2026-08-15, voir la note ci-dessous** |
 | 2. Cœur DE | = V2 phases 2-3 : resolver + cross-validation, DAGs Airflow (LocalExecutor, profil compose `pipeline`), lake, DuckDB, dbt (recycler modèles existants) | `make ingest && make dbt` de zéro (CLI sans Airflow) ET les 3 DAGs verts dans l'UI Airflow ; dbt tests verts ; distribution confidence mesurée |
 | 3. Moteur | = V2 phase 4 : planner + evaluator + property-based + adversarial + mutation check | Mutation check vert |
 | 4. Contrat + backend | openapi.yaml (driven par les besoins front), FastAPI en couches, tests unit + schemathesis | Contrat validé en CI ; tests verts |
@@ -297,6 +297,17 @@ Estimation honnête : **32-40 jours effectifs** (V2 : 16-20 j pour le cœur DE ;
 | 9. CI/CD & deploy | pipeline complet (lint, unit, dbt, integration, eval, build) + deploy Render auto sur main vert | URL publique vivante ; un push déclenche test→deploy |
 | 10. Sécurité & audit | PR-Agent, Semgrep/Snyk, agent-security.md, ai-policy.md, diagnostic ops | Les 5 artefacts du §13 committés |
 | 11. README & démo | README (§16), GIF démo, finalisation ai-workflow.md, relecture externe | Testé depuis un clone propre par quelqu'un d'autre |
+
+> **Note 2026-08-15 (clôture phase 1, ADR-005).** La règle de sortie de la phase 1 **a bien joué** :
+> Deezer mesuré à **23,3 %** sur le set `mainstream`, donc sous les 50 % → **pivot déclenché**. Mais le
+> pivot retenu n'est pas « CSV+Jamendo » : ADR-005 abandonne le catalogue Creative-Commons/Jamendo
+> (mauvais catalogue pour le produit, compte non souhaité) et fixe le socle à **`librosa` sur le preview
+> Deezer de 30 s**, `bpm` Deezer en enrichissement, CSV en socle manuel. Mesure : **82 % de pistes
+> exploitables** (41/50) ; `single_source` 0.6 dominant à **54 %**. Deux sets mesurés au lieu de trois,
+> le troisième (`indie_cc`) étant devenu sans objet. Rapport : `docs/spikes/phase1-source-coverage.md`.
+> Le reste du corps du plan (§2, §5, §9 player) décrit encore Jamendo : c'est de l'**historique**, la
+> colonne vertébrale à jour est `docs-notes/CYCLEBEAT_ROADMAP.md` (source #3). **À trancher en phase 5** :
+> le player joue désormais le preview Deezer, pas un morceau CC.
 
 Séquençage cours : phases 0-5 pendant Modules 1-2, phase 7 pendant Module 3, phase 10 pendant Module 4 — le projet avance au rythme du zoomcamp au lieu de tout garder pour la fin.
 
@@ -438,6 +449,18 @@ fct_agent_runs    : run_id, ts, question, tools_called JSON, n_steps, verdict, d
 > Jamendo complet + CSV (aucune API tierce, aucune permission) ; `deezer` et `getsongbpm` sont de
 > l'**enrichissement** qui monte la confidence sans jamais être bloquant. L'enum `raw.resolutions.source`
 > et la règle de confidence ci-dessous sont inchangées.
+>
+> **Note 2026-08-15 (ADR-005 — supersede la note ADR-004 ci-dessus, clôture phase 1).** Le socle n'est
+> plus l'audio CC/Jamendo : il devient **`librosa` calculé localement sur le preview public Deezer de
+> 30 s**, avec le champ `bpm` de Deezer en **enrichissement** (cross-validation) et le **CSV** en socle
+> manuel. Le catalogue CC/Jamendo et sa dépendance de compte sont **abandonnés** — voir
+> `docs/adr/adr-005-deezer-preview-backbone.md`. Le paragraphe ADR-004 est conservé tel quel comme
+> trace de la décision renversée. **Inchangés** : l'enum `raw.resolutions.source`
+> (`deezer|librosa|getsongbpm|manual`), la normalisation BPM et la règle de confidence ci-dessous —
+> cette note ne re-fixe que *quelle source est le socle*. Distribution de confidence mesurée sur les
+> 50 pistes du spike : `single_source` 0.6 dominant à **54 %**, `cross_validated` 0.9 à 26 %, 12 % sans
+> BPM (`bpm` NULL, exclu du planner), 8 % en arbitrage librosa — voir
+> `docs/spikes/phase1-source-coverage.md`.
 
 Normalisation BPM (V2 §2, normative) : `while bpm > 180: bpm /= 2` puis
 `while bpm < 70: bpm *= 2`. Zones sur bpm_effective : Z1 < 100, Z2 100-115,
@@ -520,7 +543,7 @@ Airflow 3, LocalExecutor, profil compose `pipeline`. Les tâches appellent les
 fonctions de `cyclebeat/` — aucune logique métier dans `dags/`.
 
 ```
-dag_ingest          : [extract_deezer, extract_jamendo, extract_csv] → write_lake_parquet
+dag_ingest          : [extract_deezer, extract_csv] → write_lake_parquet
                       (partition lake par date d'ingestion : lake/raw/tracks/dt=YYYY-MM-DD/)
 dag_resolve_bpm     : read_unresolved → resolve_multi_sources → cross_validate → write_resolutions
                       (idempotent : re-run sur la même dt ne duplique pas — clé track_id+source+dt)
@@ -534,7 +557,15 @@ démarré en CI) : `test_all_dags_import_without_error`,
 `test_resolve_dag_idempotent_on_same_dt` (re-run même dt → zéro doublon,
 clé track_id+source+dt).
 
-### E.6 Conventions
+> **Note 2026-08-15 (ADR-005, clôture phase 1).** `dag_ingest` listait une troisième branche
+> d'extraction, **`extract_jamendo`**, entre `extract_deezer` et `extract_csv` — elle est **retirée**.
+> ADR-005 abandonne le catalogue Creative-Commons/Jamendo et sa dépendance de compte : le socle BPM
+> devient `librosa` sur le preview Deezer, donc la seule source distante à extraire est Deezer, plus le
+> CSV manuel. Le bloc ci-dessus est à jour ; cette note conserve la trace de ce qui a été supprimé et
+> pourquoi. **Inchangés** : le partitionnement du lake, `dag_resolve_bpm`, `dag_build_warehouse`, la
+> politique de retries (3, backoff exponentiel, tâches d'extraction uniquement) et les trois tests CI
+> nommés — au moment de cette note, aucun `dags/` n'existe encore dans le repo (livrable de phase 2),
+> donc la suppression ne porte que sur ce contrat.
 
 Python 3.11+, uv + pyproject (backend), pnpm ou npm lockés (front). Ruff + mypy
 (strict sur `cyclebeat/` et `api/`). Cibles Makefile normatives : `setup`,
@@ -563,7 +594,7 @@ manuelles et s'arrête — il ne simule jamais un résultat de spike.
 |---|---|---|
 | LLM live | 0 € | Groq free tier `qwen/qwen3-32b` via LiteLLM ; reprendre de homebarista le pattern éprouvé : gateway unique + retry 429 (Retry-After, backoff expo + jitter, 5 tentatives) + gestion reasoning model (CoT inline — max_tokens jamais < 1024 sur les nœuds de génération) |
 | LLM demo/CI | 0 € | Ollama local (modèle < 4 Go) ; fallback mock déterministe si flaky en CI |
-| Deezer / Jamendo / GetSongBPM | 0 € | APIs gratuites ; cache agressif des réponses (lake = cache permanent), retries Airflow bornés (3), pacing ≥ 0,3 s entre appels, snapshot demo committé pour ne jamais re-fetcher en review/CI |
+| Deezer (API + preview 30 s) / GetSongBPM | 0 € | APIs gratuites ; cache agressif des réponses **et des previews** (lake = cache permanent — ADR-005 en fait une mitigation, pas seulement une optimisation), retries Airflow bornés (3), pacing ≥ 0,3 s entre appels, snapshot demo committé pour ne jamais re-fetcher en review/CI |
 | Embeddings, DuckDB, dbt, Airflow, Redis éventuel | 0 € | Tout local / open source |
 | Render | 0 € | Free tier (spin-down accepté et documenté dans le README) ; Qdrant Cloud n'existe plus dans la stack V3 |
 | GitHub Actions | 0 € | Repo public = minutes illimitées |
