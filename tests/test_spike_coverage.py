@@ -15,6 +15,7 @@ from tools.spike.e2 import (
     window_stability,
     zone_for,
 )
+from tools.spike.source_coverage import plan_windows
 
 # --- E.2 normalization: while bpm > 180: bpm /= 2 ; while bpm < 70: bpm *= 2 -------------
 
@@ -175,3 +176,39 @@ def test_half_time_detection_on_one_window_still_counts_as_usable() -> None:
 def test_a_window_without_an_estimate_is_too_short(a: float | None, b: float | None) -> None:
     """Never silently counted as usable — that would inflate the ADR-004 floor figure."""
     assert window_stability(a, b) == "too_short"
+
+
+# --- Window planning: the instrument must not decide the result ---------------------------
+
+
+def test_a_real_deezer_preview_is_analysable() -> None:
+    """Regression on the first live run.
+
+    Deezer previews measured 29.986 s against a 2x15 s floor, so four tracks out of five
+    were discarded as `too_short` over 14 milliseconds — the instrument, not the audio,
+    was producing the result. Any preview-length clip must yield two windows.
+    """
+    assert len(plan_windows(29.98625850340136)) == 2
+    assert len(plan_windows(30.058163265306124)) == 2
+
+
+def test_a_full_track_gets_two_disjoint_sixty_second_windows() -> None:
+    windows = plan_windows(210.0)
+    assert windows == [(30.0, 60.0), (90.0, 60.0)]
+    (offset_a, length_a), (offset_b, _) = windows
+    assert offset_a + length_a <= offset_b  # disjoint, so the two estimates are independent
+
+
+def test_a_short_clip_is_split_into_two_halves_that_do_not_overlap() -> None:
+    windows = plan_windows(29.98625850340136)
+    (offset_a, length_a), (offset_b, length_b) = windows
+    assert offset_a == 0.0
+    assert offset_a + length_a == pytest.approx(offset_b)
+    assert offset_b + length_b == pytest.approx(29.98625850340136)
+
+
+def test_a_clip_too_short_for_two_windows_yields_none() -> None:
+    """10 s per window is derived from E.2's own 70 BPM floor (~11.7 beats), not picked."""
+    assert plan_windows(19.0) == []
+    assert plan_windows(0.0) == []
+    assert len(plan_windows(20.0)) == 2

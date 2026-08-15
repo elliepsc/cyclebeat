@@ -52,17 +52,19 @@ AUDIO_DIR = CACHE_DIR / "audio"
 DEFAULT_RAW_OUTPUT = SPIKE_DIR / "raw_output.json"
 
 # --- Endpoints ----------------------------------------------------------------------------
-# Deezer and Jamendo URLs come from the committed fixtures. GetSongBPM's is the documented
-# one but has NOT been exercised — no key is held. The runbook asks you to confirm it
-# against the dashboard when your key is issued, and `--getsongbpm-base` overrides it.
+# The Deezer URLs come from the committed fixtures. GetSongBPM's is the documented one but has
+# NOT been exercised — no key is held. The runbook asks you to confirm it against the dashboard
+# when your key is issued, and `--getsongbpm-base` overrides it.
+#
+# ADR-005 removed the Jamendo/Creative-Commons path (`indie_cc` set, full-audio download): the
+# BPM backbone is librosa on the Deezer 30 s preview, so there is no second catalogue to fetch.
+# `data/spike/raw_output.json` still names `jamendo_tracks` in its `endpoints` block — it was
+# written on 2026-07-29, before this pruning, and is left untouched as raw evidence.
 
 DEEZER_CHART = "https://api.deezer.com/chart/0/tracks"
 DEEZER_TRACK = "https://api.deezer.com/track/{track_id}"
 DEEZER_SEARCH = "https://api.deezer.com/search"
-JAMENDO_TRACKS = "https://api.jamendo.com/v3.0/tracks/"
 GETSONGBPM_BASE = "https://api.getsong.co/search/"
-
-JAMENDO_TAGS = ("electronic", "rock", "pop", "energetic")
 
 # --- librosa windows ----------------------------------------------------------------------
 # Two disjoint windows of the same track. Agreement within the E.2 +/-3 BPM tolerance is
@@ -70,8 +72,15 @@ JAMENDO_TAGS = ("electronic", "rock", "pop", "energetic")
 
 WINDOW_A = (30.0, 60.0)  # 30 s -> 90 s
 WINDOW_B = (90.0, 60.0)  # 90 s -> 150 s
-MIN_WINDOW_SECONDS = 15.0  # below this a window cannot carry a tempo estimate
 SAMPLE_RATE = 22050
+
+# Shortest window that can carry a tempo estimate. Derived from E.2's own lower bound
+# rather than picked: at 70 BPM, 10 s contains ~11.7 beats, enough for the autocorrelation
+# to lock on. It was 15 s in the first run, and that silently broke the measurement — a
+# Deezer preview is 29.986 s, just under the resulting 2x15 s floor, so four of five tracks
+# were reported `too_short` over 14 milliseconds. A threshold on the instrument must not be
+# able to decide the result.
+MIN_WINDOW_SECONDS = 10.0
 
 
 @dataclass
@@ -86,7 +95,7 @@ class TrackMeasurement:
     getsongbpm_bpm_raw: float | None = None
     librosa_window_a: float | None = None
     librosa_window_b: float | None = None
-    audio_kind: str | None = None  # "full_cc" | "deezer_preview" | None
+    audio_kind: str | None = None  # "deezer_preview" | None ("full_cc" predates ADR-005)
     audio_seconds: float | None = None
     latency_ms: dict[str, float] = field(default_factory=dict)
     errors: dict[str, str] = field(default_factory=dict)
@@ -154,15 +163,39 @@ class PacedSession:
 
 
 def _tempo(y, sr: int) -> float | None:
-    """Single tempo estimate. librosa moved `tempo` between 0.9 and 0.10 — support both."""
+    """Single tempo estimate. librosa moved `tempo` between 0.9 and 0.10 — support both.
+
+    Probed against librosa 0.10.2.post1 rather than assumed, after two wrong guesses:
+    `hasattr(librosa.feature, "rhythm")` is **False** (the submodule is not exposed as an
+    attribute until explicitly imported), so both `getattr(..., None)` and `try/except
+    AttributeError` on that path fall through to the deprecated `librosa.beat.tempo`,
+    which warns today and disappears in librosa 1.0. `librosa.feature.tempo` is the
+    re-export that actually resolves.
+    """
     import librosa
 
-    estimator = getattr(getattr(librosa, "feature", None), "rhythm", None)
-    func = getattr(estimator, "tempo", None) or librosa.beat.tempo
+    func = getattr(librosa.feature, "tempo", None) or librosa.beat.tempo
     values = func(y=y, sr=sr)
     if values is None or len(values) == 0:
         return None
     return float(values[0])
+
+
+def plan_windows(duration: float) -> list[tuple[float, float]]:
+    """Choose the two (offset, length) windows to estimate tempo on.
+
+    Pure and side-effect free so it can be tested without librosa — the first run proved
+    this logic can silently decide the result on its own.
+
+    Full tracks get the two disjoint 60 s windows; anything shorter is split in half; a
+    track too short for two viable windows returns [] and is reported `too_short`.
+    """
+    if duration >= WINDOW_B[0] + MIN_WINDOW_SECONDS:
+        return [WINDOW_A, WINDOW_B]
+    if duration >= 2 * MIN_WINDOW_SECONDS:
+        half = duration / 2
+        return [(0.0, half), (half, half)]
+    return []
 
 
 def analyse_audio(path: Path) -> tuple[float | None, float | None, float | None]:
@@ -170,19 +203,13 @@ def analyse_audio(path: Path) -> tuple[float | None, float | None, float | None]
 
     Returns (window_a_bpm, window_b_bpm, duration_seconds). A window that cannot be cut or
     estimated returns None, which `window_stability` reports as `too_short` — never as
-    usable, since that would inflate the ADR-004 floor figure.
+    usable, since that would inflate the backbone coverage figure.
     """
     import librosa
 
     duration = float(librosa.get_duration(path=str(path)))
-
-    if duration >= WINDOW_B[0] + MIN_WINDOW_SECONDS:
-        windows = [WINDOW_A, WINDOW_B]
-    elif duration >= 2 * MIN_WINDOW_SECONDS:
-        # Short track (a Deezer 30 s preview lands here): split it in two halves.
-        half = duration / 2
-        windows = [(0.0, half), (half, half)]
-    else:
+    windows = plan_windows(duration)
+    if not windows:
         return None, None, duration
 
     estimates: list[float | None] = []
@@ -251,40 +278,14 @@ def build_mixed(_: PacedSession, csv_path: Path) -> list[TrackMeasurement]:
         ]
 
 
-def build_indie_cc(session: PacedSession, client_id: str, per_tag: int) -> list[dict]:
-    """Jamendo CC tracks. Returns raw items so the caller keeps the full-audio URL."""
-    items: list[dict] = []
-    seen: set[str] = set()
-    for tag in JAMENDO_TAGS:
-        payload, _ = session.get_json(
-            JAMENDO_TRACKS,
-            {
-                "client_id": client_id,
-                "format": "json",
-                "limit": per_tag,
-                "order": "popularity_total",
-                "tags": tag,
-                "audioformat": "mp32",
-                "include": "musicinfo",
-            },
-        )
-        for item in payload.get("results", []):
-            track_id = str(item.get("id"))
-            if track_id not in seen:
-                seen.add(track_id)
-                items.append(item)
-    return items
-
-
 # --- Fetch --------------------------------------------------------------------------------
 
 
 def run_fetch(args: argparse.Namespace) -> int:
     session = PacedSession(CACHE_DIR)
-    jamendo_id = os.environ.get("JAMENDO_CLIENT_ID", "").strip()
     getsongbpm_key = os.environ.get("GETSONGBPM_API_KEY", "").strip()
 
-    wanted = {"mainstream", "mixed", "indie_cc"} if args.set == "all" else {args.set}
+    wanted = {"mainstream", "mixed"} if args.set == "all" else {args.set}
     measurements: list[TrackMeasurement] = []
 
     if "mainstream" in wanted:
@@ -327,38 +328,12 @@ def run_fetch(args: argparse.Namespace) -> int:
         else:
             row.errors["getsongbpm"] = "no GETSONGBPM_API_KEY set"
 
-    # The decisive set: librosa on FULL Creative-Commons audio (ADR-004 floor).
-    if "indie_cc" in wanted:
-        if not jamendo_id:
-            print("JAMENDO_CLIENT_ID is not set - skipping the indie_cc set", file=sys.stderr)
-        else:
-            for item in build_indie_cc(session, jamendo_id, args.limit):
-                row = TrackMeasurement(
-                    set_name="indie_cc",
-                    artist=item.get("artist_name", ""),
-                    title=item.get("name", ""),
-                )
-                audio_url = item.get("audiodownload") or item.get("audio")
-                try:
-                    if audio_url and not args.skip_audio:
-                        path = session.download(audio_url, AUDIO_DIR / f"jamendo_{item['id']}.mp3")
-                        a, b, seconds = analyse_audio(path)
-                        row.librosa_window_a, row.librosa_window_b = a, b
-                        row.audio_kind, row.audio_seconds = "full_cc", seconds
-                    else:
-                        row.errors["librosa"] = "no audio url"
-                except Exception as exc:  # noqa: BLE001
-                    row.errors["librosa"] = f"{type(exc).__name__}: {exc}"
-                measurements.append(row)
-
     payload = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "endpoints": {
             "deezer_chart": DEEZER_CHART,
             "deezer_track": DEEZER_TRACK,
             "deezer_search": DEEZER_SEARCH,
-            "jamendo_tracks": JAMENDO_TRACKS,
-            "jamendo_tags": list(JAMENDO_TAGS),
             "getsongbpm": args.getsongbpm_base,
         },
         "http_calls": session.calls,
@@ -457,12 +432,14 @@ def run_report(args: argparse.Namespace) -> int:
     if mainstream:
         usable, share = mainstream["deezer_bpm_usable"]
         ratio = usable / mainstream["tracks"] if mainstream["tracks"] else 0
-        verdict = "PIVOT to CSV+Jamendo+librosa (ADR-004 floor)" if ratio < 0.5 else "Deezer usable"
+        # The rule fired on the 2026-07-29 run (23.3%), and ADR-005 is the pivot it triggered:
+        # Deezer demoted to enrichment, backbone = librosa on the Deezer preview.
+        verdict = (
+            "PIVOT - Deezer is enrichment, not backbone (ADR-005)"
+            if ratio < 0.5
+            else "Deezer usable as a backbone"
+        )
         print(f"Decision rule (plan section 15): Deezer usable {share} -> {verdict}")
-
-    indie = summary.get("indie_cc")
-    if indie:
-        print(f"Decisive ADR-004 floor test: librosa on full CC audio {indie['librosa_usable'][1]}")
 
     if args.json:
         print("\n" + json.dumps(summary, indent=2, ensure_ascii=False))
@@ -473,7 +450,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fetch", action="store_true", help="live run; needs the API keys")
     parser.add_argument("--report", action="store_true", help="recompute offline from raw output")
-    parser.add_argument("--set", choices=["all", "mainstream", "mixed", "indie_cc"], default="all")
+    parser.add_argument("--set", choices=["all", "mainstream", "mixed"], default="all")
     parser.add_argument("--limit", type=int, default=30, help="tracks per set (default 30)")
     parser.add_argument("--output", type=Path, default=DEFAULT_RAW_OUTPUT)
     parser.add_argument("--getsongbpm-base", default=GETSONGBPM_BASE)

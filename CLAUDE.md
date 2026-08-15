@@ -9,7 +9,16 @@ appendix; on conflict, the truth-source order applies.
 1. The repo code as it is.
 2. `docs-notes/CYCLEBEAT_PLAN_V3.md` Appendix E (execution contracts).
 3. The body of the V3 plan.
-4. `docs-notes/CYCLEBEAT_PLAN_V2.md` §6-9 (DE core detail).
+
+The DE core detail formerly split into `CYCLEBEAT_PLAN_V2.md §6-9` is now carried
+normatively by V3 Appendix E (self-sufficient). V1/V2 are archived backups, kept
+for history, not in the repo, and are NEVER a truth source.
+
+Bonus layer: `docs-notes/CYCLEBEAT_PLAN_V3.2.md` (latest revision) specifies the
+OPTIONAL modules B1-B7. It EXTENDS the V3 core — it does not replace it — and is
+gated: no bonus module starts before the core is deployed + the source spike
+(phase 1) is green. Consult it only when building a bonus module; for core work the
+order above governs.
 
 Conflict detected → the highest source wins AND you flag it.
 
@@ -47,10 +56,12 @@ Conflict detected → the highest source wins AND you flag it.
 
 ## Target architecture (V3 §3, §5)
 
-Offline pipeline: Deezer/Jamendo/CSV → dlt → Parquet lake → resolve BPM
+Offline pipeline: Deezer/CSV → dlt → Parquet lake → resolve BPM
 (cross-validation) → DuckDB → dbt (staging → marts). Orchestration Airflow 3
 LocalExecutor, 3 DAGs (`dag_ingest`, `dag_resolve_bpm`, `dag_build_warehouse`),
-zero business logic in `dags/`.
+zero business logic in `dags/`. BPM backbone: `librosa` on the Deezer 30 s
+preview, Deezer `bpm` as cross-validation enrichment, CSV as the manual floor
+(ADR-005 — Jamendo/CC dropped, `extract_jamendo` removed from `dag_ingest`).
 Service layer: `openapi.yaml` (contract written BEFORE the backend) → FastAPI
 (routers → services → repositories) → React/Vite/TS (generated client,
 network calls only via `src/api/`). LLM via LiteLLM → Groq
