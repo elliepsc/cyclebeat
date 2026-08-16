@@ -15,7 +15,6 @@ that can host the dependency, they run and must pass.
 
 from __future__ import annotations
 
-import shutil
 import sys
 from datetime import date
 from pathlib import Path
@@ -70,13 +69,14 @@ def test_dag_build_warehouse_runs_on_demo_lake(tmp_path, monkeypatch, airflow_db
 
     from cyclebeat.cli import main as cli_main
 
+    # The DAG's load task resolves the lake relative to the working directory, so the lake
+    # is built at exactly the path it will look in, and the test then chdirs there.
     lake_root = tmp_path / "lake"
     db_path = tmp_path / "warehouse.duckdb"
     assert cli_main(["--lake", str(lake_root), "ingest"]) == 0
 
     monkeypatch.setenv("RUNTIME_DB_PATH", str(db_path))
     monkeypatch.chdir(tmp_path)
-    shutil.copytree(lake_root, tmp_path / "lake", dirs_exist_ok=True)
 
     dag = DagBag(dag_folder=str(DAGS_DIR), include_examples=False).get_dag("dag_build_warehouse")
     # dbt is exercised by `make dbt` in its own step; running it inside dag.test() would
