@@ -47,6 +47,42 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Airflow 3, LocalExecutor (E.5) ───────────────────────────────
+  # Profile `pipeline`: not started by a plain `docker compose up`, so the API stack stays
+  # light. Bring the orchestrator up with:
+  #     docker compose --profile pipeline up
+  # then open http://localhost:8080 (admin/admin) to check the 3 DAGs.
+  #
+  # DEMO by default (E.8): CYCLEBEAT_DEMO=1 makes dag_ingest read the committed snapshot,
+  # so the DAGs run green with no credentials, no network and no API quota.
+  airflow:
+    build: .
+    container_name: cyclebeat_airflow
+    profiles: ["pipeline"]
+    ports:
+      - "8080:8080"
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__DAGS_FOLDER=/app/dags
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      # SQLite + LocalExecutor is enough for a single-node demo; the "2 DuckDB files,
+      # single writer" hardening (roadmap §2.3) concerns the analytics store, not this.
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////app/data/airflow.db
+      - AIRFLOW_HOME=/app/data/airflow
+      - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
+      - CYCLEBEAT_DEMO=1
+      - PYTHONPATH=/app
+    volumes:
+      - ./data:/app/data
+      - ./dags:/app/dags
+      - ./lake:/app/lake
+    command: >
+      bash -c "airflow db migrate &&
+               airflow users create --username admin --password admin
+                 --firstname Ellie --lastname Dev --role Admin --email admin@example.com
+                 || true &&
+               airflow standalone"
+
   # ── Prometheus ───────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.52.0
