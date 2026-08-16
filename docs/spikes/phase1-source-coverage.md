@@ -198,8 +198,17 @@ library instead of guessing — `librosa.feature.tempo` is the re-export that re
    before the Jamendo path was pruned from `tools/spike/source_coverage.py` under ADR-005. The
    artifact is unchanged and every figure above still recomputes from it; the provenance block
    simply describes the instrument as it stood on 2026-07-29.
-3. **Two E.2 disambiguations** are carried by `tools/spike/e2.py`, both marked in the code:
-   zones assigned on the rounded BPM, and the mean of agreeing sources as `bpm_effective`.
-   Neither is normative — the phase-2 resolver must fix them, together with the arbitration score.
+3. ~~**Two E.2 disambiguations**~~ — **CLOSED by [ADR-006](../adr/adr-006-e2-open-points.md)
+   (phase 2, 2026-08-15).** `bpm_effective` takes **librosa's** value when sources agree (the
+   enrichment source raises confidence, it never moves the number), and librosa arbitration
+   scores **0.6** while keeping `confidence_method = 'librosa_arbitrated'`. The module moved to
+   `cyclebeat/e2.py` — still the single normative implementation. Zone assignment on the
+   rounded BPM remains a documented disambiguation, unchanged.
+
+   Note on grain when comparing this report to the warehouse: the tables above count **50
+   measurements**, while `dim_track` counts **48 unique tracks** — one row never matched a
+   Deezer id (Daft Punk, "Get Lucky") and one track was measured in both sets (Michael Jackson,
+   "Billie Jean"). The phase-2 distribution is therefore `single_source` 56.2 %,
+   `cross_validated` 25.0 %, `librosa_arbitrated` 8.3 %, `unknown` 10.4 %.
 4. **GetSongBPM carries a mandatory backlink obligation** — to weigh if it is ever adopted. It
    stays in the `raw.resolutions.source` enum, unmeasured and unadopted.
