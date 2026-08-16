@@ -49,6 +49,16 @@ data/*.duckdb.wal
 # it, data/spike/raw_output.json, IS committed — the report's figures must be traceable.
 data/spike/.cache/
 
+# Phase-2 Parquet lake and the preview cache that feeds it. Both are BUILD OUTPUT, not
+# source: `make ingest` rebuilds the whole lake from data/spike/raw_output.json, which is
+# committed. Keeping Parquet out of git is what lets the demo snapshot stay a readable,
+# diffable JSON instead of a binary blob (E.8 asks for a committed snapshot, not a
+# committed warehouse).
+lake/
+data/audio_cache/
+data/airflow/
+data/airflow.db
+
 # dbt
 dbt/target/
 dbt/dbt_packages/
