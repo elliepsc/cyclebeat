@@ -461,6 +461,41 @@ fct_agent_runs    : run_id, ts, question, tools_called JSON, n_steps, verdict, d
 > 50 pistes du spike : `single_source` 0.6 dominant à **54 %**, `cross_validated` 0.9 à 26 %, 12 % sans
 > BPM (`bpm` NULL, exclu du planner), 8 % en arbitrage librosa — voir
 > `docs/spikes/phase1-source-coverage.md`.
+>
+> **Note 2026-08-15 (phase 2 — réconciliation de la chaîne feedback, dette ci-dessus close).** La
+> chaîne `raw.feedback → stg_feedback → int_feedback_enriched → mart_feedback_summary` est désormais
+> **déclarée normative** et fait partie de cette spec E.2 :
+>
+> ```
+> raw.feedback : session_title TEXT, rating TEXT, note TEXT, created_at TIMESTAMP
+> ```
+>
+> Pas de `fct_feedback` (le motif stg→intermediate→mart existant suffit). L'écriture DuckDB de l'API
+> n'est plus silencieuse : `api/main.py` **loggue** l'échec au lieu de l'avaler (`except: pass`), le
+> JSON restant primaire. Rendre DuckDB primaire et déplacer ce SQL dans `api/repositories/` reste du
+> ressort de la **phase 4**. Reste ouvert : exposer `mart_feedback_summary` sur l'allowlist du copilote
+> (**phase 6**).
+>
+> **Note 2026-08-15 (phase 2 — tables ajoutées au socle raw).** Le lake Parquet alimente deux tables
+> raw supplémentaires, chargées par `cyclebeat/warehouse.py`, plus la matérialisation du verdict :
+>
+> ```
+> raw.tracks      : track_id TEXT, source_platform TEXT, title TEXT, artist TEXT, duration_s DOUBLE,
+>                   preview_url TEXT, ingested_at TIMESTAMP, dt DATE   (grain track_id+dt)
+> raw.resolutions : track_id TEXT, source TEXT, bpm_raw DOUBLE, resolved_at TIMESTAMP,
+>                   latency_ms INTEGER, dt DATE                        (grain track_id+source+dt)
+> raw.resolved    : le verdict E.2 par piste, matérialisé DEPUIS Python
+> ```
+>
+> `raw.resolutions` stocke **l'opinion brute de chaque source**, pas le verdict : la règle de confidence
+> peut donc être rejouée sans re-télécharger un seul preview. Le verdict est calculé par l'unique
+> implémentation normative (`cyclebeat/e2.py`) et **jamais recalculé en SQL** — E.2 interdit les
+> variantes. `dim_track` et `mart_data_quality` ne font que le lire.
+>
+> **Décisions ADR-006** (les deux points qu'E.2 laissait ouverts, escaladés en phase 1, tranchés en
+> phase 2) : `bpm_effective` = la valeur **librosa** quand les sources s'accordent (l'enrichissement
+> monte la confidence, il ne déplace jamais la valeur) ; l'arbitrage librosa score **0.6**, comme
+> `single_source`, en conservant `confidence_method = 'librosa_arbitrated'` pour rester auditable.
 
 Normalisation BPM (V2 §2, normative) : `while bpm > 180: bpm /= 2` puis
 `while bpm < 70: bpm *= 2`. Zones sur bpm_effective : Z1 < 100, Z2 100-115,

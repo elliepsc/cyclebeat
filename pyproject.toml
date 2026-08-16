@@ -23,7 +23,10 @@ dependencies = [
     # instead of relying on the dlt[duckdb]/dbt-duckdb transitive pin.
     "duckdb==0.10.2",
     # API
-    "fastapi==0.111.0",
+    # Bumped from 0.111.0 in phase 2: Airflow 3 requires fastapi >= 0.115, and both have to
+    # coexist in one environment because the same pytest run imports the DAGs and the API.
+    # Range rather than a pin, so the Airflow resolution stays satisfiable.
+    "fastapi>=0.115.0,<0.116",
     "uvicorn==0.30.1",
     "pydantic>=2.7,<3",
     # dbt
@@ -32,11 +35,27 @@ dependencies = [
     "prometheus-fastapi-instrumentator==6.1.0",
 ]
 
+[project.optional-dependencies]
+# librosa is the ADR-005 backbone, but only for LIVE resolution. It drags numba + scipy
+# (~200 MB) and CI never runs it: `make ingest`, `make dbt`, the DAG tests and the whole
+# pytest suite read the committed snapshot instead (E.8 "snapshot demo committé"). Keeping
+# it optional is what stops that weight entering uv.lock's default resolution and the image.
+#     uv sync --extra audio     # only when you actually want to analyse previews
+audio = [
+    "librosa==0.10.2.post1",
+    "soundfile==0.12.1",
+]
+
 [dependency-groups]
 dev = [
     "pytest==8.2.2",
     "ruff>=0.6.0",
     "mypy>=1.11",
+    # Airflow 3 is needed to IMPORT the DAGs, which is what the three E.5 tests do. It does
+    # not run on Windows: `make test-unit` therefore requires WSL or Linux (README,
+    # "Development environment"). The tests are not skipped there — the environment is the
+    # requirement, per E.0.4's ban on bypassing a failing test.
+    "apache-airflow>=3.0,<4",
 ]
 
 [tool.uv]

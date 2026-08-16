@@ -1,7 +1,7 @@
 """Tests for the normative E.2 rules used by the phase-1 source spike.
 
 These guard appendix E.2, which forbids variants: a change here means a breaking data
-contract change with impact analysis, not a tweak. No network, no librosa — `tools.spike.e2`
+contract change with impact analysis, not a tweak. No network, no librosa — `cyclebeat.e2`
 is stdlib-only precisely so this suite runs in the project environment.
 """
 
@@ -9,7 +9,7 @@ import math
 
 import pytest
 
-from tools.spike.e2 import (
+from cyclebeat.e2 import (
     normalize_bpm,
     resolve,
     window_stability,
@@ -138,6 +138,44 @@ def test_disagreement_with_librosa_is_arbitrated_by_librosa() -> None:
     assert result["confidence_method"] == "librosa_arbitrated"
     assert result["bpm_effective"] == pytest.approx(128.0)
     assert result["review"] is False
+
+
+# --- ADR-006: the two points E.2 leaves open ----------------------------------------------
+
+
+def test_arbitration_scores_single_source_and_stays_auditable() -> None:
+    """ADR-006 (2). One trusted source survives arbitration, which is what 0.6 means.
+
+    The method name must NOT collapse into `single_source`: the marts have to be able to
+    tell an uncontested single source from one that won an argument.
+    """
+    result = resolve({"deezer": 100.0, "getsongbpm": 140.0, "librosa": 128.0})
+    assert result["confidence"] == 0.6
+    assert result["confidence_method"] == "librosa_arbitrated"
+    assert result["n_sources_agree"] == 1
+
+
+def test_agreeing_sources_take_the_librosa_value_not_the_mean() -> None:
+    """ADR-006 (1). ADR-005 makes Deezer's bpm enrichment: it raises confidence to 0.9 but
+    never moves the number. The mean would return 129.0 here."""
+    result = resolve({"deezer": 128.0, "librosa": 130.0})
+    assert result["confidence"] == 0.9
+    assert result["bpm_effective"] == pytest.approx(130.0)
+
+
+def test_agreeing_sources_without_librosa_fall_back_to_the_mean() -> None:
+    """ADR-006 (1) only privileges the backbone when the backbone is present. A CSV+Deezer
+    pair has no backbone value to prefer, so the mean remains the answer."""
+    result = resolve({"deezer": 128.0, "manual": 130.0})
+    assert result["confidence_method"] == "cross_validated"
+    assert result["bpm_effective"] == pytest.approx(129.0)
+
+
+def test_arbitration_value_survives_normalization() -> None:
+    """A half-time librosa estimate still arbitrates on its normalized value."""
+    result = resolve({"deezer": 100.0, "getsongbpm": 140.0, "librosa": 64.0})
+    assert result["confidence_method"] == "librosa_arbitrated"
+    assert result["bpm_effective"] == pytest.approx(128.0)
 
 
 def test_zero_valued_sources_do_not_count_as_agreeing_sources() -> None:

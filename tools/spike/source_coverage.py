@@ -38,7 +38,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from tools.spike.e2 import normalize_bpm, resolve, window_stability  # noqa: E402
+from cyclebeat.e2 import normalize_bpm, resolve, window_stability  # noqa: E402
 
 # --- Zero-cost guardrails (E.8) -----------------------------------------------------------
 
@@ -68,7 +68,7 @@ GETSONGBPM_BASE = "https://api.getsong.co/search/"
 
 # --- librosa windows ----------------------------------------------------------------------
 # Two disjoint windows of the same track. Agreement within the E.2 +/-3 BPM tolerance is
-# what makes an estimate "usable" — see tools/spike/e2.window_stability.
+# what makes an estimate "usable" — see cyclebeat/e2.window_stability.
 
 WINDOW_A = (30.0, 60.0)  # 30 s -> 90 s
 WINDOW_B = (90.0, 60.0)  # 90 s -> 150 s

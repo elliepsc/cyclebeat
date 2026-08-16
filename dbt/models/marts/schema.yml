@@ -1,0 +1,62 @@
+version: 2
+
+models:
+  - name: dim_track
+    description: >
+      E.2 track dimension — one row per track with its resolved BPM, zone and confidence.
+      Grain is track_id; a track re-ingested on a later `dt` refreshes rather than duplicates.
+    columns:
+      - name: track_id
+        description: "Grain. Deezer id, or a `csv:` slug for a manual import."
+        tests: [not_null, unique]
+
+      - name: bpm_effective
+        description: >
+          Normalized BPM (E.2: halve above 180, double below 70), or NULL when no source had
+          an opinion. ADR-006: when sources agree, this is librosa's value, not their mean.
+          Range is asserted by `dbt/tests/check_bpm_effective_range.sql` — a singular test,
+          matching the repo's existing convention, so no dbt package has to be installed.
+
+      - name: zone
+        description: "E.2 zones on bpm_effective: Z1 <100, Z2 100-115, Z3 116-130, Z4 131-145, Z5 >145."
+        tests:
+          - accepted_values:
+              values: ['Z1', 'Z2', 'Z3', 'Z4', 'Z5']
+
+      - name: confidence
+        description: >
+          0.9 cross_validated, 0.6 single_source or librosa_arbitrated, 0.3 review, NULL when
+          no source had an opinion. E.2 fixes these four values, so the test asserts exactly
+          them rather than a 0-1 range — a 0.75 would be inside the range and still be a
+          contract violation. See `dbt/tests/check_confidence_values.sql`.
+        tests:
+          - accepted_values:
+              values: [0.9, 0.6, 0.3]
+              quote: false
+
+      - name: confidence_method
+        description: >
+          Which E.2 branch decided. `librosa_arbitrated` scores 0.6 like `single_source`
+          (ADR-006) but stays a distinct method so the case remains auditable.
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['cross_validated', 'single_source', 'librosa_arbitrated', 'review', 'unknown']
+
+      - name: n_sources_agree
+        tests: [not_null]
+
+      - name: planner_eligible
+        description: "False exactly when bpm_effective is NULL — E.2's 'excluded from the planner'."
+        tests: [not_null]
+
+  - name: mart_data_quality
+    description: "BPM coverage and confidence distribution, one row per confidence_method."
+    columns:
+      - name: confidence_method
+        tests: [not_null, unique]
+      - name: n_tracks
+        tests: [not_null]
+      - name: pct_of_catalogue
+        description: "Asserted to sum to 100 by `dbt/tests/check_data_quality_shares.sql`."
+        tests: [not_null]

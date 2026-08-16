@@ -1,12 +1,13 @@
 """Normative E.2 data rules, in pure Python.
 
-Deliberately dependency-free (stdlib only) so `tests/` can import it from the project
-environment, while the spike script next door pulls librosa through its PEP 723 header.
-Nothing here may be re-implemented elsewhere: appendix E.2 forbids variants.
+Deliberately dependency-free (stdlib only): every layer imports it — the resolver, the
+dbt-facing loaders, the tests, and the phase-1 spike script (which pulls librosa through
+its own PEP 723 header). Nothing here may be re-implemented elsewhere: appendix E.2
+forbids variants, so this module is moved between packages rather than copied.
 
-Two disambiguations were needed where E.2 is written for integers but the code receives
-floats. Both are marked DISAMBIGUATION below and flagged in the phase-1 report; neither
-changes a threshold.
+Where E.2 is silent, the gap is filled by ADR-006 rather than invented locally. Both
+points below were measured in the phase-1 spike and escalated to the owner before being
+written down; each is marked ADR-006 at its site.
 """
 
 import math
@@ -75,11 +76,18 @@ def resolve(sources: dict[str, float | None]) -> dict[str, object]:
       - disagreement > 3 BPM                 -> librosa arbitrates, else 0.3 + `review`
       - no source                            -> bpm NULL, excluded from the planner
 
-    DISAMBIGUATION: E.2 fixes the confidence *score* but not which number becomes
-    bpm_effective when several sources agree, nor the score after librosa arbitration.
-    This spike takes the mean of the agreeing sources, and reports arbitration as its own
-    bucket with a null score rather than inventing one. The phase-2 resolver — out of
-    scope here — is what actually needs that decision settled.
+    ADR-006 settles the two points E.2 leaves open (phase 1 measured them and refused to
+    invent them):
+
+    1. `bpm_effective` when sources agree is **librosa's** normalized value, not the mean.
+       ADR-005 makes librosa-on-preview the backbone and the Deezer `bpm` field pure
+       enrichment, so the enrichment source raises confidence and never moves the number.
+       It also keeps one estimator across the catalogue: the majority `single_source`
+       tracks already carry librosa's value, so the two buckets stay comparable. Measured
+       cost against the mean on the 50 spike tracks: <= 1.48 BPM, and zero zone changes.
+    2. Arbitration scores **0.6**, the `single_source` value: once the disagreeing source
+       is discarded, exactly one trusted source remains, which is what 0.6 means. The
+       method stays `librosa_arbitrated` so the case is still auditable in the marts.
     """
     normalized = {name: n for name, raw in sources.items() if (n := normalize_bpm(raw)) is not None}
 
@@ -106,7 +114,10 @@ def resolve(sources: dict[str, float | None]) -> dict[str, object]:
 
     values = list(normalized.values())
     if max(values) - min(values) <= AGREEMENT_TOLERANCE:
-        bpm = sum(values) / len(values)
+        # ADR-006 (1): the backbone's value wins; enrichment only raised the confidence.
+        # Falls back to the mean only when librosa is not among the agreeing sources,
+        # which the ADR-005 pipeline does not produce but a CSV+Deezer pair would.
+        bpm = normalized.get("librosa", sum(values) / len(values))
         return {
             "bpm_effective": bpm,
             "zone": zone_for(bpm),
@@ -117,13 +128,14 @@ def resolve(sources: dict[str, float | None]) -> dict[str, object]:
         }
 
     if "librosa" in normalized:
+        # ADR-006 (2): one trusted source survives arbitration, which is what 0.6 means.
         bpm = normalized["librosa"]
         return {
             "bpm_effective": bpm,
             "zone": zone_for(bpm),
-            "confidence": None,
+            "confidence": CONFIDENCE_SINGLE_SOURCE,
             "confidence_method": "librosa_arbitrated",
-            "n_sources_agree": 0,
+            "n_sources_agree": 1,
             "review": False,
         }
 

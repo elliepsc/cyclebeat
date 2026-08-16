@@ -24,6 +24,7 @@ Lightweight format (MADR-inspired): **Context → Options → Decision → Conse
 | [adr-003-render-no-disk](adr-003-render-no-disk.md) | No Render disk: demo DB baked into the image (D3) | Accepted |
 | [adr-004-bpm-resolution-floor](adr-004-bpm-resolution-floor.md) | BPM floor: librosa on CC audio + CSV; Deezer/GetSongBPM as enrichment | **Superseded by adr-005** |
 | [adr-005-deezer-preview-backbone](adr-005-deezer-preview-backbone.md) | BPM backbone: librosa on the Deezer 30 s preview; Deezer `bpm` as enrichment; CC/Jamendo dropped | Accepted |
+| [adr-006-e2-open-points](adr-006-e2-open-points.md) | The two points E.2 leaves open: `bpm_effective` = librosa's value; librosa arbitration scores 0.6 | Accepted |
 
 ### Bonus (B series — V3.2 plan) — **all `Gated`**
 > Common opening condition: the **core V3.1 must be deployed, live, and tested from a clean clone**,
