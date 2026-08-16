@@ -11,3 +11,24 @@ sources:
         description: "One row per user feedback submission (rating, note, timestamp)."
       - name: patterns
         description: "40-pattern cycling knowledge base — written during ingestion."
+
+      # Phase 2 (E.2 raw layer). Loaded from the Parquet lake by `cyclebeat.warehouse`,
+      # never written by the API. The grain carries `dt`, the ingestion-date partition.
+      - name: raw_tracks
+        description: "One row per (track_id, dt). Deezer catalogue metadata + preview URL."
+        columns:
+          - name: track_id
+            description: "Deezer track id, or a `csv:` slug for a manually imported row."
+      - name: raw_resolutions
+        description: >
+          One row per (track_id, source, dt) — what a single source SAID about a track,
+          not the verdict. Keeping raw opinions means the E.2 confidence rule can be
+          replayed without re-fetching any audio.
+        columns:
+          - name: source
+            description: "deezer | librosa | getsongbpm | manual (E.2 enum, unchanged by ADR-005)."
+      - name: raw_resolved
+        description: >
+          The E.2 verdict, one row per track, materialized by `cyclebeat.warehouse` from
+          the single normative implementation in `cyclebeat.e2`. dbt READS this and never
+          recomputes it: E.2 forbids variants of the confidence rule.

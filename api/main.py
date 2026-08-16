@@ -4,6 +4,7 @@ Exposes session generation, demo access, feedback endpoints, and Prometheus metr
 """
 
 import json
+import logging
 import os
 import sys
 from datetime import datetime
@@ -15,6 +16,8 @@ from pydantic import BaseModel
 
 _root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, _root)
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="CycleBeat API",
@@ -72,6 +75,17 @@ def _load_feedback() -> list:
 
 
 def _save_feedback(entry: dict):
+    """Persist one feedback entry to the JSON file and to the warehouse.
+
+    The DuckDB write used to be `try/except: pass`, which silently dropped every row when
+    the warehouse was locked or missing — the E.2 debt recorded in the appendix. It now
+    logs the failure instead of swallowing it, so a broken feedback chain is visible rather
+    than showing up later as an empty `mart_feedback_summary`.
+
+    The JSON file stays the primary store and the exception is not re-raised: losing a
+    warehouse row must not fail the user's request. Making DuckDB the primary store is
+    phase 4's job, together with moving this SQL into `api/repositories/`.
+    """
     feedback = _load_feedback()
     feedback.append(entry)
     with open(FEEDBACK_PATH, "w", encoding="utf-8") as f:
@@ -80,7 +94,7 @@ def _save_feedback(entry: dict):
         from db.runtime import save_feedback as _db_save
         _db_save(entry["session"], entry["rating"], entry.get("note", ""))
     except Exception:
-        pass
+        logger.exception("feedback warehouse write failed; JSON copy kept as primary")
 
 
 # ─── ROUTES ──────────────────────────────────────────────────────────────────
