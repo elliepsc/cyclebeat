@@ -33,7 +33,7 @@ EXPECTED_DAG_IDS = {"dag_ingest", "dag_resolve_bpm", "dag_build_warehouse"}
 
 
 @pytest.fixture()
-def dagbag():
+def dagbag(airflow_db):
     from airflow.models.dagbag import DagBag
 
     return DagBag(dag_folder=str(DAGS_DIR), include_examples=False)
@@ -60,7 +60,7 @@ def test_dag_ingest_has_no_jamendo_branch(dagbag) -> None:
     assert {"extract_deezer", "extract_csv", "write_lake_parquet"} == task_ids
 
 
-def test_dag_build_warehouse_runs_on_demo_lake(tmp_path, monkeypatch) -> None:
+def test_dag_build_warehouse_runs_on_demo_lake(tmp_path, monkeypatch, airflow_db) -> None:
     """`dag.test()` end to end against the committed demo lake — no scheduler, no network.
 
     The demo lake is built from `data/spike/raw_output.json`, which is committed, so this
