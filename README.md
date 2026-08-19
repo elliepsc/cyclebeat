@@ -282,6 +282,28 @@ cyclebeat/
 The FastAPI backend runs alongside Streamlit and exposes a clean REST interface.
 When running with Docker Compose, the API is available at `http://localhost:8000`.
 
+Each service keeps its conventional host port. If another local stack already holds
+one, `make compose-up` steps to the next free port instead of failing the whole `up`
+with `port is already allocated`, and prints where everything landed:
+
+| Service | Default | Fallback | Pin it with |
+|---|---|---|---|
+| API (FastAPI) | http://localhost:8000 | 8001, 8002, ... | `CYCLEBEAT_API_PORT` |
+| Airflow (`--profile pipeline`) | http://localhost:8080 | 8081, 8082, ... | `CYCLEBEAT_AIRFLOW_PORT` |
+| Prometheus | http://localhost:9090 | 9091, 9092, ... | `CYCLEBEAT_PROMETHEUS_PORT` |
+| Grafana | http://localhost:3000 | 3001, 3002, ... | `CYCLEBEAT_GRAFANA_PORT` |
+
+```bash
+make compose-ports      # show the ports that would be used, start nothing
+make compose-up         # API stack
+make compose-pipeline   # ... plus Airflow
+make compose-down
+```
+
+A variable you set yourself is never probed, so `CYCLEBEAT_API_PORT=9000 make compose-up`
+pins the API and lets the rest fall where it may. Container-side ports never move, so
+none of this touches service-to-service wiring.
+
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/health` | Liveness probe |
