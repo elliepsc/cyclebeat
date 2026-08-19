@@ -27,6 +27,11 @@ DBT_DIR = PROJECT_ROOT / "dbt"
     start_date=pendulum.datetime(2026, 8, 1, tz="UTC"),
     catchup=False,
     tags=["cyclebeat", "phase-2", "warehouse"],
+    # DuckDB is single-writer by design (V3 §, risk table: "fichier, pas de concurrence"),
+    # and the lake partitions are full-replaced rather than appended. Two runs of the same
+    # DAG overlapping therefore corrupt or abort each other -- unpausing a DAG creates the
+    # scheduled run, and one click on "Trigger" then puts a second run alongside it.
+    max_active_runs=1,
     doc_md=__doc__,
 )
 def dag_build_warehouse() -> None:

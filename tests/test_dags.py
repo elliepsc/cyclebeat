@@ -48,6 +48,24 @@ def test_all_dags_import_without_error(dagbag) -> None:
     assert EXPECTED_DAG_IDS.issubset(set(dagbag.dag_ids))
 
 
+def test_dags_serialise_their_runs(dagbag) -> None:
+    """Every DAG caps itself at one active run. Regression test for a real failure.
+
+    On 2026-08-19, `load_duckdb` failed with `Could not set lock on file
+    cyclebeat_runtime.duckdb: Conflicting lock is held`. The Airflow metadata DB showed two
+    runs of dag_build_warehouse -- one `scheduled__`, one `manual__` -- entering that task
+    within the same millisecond. DuckDB allows a single writer, so one run aborted the other.
+    The same race applies to the lake DAGs: `write_partition` replaces a partition wholesale
+    rather than appending, so two overlapping runs interleave over the same `dt=` directory.
+    """
+    for dag_id in sorted(EXPECTED_DAG_IDS):
+        dag = dagbag.get_dag(dag_id)
+        assert dag.max_active_runs == 1, (
+            f"{dag_id} allows {dag.max_active_runs} concurrent runs; the warehouse and the "
+            "lake are both single-writer."
+        )
+
+
 def test_dag_ingest_has_no_jamendo_branch(dagbag) -> None:
     """ADR-005 dropped `extract_jamendo` from E.5's dag_ingest. Guard the removal.
 
