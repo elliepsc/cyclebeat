@@ -33,13 +33,13 @@ COMPOSE_PROJECT = "cyclebeat"
 MAX_PROBE = 20  # give up rather than wander far from the conventional port
 
 
-def _ports_held_by_other_containers() -> set[int]:
-    """Host ports published by containers that are not ours.
+def _published_ports() -> tuple[set[int], set[int]]:
+    """Host ports published by Docker, split into (ours, everyone else's).
 
-    Our own project is excluded on purpose: a container we are about to recreate
-    still holds its port, and counting it would push every service one slot up on
-    each restart. Docker is the authority here -- a bind probe cannot see a port
-    published on the Windows host from inside WSL.
+    Ours are tracked separately rather than merged into one "taken" set: a container
+    we are about to recreate still holds its port, and counting it as taken would push
+    every service one slot up on each restart. Docker is the authority here -- a bind
+    probe cannot see a port published on the Windows host from inside WSL.
     """
     try:
         out = subprocess.run(
@@ -47,9 +47,10 @@ def _ports_held_by_other_containers() -> set[int]:
             capture_output=True, text=True, check=True,
         ).stdout
     except (OSError, subprocess.CalledProcessError):
-        return set()  # no daemon reachable: fall back to the bind probe alone
+        return set(), set()  # no daemon reachable: fall back to the bind probe alone
 
-    held: set[int] = set()
+    ours: set[int] = set()
+    theirs: set[int] = set()
     for line in out.splitlines():
         if not line.strip():
             continue
@@ -57,8 +58,7 @@ def _ports_held_by_other_containers() -> set[int]:
             row = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if row.get("Labels", "").find(f"com.docker.compose.project={COMPOSE_PROJECT}") != -1:
-            continue
+        mine = f"com.docker.compose.project={COMPOSE_PROJECT}" in row.get("Labels", "")
         for mapping in row.get("Ports", "").split(","):
             mapping = mapping.strip()
             if "->" not in mapping:  # `8000/tcp` is container-side only
@@ -66,8 +66,8 @@ def _ports_held_by_other_containers() -> set[int]:
             host = mapping.split("->", 1)[0]  # `0.0.0.0:8000`
             _, _, port = host.rpartition(":")
             if port.isdigit():
-                held.add(int(port))
-    return held
+                (ours if mine else theirs).add(int(port))
+    return ours, theirs
 
 
 def _bindable(port: int) -> bool:
@@ -83,7 +83,7 @@ def _bindable(port: int) -> bool:
 
 
 def resolve() -> dict[str, int]:
-    taken = _ports_held_by_other_containers()
+    ours, theirs = _published_ports()
     chosen: dict[str, int] = {}
     for var, (default, _label) in SERVICES.items():
         pinned = os.environ.get(var)
@@ -91,9 +91,15 @@ def resolve() -> dict[str, int]:
             chosen[var] = int(pinned)
             continue
         for candidate in range(default, default + MAX_PROBE):
-            if candidate in taken or candidate in chosen.values():
+            if candidate in theirs or candidate in chosen.values():
                 continue
-            if _bindable(candidate):
+            # A port our own stack already publishes is free *for us* -- compose is about
+            # to recreate that container on the same port. The bind probe must not veto
+            # it, or the whole point of tracking `ours` separately is lost: from WSL the
+            # Docker Desktop proxy is a real listener, so binding our own published port
+            # fails and every restart walked the service one slot further up
+            # (8080 -> 8081 taken -> 8082, which is how this was found).
+            if candidate in ours or _bindable(candidate):
                 chosen[var] = candidate
                 break
         else:
