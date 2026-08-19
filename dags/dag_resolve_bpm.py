@@ -16,16 +16,21 @@ from __future__ import annotations
 import os
 
 import pendulum
-from airflow.sdk import dag, task
+from airflow.sdk import Asset, dag, task
 
 from cyclebeat import lake
+
+LAKE_TRACKS = Asset(lake.ASSET_TRACKS)
+LAKE_RESOLUTIONS = Asset(lake.ASSET_RESOLUTIONS)
 
 DEMO_MODE = os.environ.get("CYCLEBEAT_DEMO", "1") != "0"
 
 
 @dag(
     dag_id="dag_resolve_bpm",
-    schedule="@daily",
+    # Asset-driven, not clock-driven: this runs when dag_ingest has actually landed
+    # the day's tracks, never three seconds before it. See dags/assets.py.
+    schedule=[LAKE_TRACKS],
     start_date=pendulum.datetime(2026, 8, 1, tz="UTC"),
     catchup=False,
     tags=["cyclebeat", "phase-2", "resolve"],
@@ -85,7 +90,7 @@ def dag_resolve_bpm() -> None:
         resolved = cross_validate(list(existing) + list(produced), track_ids)
         return confidence_distribution(resolved)
 
-    @task(task_id="write_resolutions")
+    @task(task_id="write_resolutions", outlets=[LAKE_RESOLUTIONS])
     def write_resolutions(produced: list[dict], distribution: dict[str, int]) -> str:
         """Write the new opinions, keyed on track_id+source+dt (E.5 idempotency)."""
         from cyclebeat.models import RawResolution

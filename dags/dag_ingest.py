@@ -14,10 +14,12 @@ from __future__ import annotations
 import os
 
 import pendulum
-from airflow.sdk import dag, task
+from airflow.sdk import Asset, dag, task
 
 from cyclebeat import lake
 from cyclebeat.resolve import deduplicate
+
+LAKE_TRACKS = Asset(lake.ASSET_TRACKS)
 
 DEMO_MODE = os.environ.get("CYCLEBEAT_DEMO", "1") != "0"
 CSV_PLAYLIST = os.environ.get("CYCLEBEAT_CSV", "")
@@ -77,7 +79,9 @@ def dag_ingest() -> None:
             "resolutions": [r.model_dump(mode="json") for r in resolutions],
         }
 
-    @task(task_id="write_lake_parquet")
+    # Publishing the asset here rather than on the extract tasks: the lake is only
+    # current once the partitions are actually written.
+    @task(task_id="write_lake_parquet", outlets=[LAKE_TRACKS])
     def write_lake_parquet(*batches: dict[str, list[dict]]) -> str:
         """Partition by ingestion date: lake/raw/tracks/dt=YYYY-MM-DD/ (E.5)."""
         from cyclebeat.models import RawResolution, RawTrack

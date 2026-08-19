@@ -25,6 +25,14 @@ LAKE_ROOT = Path("lake")
 TRACKS = "raw/tracks"
 RESOLUTIONS = "raw/resolutions"
 
+# Stable identifiers for the two lake datasets, used by the DAGs to declare their ordering
+# to Airflow (`Asset(...)`). Logical URIs, deliberately not filesystem paths: the lake root
+# differs between the container, CI and a checkout, while the identity does not. They live
+# here rather than in `dags/` because that folder is not importable from a bare DagBag, and
+# because building the Asset object -- the only Airflow-aware part -- stays in the DAGs.
+ASSET_TRACKS = "cyclebeat://lake/raw/tracks"
+ASSET_RESOLUTIONS = "cyclebeat://lake/raw/resolutions"
+
 
 def partition_dir(dataset: str, dt: date | str, root: Path | None = None) -> Path:
     """`lake/<dataset>/dt=YYYY-MM-DD/`. The `dt=` prefix is what makes it a Hive partition,

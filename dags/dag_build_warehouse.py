@@ -15,7 +15,11 @@ from pathlib import Path
 
 import pendulum
 from airflow.providers.standard.operators.bash import BashOperator
-from airflow.sdk import dag, task
+from airflow.sdk import Asset, dag, task
+
+from cyclebeat import lake
+
+LAKE_RESOLUTIONS = Asset(lake.ASSET_RESOLUTIONS)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DBT_DIR = PROJECT_ROOT / "dbt"
@@ -23,7 +27,9 @@ DBT_DIR = PROJECT_ROOT / "dbt"
 
 @dag(
     dag_id="dag_build_warehouse",
-    schedule="@daily",
+    # The tail of the chain: builds only from a lake that both upstream DAGs have
+    # finished writing. See dags/assets.py.
+    schedule=[LAKE_RESOLUTIONS],
     start_date=pendulum.datetime(2026, 8, 1, tz="UTC"),
     catchup=False,
     tags=["cyclebeat", "phase-2", "warehouse"],
