@@ -1,4 +1,4 @@
-.PHONY: setup lock lint typecheck test-unit test-integration dbt ingest ingest-live confidence-report airflow api front eval audit compose-ports compose-up compose-pipeline compose-down
+.PHONY: setup lock lint typecheck test-unit test-integration dbt ingest ingest-live confidence-report airflow api front eval audit compose-ports compose-up compose-pipeline compose-build compose-down
 
 # Everything runs through uv: it provisions the Python 3.11 toolchain itself
 # (see .python-version) and resolves from uv.lock, so no global pip is involved.
@@ -81,6 +81,19 @@ compose-up:
 # ... plus the Airflow orchestrator (E.5 check: the 3 DAGs green in the UI).
 compose-pipeline:
 	$(PORTS) docker compose --profile pipeline up -d
+
+# Rebuild the images, then bring the stack back up.
+#
+# Needed after editing code the image BAKES IN -- `COPY . .` in the Dockerfile, so
+# cyclebeat/, api/, ingest/, db/, dbt/, tests/ and the dependency pins. NOT needed for
+# dags/, lake/ or data/: those are bind-mounted, so a running container already sees the
+# edit (Airflow re-parses the DAG folder on its own).
+#
+# No `down` first. `up -d` recreates exactly the services whose image or config changed
+# and leaves the rest running; a `down` would only add downtime. Use compose-down when
+# you actually want the network and the one-shot containers gone.
+compose-build:
+	$(PORTS) docker compose --profile pipeline up -d --build
 
 compose-down:
 	docker compose --profile pipeline down --remove-orphans

@@ -297,8 +297,14 @@ with `port is already allocated`, and prints where everything landed:
 make compose-ports      # show the ports that would be used, start nothing
 make compose-up         # API stack
 make compose-pipeline   # ... plus Airflow
+make compose-build      # rebuild the images, then bring the stack back up
 make compose-down
 ```
+
+`compose-build` is only needed after editing code the image bakes in (`COPY . .`:
+`cyclebeat/`, `api/`, `ingest/`, `db/`, `dbt/`, `tests/`, the dependency pins). Editing
+`dags/`, `lake/` or `data/` needs nothing — they are bind-mounted and a running container
+already sees the change.
 
 A variable you set yourself is never probed, so `CYCLEBEAT_API_PORT=9000 make compose-up`
 pins the API and lets the rest fall where it may. Container-side ports never move, so
