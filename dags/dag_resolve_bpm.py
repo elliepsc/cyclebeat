@@ -29,7 +29,8 @@ DEMO_MODE = os.environ.get("CYCLEBEAT_DEMO", "1") != "0"
 @dag(
     dag_id="dag_resolve_bpm",
     # Asset-driven, not clock-driven: this runs when dag_ingest has actually landed
-    # the day's tracks, never three seconds before it. See dags/assets.py.
+    # the day's tracks, never three seconds before it. The asset identifiers live in
+    # `cyclebeat/lake.py` -- not in `dags/`, which a bare DagBag cannot import from.
     schedule=[LAKE_TRACKS],
     start_date=pendulum.datetime(2026, 8, 1, tz="UTC"),
     catchup=False,

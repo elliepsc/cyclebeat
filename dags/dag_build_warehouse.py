@@ -28,7 +28,7 @@ DBT_DIR = PROJECT_ROOT / "dbt"
 @dag(
     dag_id="dag_build_warehouse",
     # The tail of the chain: builds only from a lake that both upstream DAGs have
-    # finished writing. See dags/assets.py.
+    # finished writing. The asset identifiers live in `cyclebeat/lake.py`.
     schedule=[LAKE_RESOLUTIONS],
     start_date=pendulum.datetime(2026, 8, 1, tz="UTC"),
     catchup=False,
