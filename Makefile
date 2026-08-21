@@ -17,7 +17,7 @@ lock:
 # it the spike code would escape the definition of done entirely. `cyclebeat/` and
 # `dags/` joined it in phase 2 — same reason.
 lint:
-	$(RUN) ruff check api cyclebeat dags db ingest evals tests tools conftest.py
+	$(RUN) ruff check api cyclebeat dags db ingest evals tests tools catalogue_fixtures.py
 
 # Not gating yet: strict mypy is red on the v1 api/main.py, which phases 4-5
 # rewrite contract-first. Configured now so the tooling is in place.
