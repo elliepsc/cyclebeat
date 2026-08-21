@@ -61,7 +61,7 @@ Correspondance des fichiers hérités (aucun n'est supprimé — voir §7) :
 | **0. Purge & setup** | Purge v1 (Spotify/Qdrant/LangGraph/Streamlit → `archive/v1`), hygiène secrets, CLAUDE.md/AGENTS.md, Makefile, CI squelette, ADR-001 | CI verte sur repo purgé ; aucun secret dans l'historique (vérifié) | ✅ DONE |
 | **1. Spike sources** | Couverture Deezer + librosa-preview (déjà mesurée) ; décision backbone **ADR-005** (Deezer preview, Jamendo abandonné) | Rapport chiffré finalisé + ADR-005 acté + ADR-004 superseded | ✅ DONE |
 | **2. Cœur DE** | Resolver + cross-validation, 3 DAGs Airflow (`dag_ingest` = `extract_deezer` + `extract_csv`, cf. E.5), lake, DuckDB, dbt (recyclé) | `make ingest && make dbt` à froid **et** 3 DAGs verts ; dbt tests verts ; distribution confidence mesurée | ⬜ TODO — **débloquée** |
-| **3. Moteur** | Planner + evaluator + property-based + adversarial + **mutation check** | Mutation check vert | ⬜ TODO |
+| **3. Moteur** | Planner + evaluator + property-based + adversarial + **mutation check** ; règles de construction actées en **ADR-007** | Mutation check vert | ✅ DONE — `make eval` vert (55 tests) |
 | **4. Contrat + backend** | `openapi.yaml` (driven par le front), FastAPI en couches, unit + schemathesis | Contrat validé en CI ; tests verts | ⬜ TODO |
 | **5. Frontend** | React/Vite/TS, client généré, 4 écrans, vitest | `npm test` vert ; parcours complet local contre l'API | ⬜ TODO |
 | **6. LLM & copilote** | LiteLLM + Ollama, CoachingGenerator, **Warehouse Copilot** + outils bornés + éval anti-injection, `fct_llm_calls`/`fct_agent_runs` | Évals coach + copilote vertes en CI (Ollama) ; coût/séance mesuré | ⬜ TODO |

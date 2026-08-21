@@ -64,6 +64,22 @@ def zone_for(bpm: float | None) -> str | None:
     return "Z5"
 
 
+def zone_of(bpm: float | None) -> str | None:
+    """Normalize, then map to a zone — the two E.2 steps in the order E.2 states them.
+
+    `zone_for` above takes an ALREADY normalized value, which is right for `resolve` (it
+    normalizes first) but a trap for every other caller: `zone_for(190)` answers Z5, while
+    190 BPM is a half-time reading of 95 and belongs in Z1.
+
+    Composition of two normative functions, no third rule. Callers holding a
+    `bpm_effective` that came out of `resolve` may use either — `normalize_bpm` is idempotent
+    on an already-normalized value — and callers holding a number of unproven provenance
+    should use this one. The planner and the evaluator both do, which is what makes the
+    half-time / double-time trap answered by E.2 rather than by a heuristic downstream.
+    """
+    return zone_for(normalize_bpm(bpm))
+
+
 def resolve(sources: dict[str, float | None]) -> dict[str, object]:
     """Apply the E.2 confidence rule to a mapping of source name -> raw BPM.
 

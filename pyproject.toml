@@ -51,6 +51,11 @@ dev = [
     "pytest==8.2.2",
     "ruff>=0.6.0",
     "mypy>=1.11",
+    # §11 names hypothesis as the property-based layer of the test strategy ("invariants
+    # planner sur playlists générées"), so this is a normative requirement rather than a
+    # preference. Test-only: nothing under cyclebeat/ or api/ imports it, and it stays out
+    # of the runtime image.
+    "hypothesis>=6.100,<7",
     # Airflow 3 is needed to IMPORT the DAGs, which is what the three E.5 tests do. It does
     # not run on Windows: `make test-unit` therefore requires WSL or Linux (README,
     # "Development environment"). The tests are not skipped there — the environment is the
