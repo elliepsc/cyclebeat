@@ -17,7 +17,7 @@ lock:
 # it the spike code would escape the definition of done entirely. `cyclebeat/` and
 # `dags/` joined it in phase 2 — same reason.
 lint:
-	$(RUN) ruff check api cyclebeat dags db ingest tests tools
+	$(RUN) ruff check api cyclebeat dags db ingest evals tests tools catalogue_fixtures.py
 
 # Not gating yet: strict mypy is red on the v1 api/main.py, which phases 4-5
 # rewrite contract-first. Configured now so the tooling is in place.
@@ -104,10 +104,14 @@ api:
 front:
 	@echo "No frontend is defined yet." && exit 1
 
-# The v1 evaluation/ suite was purged (ADR-001); the V3 coach/copilot evals
-# arrive in phase 6. Fails explicitly rather than being absent (runbook step 4).
+# The adversarial playlists and the MUTATION CHECK -- the phase-3 exit criterion (§15).
+# Physically separate from `test-unit` because §11 puts them in different buckets, and
+# because it makes the exit criterion one command instead of a grep over pytest output.
+#
+# Unlike `test-unit`, this suite imports only cyclebeat + hypothesis, never Airflow, so it
+# runs on Windows as well as WSL. The phase-6 coach/copilot evals join it here.
 eval:
-	@echo "No evaluation suite is defined yet (phase 6)." && exit 1
+	$(RUN) pytest evals
 
 audit:
 	@echo "No audit target is defined yet." && exit 1
