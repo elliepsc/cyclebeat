@@ -14,10 +14,12 @@ from __future__ import annotations
 import os
 
 import pendulum
-from airflow.sdk import dag, task
+from airflow.sdk import Asset, dag, task
 
 from cyclebeat import lake
 from cyclebeat.resolve import deduplicate
+
+LAKE_TRACKS = Asset(lake.ASSET_TRACKS)
 
 DEMO_MODE = os.environ.get("CYCLEBEAT_DEMO", "1") != "0"
 CSV_PLAYLIST = os.environ.get("CYCLEBEAT_CSV", "")
@@ -35,6 +37,11 @@ EXTRACT_ARGS = {
     start_date=pendulum.datetime(2026, 8, 1, tz="UTC"),
     catchup=False,
     tags=["cyclebeat", "phase-2", "ingest"],
+    # DuckDB is single-writer by design (V3 §, risk table: "fichier, pas de concurrence"),
+    # and the lake partitions are full-replaced rather than appended. Two runs of the same
+    # DAG overlapping therefore corrupt or abort each other -- unpausing a DAG creates the
+    # scheduled run, and one click on "Trigger" then puts a second run alongside it.
+    max_active_runs=1,
     doc_md=__doc__,
 )
 def dag_ingest() -> None:
@@ -72,7 +79,9 @@ def dag_ingest() -> None:
             "resolutions": [r.model_dump(mode="json") for r in resolutions],
         }
 
-    @task(task_id="write_lake_parquet")
+    # Publishing the asset here rather than on the extract tasks: the lake is only
+    # current once the partitions are actually written.
+    @task(task_id="write_lake_parquet", outlets=[LAKE_TRACKS])
     def write_lake_parquet(*batches: dict[str, list[dict]]) -> str:
         """Partition by ingestion date: lake/raw/tracks/dt=YYYY-MM-DD/ (E.5)."""
         from cyclebeat.models import RawResolution, RawTrack

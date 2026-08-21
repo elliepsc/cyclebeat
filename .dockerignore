@@ -1,0 +1,56 @@
+# Build context exclusions.
+#
+# Without this file the context was 591 MB and `docker compose build` took 82 minutes:
+# the local `.venv/` alone is ~1 GB once Airflow is installed, and it is useless in the
+# image anyway — the Dockerfile rebuilds the environment from pyproject.toml + uv.lock.
+#
+# Keep this in sync with .gitignore: anything that is build output or a local environment
+# belongs here too.
+
+# Local virtual environments (the big one)
+.venv/
+venv/
+.python-version.local
+
+# VCS and CI metadata
+.git/
+.github/
+.gitignore
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Build output rebuilt inside the image or at runtime
+lake/
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/.user.yml
+data/*.duckdb
+data/*.duckdb.wal
+data/airflow/
+data/airflow.db
+data/audio_cache/
+data/spike/.cache/
+
+# Secrets never enter an image (E.0.5)
+.env
+.env.*
+
+# Docs and planning notes — not needed at runtime, and they invalidate the cache on
+# every edit, which is most edits.
+docs/
+docs-notes/
+*.md
+!README.md
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

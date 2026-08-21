@@ -1,4 +1,4 @@
-.PHONY: setup lock lint typecheck test-unit test-integration dbt ingest ingest-live confidence-report airflow api front eval audit
+.PHONY: setup lock lint typecheck test-unit test-integration dbt ingest ingest-live confidence-report airflow api front eval audit compose-ports compose-up compose-pipeline compose-build compose-down
 
 # Everything runs through uv: it provisions the Python 3.11 toolchain itself
 # (see .python-version) and resolves from uv.lock, so no global pip is involved.
@@ -53,6 +53,50 @@ ingest-live:
 # The measured confidence distribution — the other half of the phase-2 exit criterion.
 confidence-report:
 	$(RUN) python -m cyclebeat.cli confidence-report
+
+# ── Docker Compose ───────────────────────────────────────────────────────────
+# Each service keeps its conventional host port (8000 / 8080 / 9090 / 3000). When
+# another local stack already holds one, tools/compose_ports.py steps up to the
+# next free port rather than letting the whole `up` die on `port is already
+# allocated` -- and prints the URLs it settled on. Pin one by hand any time with
+# e.g. CYCLEBEAT_API_PORT=9000.
+# Deliberately NOT `$(RUN)`/`uv run`. This checkout is shared between Windows and
+# WSL, and the .venv on disk is whichever one built it last. `uv run` from WSL sees
+# a Windows venv (`.venv/Scripts`), tries to recreate it in POSIX layout, and dies
+# with `Input/output error (os error 5)` on the /mnt/c drvfs mount -- after having
+# already deleted `.venv/Lib`, so it breaks the Windows venv on its way out.
+# tools/compose_ports.py imports nothing outside the standard library, so a bare
+# interpreter runs it with no environment side effect at all.
+PY ?= $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
+PORTS ?= $(PY) -m tools.compose_ports
+
+# Show which host ports would be used, without starting anything.
+compose-ports:
+	$(PORTS)
+
+# API stack only (ingest -> dbt -> api -> prometheus -> grafana).
+compose-up:
+	$(PORTS) docker compose up -d
+
+# ... plus the Airflow orchestrator (E.5 check: the 3 DAGs green in the UI).
+compose-pipeline:
+	$(PORTS) docker compose --profile pipeline up -d
+
+# Rebuild the images, then bring the stack back up.
+#
+# Needed after editing code the image BAKES IN -- `COPY . .` in the Dockerfile, so
+# cyclebeat/, api/, ingest/, db/, dbt/, tests/ and the dependency pins. NOT needed for
+# dags/, lake/ or data/: those are bind-mounted, so a running container already sees the
+# edit (Airflow re-parses the DAG folder on its own).
+#
+# No `down` first. `up -d` recreates exactly the services whose image or config changed
+# and leaves the rest running; a `down` would only add downtime. Use compose-down when
+# you actually want the network and the one-shot containers gone.
+compose-build:
+	$(PORTS) docker compose --profile pipeline up -d --build
+
+compose-down:
+	docker compose --profile pipeline down --remove-orphans
 
 api:
 	$(RUN) uvicorn api.main:app --host 0.0.0.0 --port 8000

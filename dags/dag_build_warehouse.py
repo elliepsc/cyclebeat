@@ -15,7 +15,11 @@ from pathlib import Path
 
 import pendulum
 from airflow.providers.standard.operators.bash import BashOperator
-from airflow.sdk import dag, task
+from airflow.sdk import Asset, dag, task
+
+from cyclebeat import lake
+
+LAKE_RESOLUTIONS = Asset(lake.ASSET_RESOLUTIONS)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DBT_DIR = PROJECT_ROOT / "dbt"
@@ -23,10 +27,17 @@ DBT_DIR = PROJECT_ROOT / "dbt"
 
 @dag(
     dag_id="dag_build_warehouse",
-    schedule="@daily",
+    # The tail of the chain: builds only from a lake that both upstream DAGs have
+    # finished writing. The asset identifiers live in `cyclebeat/lake.py`.
+    schedule=[LAKE_RESOLUTIONS],
     start_date=pendulum.datetime(2026, 8, 1, tz="UTC"),
     catchup=False,
     tags=["cyclebeat", "phase-2", "warehouse"],
+    # DuckDB is single-writer by design (V3 §, risk table: "fichier, pas de concurrence"),
+    # and the lake partitions are full-replaced rather than appended. Two runs of the same
+    # DAG overlapping therefore corrupt or abort each other -- unpausing a DAG creates the
+    # scheduled run, and one click on "Trigger" then puts a second run alongside it.
+    max_active_runs=1,
     doc_md=__doc__,
 )
 def dag_build_warehouse() -> None:

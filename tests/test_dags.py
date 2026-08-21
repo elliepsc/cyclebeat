@@ -48,6 +48,53 @@ def test_all_dags_import_without_error(dagbag) -> None:
     assert EXPECTED_DAG_IDS.issubset(set(dagbag.dag_ids))
 
 
+def test_dags_chain_in_data_dependency_order(dagbag) -> None:
+    """The three DAGs run one after another, in the direction the data flows.
+
+    They used to share one `@daily` schedule and fire together. On 2026-08-19
+    dag_build_warehouse loaded DuckDB at 07:52:07, three seconds *before* dag_ingest wrote
+    the day's partitions: the warehouse was built from the previous day's lake, and nothing
+    errored. Only dag_ingest is on the clock now; the other two are asset-triggered.
+    """
+    from cyclebeat import lake
+
+    def produced(dag_id: str) -> set[str]:
+        dag = dagbag.get_dag(dag_id)
+        return {asset.uri for task in dag.tasks for asset in getattr(task, "outlets", [])}
+
+    def consumed(dag_id: str) -> set[str]:
+        condition = getattr(dagbag.get_dag(dag_id).timetable, "asset_condition", None)
+        return {asset.uri for asset in getattr(condition, "objects", [])}
+
+    # dag_ingest is the only clock-driven head of the chain.
+    assert consumed("dag_ingest") == set()
+    assert produced("dag_ingest") == {lake.ASSET_TRACKS}
+
+    # Each link consumes exactly what the previous one publishes.
+    assert consumed("dag_resolve_bpm") == {lake.ASSET_TRACKS}
+    assert produced("dag_resolve_bpm") == {lake.ASSET_RESOLUTIONS}
+
+    assert consumed("dag_build_warehouse") == {lake.ASSET_RESOLUTIONS}
+
+
+def test_dags_serialise_their_runs(dagbag) -> None:
+    """Every DAG caps itself at one active run. Regression test for a real failure.
+
+    On 2026-08-19, `load_duckdb` failed with `Could not set lock on file
+    cyclebeat_runtime.duckdb: Conflicting lock is held`. The Airflow metadata DB showed two
+    runs of dag_build_warehouse -- one `scheduled__`, one `manual__` -- entering that task
+    within the same millisecond. DuckDB allows a single writer, so one run aborted the other.
+    The same race applies to the lake DAGs: `write_partition` replaces a partition wholesale
+    rather than appending, so two overlapping runs interleave over the same `dt=` directory.
+    """
+    for dag_id in sorted(EXPECTED_DAG_IDS):
+        dag = dagbag.get_dag(dag_id)
+        assert dag.max_active_runs == 1, (
+            f"{dag_id} allows {dag.max_active_runs} concurrent runs; the warehouse and the "
+            "lake are both single-writer."
+        )
+
+
 def test_dag_ingest_has_no_jamendo_branch(dagbag) -> None:
     """ADR-005 dropped `extract_jamendo` from E.5's dag_ingest. Guard the removal.
 

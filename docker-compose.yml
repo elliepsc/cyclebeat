@@ -1,3 +1,17 @@
+# Host ports keep each service's conventional default (8000 API, 8080 Airflow,
+# 9090 Prometheus, 3000 Grafana) -- the port a reader expects, and the one every
+# tutorial and screenshot uses. They are only interpolated, never hard-coded, so a
+# port already taken by another local stack can be stepped past without editing
+# this file:
+#
+#     make compose-up            # picks the first free port from each default
+#     CYCLEBEAT_API_PORT=9000 docker compose up -d api   # or pin one by hand
+#
+# `make compose-up` shells through tools/compose_ports.py, which probes upwards
+# (9090 busy -> 9091 -> 9092 ...) and prints the URLs it settled on.
+#
+# Container-side ports never move, so `api:8000` in monitoring/prometheus.yml and
+# the Grafana datasource pointing at `prometheus:9090` are unaffected by any of this.
 services:
 
   # ── Ingestion (one-shot) ─────────────────────────────────────────
@@ -5,6 +19,12 @@ services:
     build: .
     container_name: cyclebeat_ingest
     command: python -m ingest.ingest_pipeline
+    # Same inherited-probe problem as the airflow service: this one-shot container
+    # never runs uvicorn, so the image HEALTHCHECK could only ever report sick.
+    # `depends_on` here keys off service_completed_successfully (the exit code),
+    # not health, so nothing depends on this probe.
+    healthcheck:
+      disable: true
     environment:
       - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
     volumes:
@@ -18,6 +38,12 @@ services:
     command: >
       bash -c "dbt run --project-dir dbt --profiles-dir dbt &&
                dbt test --project-dir dbt --profiles-dir dbt"
+    # Same inherited-probe problem as the airflow service: this one-shot container
+    # never runs uvicorn, so the image HEALTHCHECK could only ever report sick.
+    # `depends_on` here keys off service_completed_successfully (the exit code),
+    # not health, so nothing depends on this probe.
+    healthcheck:
+      disable: true
     environment:
       - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
     depends_on:
@@ -32,7 +58,7 @@ services:
     build: .
     container_name: cyclebeat_api
     ports:
-      - "8000:8000"
+      - "${CYCLEBEAT_API_PORT:-8000}:8000"
     environment:
       - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
     depends_on:
@@ -56,39 +82,62 @@ services:
   # DEMO by default (E.8): CYCLEBEAT_DEMO=1 makes dag_ingest read the committed snapshot,
   # so the DAGs run green with no credentials, no network and no API quota.
   airflow:
-    build: .
+    build:
+      context: .
+      args:
+        # apache-airflow is in the dev group; the default --no-dev would not install it,
+        # which is why the first run of this service said `airflow: command not found`.
+        UV_SYNC_ARGS: ""
     container_name: cyclebeat_airflow
     profiles: ["pipeline"]
     ports:
-      - "8080:8080"
+      - "${CYCLEBEAT_AIRFLOW_PORT:-8080}:8080"
     environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__DAGS_FOLDER=/app/dags
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
-      # SQLite + LocalExecutor is enough for a single-node demo; the "2 DuckDB files,
-      # single writer" hardening (roadmap §2.3) concerns the analytics store, not this.
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////app/data/airflow.db
       - AIRFLOW_HOME=/app/data/airflow
+      # DEMO ONLY: skips the login screen so the "3 DAGs green in the UI" check is one
+      # click. Never set this on anything reachable from a network (phase 9 deploys the
+      # API, not Airflow).
+      - AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS=true
       - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
       - CYCLEBEAT_DEMO=1
       - PYTHONPATH=/app
+      # Airflow 3.0.6 + PyJWT >= 2.10: with no issuer configured, the internal JWT
+      # generator builds `iss: []` (an empty list, because its `[] -> None` converter
+      # only exists on the token *validator*), and PyJWT rejects it with
+      # `TypeError: Issuer (iss) must be a string.` -> every UI/API request 500s.
+      # Setting any string here makes the generator return that string instead.
+      - AIRFLOW__API_AUTH__JWT_ISSUER=cyclebeat
     volumes:
       - ./data:/app/data
       - ./dags:/app/dags
       - ./lake:/app/lake
-    command: >
-      bash -c "airflow db migrate &&
-               airflow users create --username admin --password admin
-                 --firstname Ellie --lastname Dev --role Admin --email admin@example.com
-                 || true &&
-               airflow standalone"
+    # Exec-form list, not a YAML folded scalar. `>` re-indents continuation lines into
+    # separate shell lines, which is what split the previous command into `--firstname:
+    # command not found` and a syntax error on `||`.
+    #
+    # `airflow standalone` migrates the DB, provisions the admin user and runs
+    # api-server + scheduler + triggerer. Airflow 3 has NO `airflow users` command —
+    # user management moved to the auth manager — so the old invocation was invalid
+    # independently of the YAML.
+    # Do NOT add AIRFLOW__API__BASE_URL to "match" a shifted host port.
+    # The task SDK derives [core] execution_api_server_url from that base URL, and inside
+    # the container nothing listens on that host port -- the UI would look right and every run
+    # would fail. The default (localhost:8080) is the container-side truth; keep it.
+    command: ["airflow", "standalone"]
+    # The image is built for the API, so its Dockerfile HEALTHCHECK curls :8000/health.
+    # This service runs Airflow, not uvicorn, so that probe can only ever fail and the
+    # container would sit at `Up (unhealthy)` forever.
+    healthcheck:
+      disable: true
 
   # ── Prometheus ───────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.52.0
     container_name: cyclebeat_prometheus
     ports:
-      - "9090:9090"
+      - "${CYCLEBEAT_PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
     depends_on:
@@ -99,7 +148,7 @@ services:
     image: grafana/grafana:10.4.2
     container_name: cyclebeat_grafana
     ports:
-      - "3000:3000"
+      - "${CYCLEBEAT_GRAFANA_PORT:-3000}:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=cyclebeat
       - GF_USERS_ALLOW_SIGN_UP=false
