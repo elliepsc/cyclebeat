@@ -1,7 +1,7 @@
 name: CI
 
-# Phase 0 skeleton (runbook E.1 #6): lint + unit tests + dbt build.
-# Integration tests, evals and the deploy step are added by phases 8 and 9.
+# lint + unit tests + evals + dbt build.
+# Integration tests and the deploy step are added by phases 8 and 9.
 
 on:
   push:
@@ -42,6 +42,14 @@ jobs:
 
       - name: Unit tests
         run: make test-unit
+
+      # The phase-3 exit criterion (§15) and condition 2 of §2.5: the mutation
+      # check green IN CI, not merely on a developer's machine. Kept a separate
+      # step from `test-unit` because §11 keeps the suites physically apart, and
+      # because a red step named "eval" says which criterion broke. The phase-6
+      # coach/copilot evals join this same target.
+      - name: Evals (adversarial + mutation check)
+        run: make eval
 
       # dbt reads the runtime DuckDB, so the demo knowledge base
       # (data/cycling_patterns.json, committed) is ingested first. No network,

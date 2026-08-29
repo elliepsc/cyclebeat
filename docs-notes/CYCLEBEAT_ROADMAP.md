@@ -33,20 +33,21 @@ Correspondance des fichiers hérités (aucun n'est supprimé — voir §7) :
 
 ---
 
-## 1. État actuel (snapshot vérifié — `origin/main` = `1b20b40`, 2026-08-15)
+## 1. État actuel (snapshot vérifié — `origin/main` = `6da3e71`, 2026-08-21)
 
 | Élément | État |
 |---|---|
 | **Gate L0 → L1** | 🔴 **FERMÉ** — (b) remplie, (a) et (c) non ; aucun module B ne peut démarrer |
 | Phase 0 — Purge & setup | ✅ **DONE** (v1 purgé, hygiène secrets vérifiée, CI verte, ADR-001/002/003) — PR #3, #4 |
 | Phase 1 — Spike sources | ✅ **DONE** — ADR-005 acté, ADR-004 superseded, rapport chiffré finalisé sur les 50 pistes mesurées, `extract_jamendo` retiré de E.5. **Aucun compte Jamendo créé.** |
-| Phase 2 — Cœur DE | ⬜ **TODO — débloquée** (la phase 1 est close ; c'est la prochaine à ouvrir) |
-| Phases 3 → 11 | ⬜ **TODO** — rien démarré |
+| Phase 2 — Cœur DE | ✅ **DONE** — resolver + cross-validation, lake Parquet, DuckDB/dbt, 3 DAGs Airflow chaînés sur les assets du lake — PR #10, #12 |
+| Phase 3 — Moteur | ✅ **DONE** — planner + evaluator déterministes, ADR-007, mutation check vert en CI — PR #11 |
+| Phases 4 → 11 | ⬜ **TODO** — rien démarré ; la phase 4 (contrat + backend) est la prochaine à ouvrir |
 | Couche L1 (B1–B7) | 🔒 **GATÉE** |
 
 **Ce que la phase 1 a tranché.** Elle s'est close par **une décision, pas par une mesure supplémentaire**. **ADR-005** (supersede ADR-004) fixe le backbone BPM = **`librosa` sur le preview Deezer de 30 s** (vraie musique mainstream, source de métadonnées = source de lecture), le champ `bpm` de Deezer en **enrichissement** et le CSV en socle manuel ; Jamendo/CC est abandonné. Ce chemin était **déjà mesuré** : **82 % de pistes exploitables** (41/50), avec un biais haussier documenté. Le prix accepté, chiffré : **`single_source` 0.6 domine à 54 %**, `cross_validated` 0.9 plafonne à 26 % — car il dépend du champ `bpm` de Deezer, présent sur **23,3 %** des sorties récentes contre **65 %** des classiques. 12 % des pistes restent sans BPM (exclues du planner). Détail : `docs/spikes/phase1-source-coverage.md`.
 
-**Prochain blocage** : plus aucun sur la phase 1. La phase 2 (cœur DE) peut ouvrir — une branche, une PR (E.0).
+**Prochain blocage** : aucun. Les phases 2 et 3 sont closes et mergées ; la phase 4 (contrat + backend, `openapi.yaml` écrit AVANT le backend) peut ouvrir — une branche, une PR (E.0).
 
 ---
 
@@ -60,7 +61,7 @@ Correspondance des fichiers hérités (aucun n'est supprimé — voir §7) :
 |---|---|---|---|
 | **0. Purge & setup** | Purge v1 (Spotify/Qdrant/LangGraph/Streamlit → `archive/v1`), hygiène secrets, CLAUDE.md/AGENTS.md, Makefile, CI squelette, ADR-001 | CI verte sur repo purgé ; aucun secret dans l'historique (vérifié) | ✅ DONE |
 | **1. Spike sources** | Couverture Deezer + librosa-preview (déjà mesurée) ; décision backbone **ADR-005** (Deezer preview, Jamendo abandonné) | Rapport chiffré finalisé + ADR-005 acté + ADR-004 superseded | ✅ DONE |
-| **2. Cœur DE** | Resolver + cross-validation, 3 DAGs Airflow (`dag_ingest` = `extract_deezer` + `extract_csv`, cf. E.5), lake, DuckDB, dbt (recyclé) | `make ingest && make dbt` à froid **et** 3 DAGs verts ; dbt tests verts ; distribution confidence mesurée | ⬜ TODO — **débloquée** |
+| **2. Cœur DE** | Resolver + cross-validation, 3 DAGs Airflow (`dag_ingest` = `extract_deezer` + `extract_csv`, cf. E.5), lake, DuckDB, dbt (recyclé) | `make ingest && make dbt` à froid **et** 3 DAGs verts ; dbt tests verts ; distribution confidence mesurée | ✅ DONE |
 | **3. Moteur** | Planner + evaluator + property-based + adversarial + **mutation check** ; règles de construction actées en **ADR-007** | Mutation check vert | ✅ DONE — `make eval` vert (55 tests) |
 | **4. Contrat + backend** | `openapi.yaml` (driven par le front), FastAPI en couches, unit + schemathesis | Contrat validé en CI ; tests verts | ⬜ TODO |
 | **5. Frontend** | React/Vite/TS, client généré, 4 écrans, vitest | `npm test` vert ; parcours complet local contre l'API | ⬜ TODO |
