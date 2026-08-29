@@ -73,7 +73,14 @@ def build_demo_batch(
                 source_platform="deezer",
                 title=str(row.get("title") or ""),
                 artist=str(row.get("artist") or ""),
-                duration_s=row.get("audio_seconds"),
+                # The FULL track length, not `audio_seconds`. `audio_seconds` is the ~30 s
+                # PREVIEW librosa analysed; E.2's `duration_s` is the track's own duration,
+                # and conflating the two put 30 s on every demo track. Nothing read the field
+                # before phase 4, so the error stayed invisible until the planner -- which
+                # sizes warmup and cooldown in seconds (ADR-007) -- could not build a single
+                # session from the demo catalogue. Backfilled into the snapshot from the
+                # spike's own cached Deezer responses; see `track_duration_provenance` there.
+                duration_s=row.get("track_duration_s"),
                 preview_url=None,  # the snapshot records the analysis, not the URL
                 ingested_at=ingested_at,
             )
