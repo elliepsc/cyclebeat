@@ -1,6 +1,6 @@
 name: CI
 
-# lint + unit tests + evals + dbt build.
+# lint + typecheck + unit tests + evals + contract + dbt build.
 # Integration tests and the deploy step are added by phases 8 and 9.
 
 on:
@@ -40,6 +40,12 @@ jobs:
       - name: Lint
         run: make lint
 
+      # Strict mypy on `api/`. Gating from phase 4 on: it was red only because of the v1
+      # `api/main.py`, which the contract-first rewrite deleted. If this goes red again, v1
+      # code has crept back.
+      - name: Typecheck
+        run: make typecheck
+
       - name: Unit tests
         run: make test-unit
 
@@ -59,3 +65,10 @@ jobs:
 
       - name: dbt build
         run: make dbt
+
+      # The phase-4 exit criterion: "contrat validé en CI". Two checks in one file --
+      # openapi.yaml vs the schema FastAPI generates (contract-first), and schemathesis
+      # driving the contract against the real app. Runs AFTER dbt so the quality endpoints
+      # answer against built marts rather than an empty warehouse.
+      - name: Contract
+        run: make contract

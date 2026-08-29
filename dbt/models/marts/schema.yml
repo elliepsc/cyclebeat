@@ -50,6 +50,36 @@ models:
         description: "False exactly when bpm_effective is NULL — E.2's 'excluded from the planner'."
         tests: [not_null]
 
+  - name: mart_bpm_coverage
+    description: >
+      BPM resolution coverage per source. Grain is `source`. Backs `GET /v1/quality/coverage`
+      (E.3) and sits on the copilot read allowlist (E.4). Counts each source's raw OPINION,
+      read from stg_resolutions rather than dim_track, so a source that lost E.2 arbitration
+      is still counted as having covered the track.
+    columns:
+      - name: source
+        description: "Grain. The E.2 enum: deezer | librosa | getsongbpm | manual."
+        tests:
+          - not_null
+          - unique
+          - accepted_values:
+              values: ['deezer', 'librosa', 'getsongbpm', 'manual']
+
+      - name: n_tracks
+        description: "Tracks this source gave an opinion on, usable or not."
+        tests: [not_null]
+
+      - name: n_usable
+        description: >
+          Of those, how many carried a usable BPM. stg_resolutions has already nulled the
+          non-positive values Deezer uses to mean "no BPM", so this counts real opinions.
+          Bounded against n_tracks by `dbt/tests/check_bpm_coverage_bounds.sql`.
+        tests: [not_null]
+
+      - name: pct_of_catalogue
+        description: "n_usable as a share of the whole track catalogue, not of this source's rows."
+        tests: [not_null]
+
   - name: mart_data_quality
     description: "BPM coverage and confidence distribution, one row per confidence_method."
     columns:

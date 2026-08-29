@@ -27,8 +27,13 @@ _DDL_SESSIONS = """
     )
 """
 
+# ADR-008 added `session_id` as the real key. Kept in step with
+# `api/repositories/connection.py:DDL_FEEDBACK`, because either module can be the one that
+# creates this table first: `make ingest` calls init_db() here, while the API creates it on
+# its first write. If the two DDLs drift, whichever runs first wins and the other breaks.
 _DDL_FEEDBACK = """
     CREATE TABLE IF NOT EXISTS feedback (
+        session_id    VARCHAR,
         session_title VARCHAR,
         rating        VARCHAR,
         note          VARCHAR,

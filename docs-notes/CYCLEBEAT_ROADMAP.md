@@ -42,12 +42,13 @@ Correspondance des fichiers hérités (aucun n'est supprimé — voir §7) :
 | Phase 1 — Spike sources | ✅ **DONE** — ADR-005 acté, ADR-004 superseded, rapport chiffré finalisé sur les 50 pistes mesurées, `extract_jamendo` retiré de E.5. **Aucun compte Jamendo créé.** |
 | Phase 2 — Cœur DE | ✅ **DONE** — resolver + cross-validation, lake Parquet, DuckDB/dbt, 3 DAGs Airflow chaînés sur les assets du lake — PR #10, #12 |
 | Phase 3 — Moteur | ✅ **DONE** — planner + evaluator déterministes, ADR-007, mutation check vert en CI — PR #11 |
-| Phases 4 → 11 | ⬜ **TODO** — rien démarré ; la phase 4 (contrat + backend) est la prochaine à ouvrir |
+| Phase 4 — Contrat + backend | ✅ **DONE** — `openapi.yaml` contract-first, API en couches, `fct_session` (ADR-008), `mart_bpm_coverage`, schemathesis + test de divergence en CI |
+| Phases 5 → 11 | ⬜ **TODO** — rien démarré ; la phase 5 (frontend React) est la prochaine à ouvrir |
 | Couche L1 (B1–B7) | 🔒 **GATÉE** |
 
 **Ce que la phase 1 a tranché.** Elle s'est close par **une décision, pas par une mesure supplémentaire**. **ADR-005** (supersede ADR-004) fixe le backbone BPM = **`librosa` sur le preview Deezer de 30 s** (vraie musique mainstream, source de métadonnées = source de lecture), le champ `bpm` de Deezer en **enrichissement** et le CSV en socle manuel ; Jamendo/CC est abandonné. Ce chemin était **déjà mesuré** : **82 % de pistes exploitables** (41/50), avec un biais haussier documenté. Le prix accepté, chiffré : **`single_source` 0.6 domine à 54 %**, `cross_validated` 0.9 plafonne à 26 % — car il dépend du champ `bpm` de Deezer, présent sur **23,3 %** des sorties récentes contre **65 %** des classiques. 12 % des pistes restent sans BPM (exclues du planner). Détail : `docs/spikes/phase1-source-coverage.md`.
 
-**Prochain blocage** : aucun. Les phases 2 et 3 sont closes et mergées ; la phase 4 (contrat + backend, `openapi.yaml` écrit AVANT le backend) peut ouvrir — une branche, une PR (E.0).
+**Prochain blocage** : aucun. Les phases 2, 3 et 4 sont closes ; la phase 5 (frontend React/Vite/TS, client TypeScript **généré** depuis `openapi.yaml`) peut ouvrir — une branche, une PR (E.0).
 
 ---
 
@@ -63,7 +64,7 @@ Correspondance des fichiers hérités (aucun n'est supprimé — voir §7) :
 | **1. Spike sources** | Couverture Deezer + librosa-preview (déjà mesurée) ; décision backbone **ADR-005** (Deezer preview, Jamendo abandonné) | Rapport chiffré finalisé + ADR-005 acté + ADR-004 superseded | ✅ DONE |
 | **2. Cœur DE** | Resolver + cross-validation, 3 DAGs Airflow (`dag_ingest` = `extract_deezer` + `extract_csv`, cf. E.5), lake, DuckDB, dbt (recyclé) | `make ingest && make dbt` à froid **et** 3 DAGs verts ; dbt tests verts ; distribution confidence mesurée | ✅ DONE |
 | **3. Moteur** | Planner + evaluator + property-based + adversarial + **mutation check** ; règles de construction actées en **ADR-007** | Mutation check vert | ✅ DONE — `make eval` vert (55 tests) |
-| **4. Contrat + backend** | `openapi.yaml` (driven par le front), FastAPI en couches, unit + schemathesis | Contrat validé en CI ; tests verts | ⬜ TODO |
+| **4. Contrat + backend** | `openapi.yaml` écrit à la main AVANT le backend, FastAPI en couches (routers→services→repositories), unit + schemathesis ; **ADR-008** (persistance) et `mart_bpm_coverage` | Contrat validé en CI ; tests verts | ✅ DONE — `make contract` vert (23 tests) |
 | **5. Frontend** | React/Vite/TS, client généré, 4 écrans, vitest | `npm test` vert ; parcours complet local contre l'API | ⬜ TODO |
 | **6. LLM & copilote** | LiteLLM + Ollama, CoachingGenerator, **Warehouse Copilot** + outils bornés + éval anti-injection, `fct_llm_calls`/`fct_agent_runs` | Évals coach + copilote vertes en CI (Ollama) ; coût/séance mesuré | ⬜ TODO |
 | **7. Extension pack** | skill `new-mart`, subagent `dbt-reviewer`, hooks, **serveur MCP** warehouse, packaging plugin | Chaque brique a servi ≥ 1 fois (preuve dans `ai-workflow.md`) | ⬜ TODO |

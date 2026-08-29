@@ -1,4 +1,4 @@
-.PHONY: setup lock lint typecheck test-unit test-integration dbt ingest ingest-live confidence-report airflow api front eval audit compose-ports compose-up compose-pipeline compose-build compose-down
+.PHONY: setup lock lint typecheck contract test-unit test-integration dbt ingest ingest-live confidence-report airflow api front eval audit compose-ports compose-up compose-pipeline compose-build compose-down
 
 # Everything runs through uv: it provisions the Python 3.11 toolchain itself
 # (see .python-version) and resolves from uv.lock, so no global pip is involved.
@@ -19,10 +19,18 @@ lock:
 lint:
 	$(RUN) ruff check api cyclebeat dags db ingest evals tests tools catalogue_fixtures.py
 
-# Not gating yet: strict mypy is red on the v1 api/main.py, which phases 4-5
-# rewrite contract-first. Configured now so the tooling is in place.
+# Gating since phase 4. It was red only on the v1 `api/main.py`, which the contract-first
+# rewrite deleted; `api/` is strict-clean now and CI runs this target.
 typecheck:
 	$(RUN) mypy
+
+# The phase-4 exit criterion (§15): openapi.yaml and the implementation must not diverge.
+# Two independent checks live in that file -- the hand-written contract against the schema
+# FastAPI generates, and schemathesis driving the contract against the real app.
+#
+# Run it AFTER `make dbt`, so the quality endpoints answer against built marts.
+contract:
+	$(RUN) pytest tests/test_api_contract.py
 
 test-unit:
 	$(RUN) pytest
