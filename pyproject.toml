@@ -56,6 +56,14 @@ dev = [
     # preference. Test-only: nothing under cyclebeat/ or api/ imports it, and it stays out
     # of the runtime image.
     "hypothesis>=6.100,<7",
+    # §11 and §15 both name schemathesis as the contract-test layer: it drives openapi.yaml
+    # against the running app and finds contract/implementation divergence automatically.
+    # Test-only, like hypothesis (which it is built on).
+    "schemathesis>=3.25,<4",
+    # Asserts openapi.yaml is a VALID OpenAPI 3.1 document, not merely valid YAML. Declared
+    # rather than left to `importorskip`, because a test that skips itself when a dependency
+    # is absent is a bypassed test (E.0.4), and this one guards the contract itself.
+    "openapi-spec-validator>=0.7,<0.8",
     # Airflow 3 is needed to IMPORT the DAGs, which is what the three E.5 tests do. It does
     # not run on Windows: `make test-unit` therefore requires WSL or Linux (README,
     # "Development environment"). The tests are not skipped there — the environment is the

@@ -497,6 +497,37 @@ fct_agent_runs    : run_id, ts, question, tools_called JSON, n_steps, verdict, d
 > monte la confidence, il ne déplace jamais la valeur) ; l'arbitrage librosa score **0.6**, comme
 > `single_source`, en conservant `confidence_method = 'librosa_arbitrated'` pour rester auditable.
 
+> **Note 2026-08-29 (phase 4 — ADR-008, persistance des séances).** Deux points d'E.2 étaient
+> déclarés mais jamais matérialisés, et la phase 4 est la première à devoir *stocker* une séance :
+>
+> - **`fct_session` existe désormais**, avec les colonnes déclarées ci-dessus. `llm_cost_usd` et
+>   `latency_ms` sont créées mais restent NULL jusqu'à la phase 6 (LiteLLM). Un `plan_json` est
+>   stocké à côté des colonnes scalaires pour que le rejeu soit identique à ce qui a été servi.
+> - **`raw.feedback` gagne `session_id`**, qui devient la vraie clé — un titre est une chaîne
+>   d'affichage mutable et non unique. `session_title` est **conservée** et renseignée : la chaîne
+>   `stg_feedback → int_feedback_enriched → mart_feedback_summary`, déclarée normative par la note
+>   du 2026-08-15, groupe dessus et reste intacte, tests dbt compris. Le changement est additif.
+>
+> ```
+> fct_session  : session_id TEXT PK, level TEXT, goal TEXT, duration_min INTEGER, verdict TEXT,
+>                n_segments INTEGER, duration_gap_s DOUBLE, llm_cost_usd DOUBLE NULLABLE,
+>                latency_ms INTEGER NULLABLE, created_at TIMESTAMP, plan_json TEXT
+> raw.feedback : session_id TEXT, session_title TEXT, rating TEXT, note TEXT, created_at TIMESTAMP
+> ```
+>
+> **La dette ouverte de la note du 2026-08-15 est close** : DuckDB est désormais *primaire* (le JSON
+> n'est plus la source de vérité) et le SQL correspondant a quitté `db/runtime.py` pour
+> `api/repositories/` (E.0.5). Analyse d'impact complète : `docs/adr/adr-008-session-persistence.md`.
+> **Inchangés** : la normalisation BPM, les zones, la règle de confidence et l'enum des sources.
+>
+> **Note 2026-08-29 (phase 4 — `mart_bpm_coverage` créé).** E.3 fait de `mart_bpm_coverage` la
+> table derrière `GET /v1/quality/coverage`, et E.4 la place sur l'allowlist du copilote — mais elle
+> n'avait jamais été construite. Elle l'est en phase 4 : grain `source`, lue depuis
+> `stg_resolutions` (l'**opinion** de chaque source, pas le verdict) pour qu'une source ayant perdu
+> l'arbitrage E.2 compte quand même dans la couverture. Second écart traité au passage :
+> `GET /v1/quality/summary` est spécifié « JSON record unique » alors que `mart_data_quality` a une
+> ligne par `confidence_method` — l'endpoint agrège et rend le détail sous `by_method`.
+
 Normalisation BPM (V2 §2, normative) : `while bpm > 180: bpm /= 2` puis
 `while bpm < 70: bpm *= 2`. Zones sur bpm_effective : Z1 < 100, Z2 100-115,
 Z3 116-130, Z4 131-145, Z5 > 145.
