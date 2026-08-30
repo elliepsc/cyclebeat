@@ -1,6 +1,6 @@
 # ADR-008 — Session persistence: `fct_session` materialized, feedback rekeyed on `session_id`
 
-- **Status**: Accepted
+- **Status**: **Superseded by [ADR-009](adr-009-postgres-transactional-duckdb-analytical.md)** — the store is Postgres, not DuckDB. The `session_id` rekeying and the "all SQL in `api/repositories/`" rule below still hold; only the store changes. This ADR was written without reading ROADMAP §2.7, which had already assigned transactional persistence to Postgres in phase 4.
 - **Date**: 2026-08-29
 - **Owner**: Ellie
 

@@ -497,6 +497,21 @@ fct_agent_runs    : run_id, ts, question, tools_called JSON, n_steps, verdict, d
 > monte la confidence, il ne déplace jamais la valeur) ; l'arbitrage librosa score **0.6**, comme
 > `single_source`, en conservant `confidence_method = 'librosa_arbitrated'` pour rester auditable.
 
+> **Note 2026-08-30 (ADR-009 — supersede la note ADR-008 ci-dessous).** La note ADR-008 place
+> `fct_session` et `raw.feedback` dans **DuckDB**, écrites par l'API. C'est **corrigé** : le
+> ROADMAP §2.7 assigne la persistance transactionnelle à **Postgres** (prod : Neon free tier),
+> DuckDB restant l'entrepôt **analytique**. La note ci-dessous a été écrite sans avoir lu §2.7.
+>
+> Ce qui change : **l'API n'écrit plus aucune table DuckDB.** `sessions` et `feedback` vivent en
+> Postgres ; le pipeline les **ingère** dans l'entrepôt, où `fct_session` et `raw.feedback`
+> deviennent des tables alimentées depuis Postgres, pas depuis l'API. La traduction du
+> vocabulaire de rating (E.3 dit `up`/`down`, la chaîne dbt normative classe
+> `Great`/`Okay`/`Hard`) se fait à **la frontière d'ingestion**.
+>
+> **Inchangés** : le rekeying de `raw.feedback` sur `session_id`, la forme de `fct_session`, et
+> la règle « tout le SQL dans `api/repositories/` et `dbt/` » (E.0.5). Voir
+> `docs/adr/adr-009-postgres-transactional-duckdb-analytical.md`.
+
 > **Note 2026-08-29 (phase 4 — ADR-008, persistance des séances).** Deux points d'E.2 étaient
 > déclarés mais jamais matérialisés, et la phase 4 est la première à devoir *stocker* une séance :
 >
