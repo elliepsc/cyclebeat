@@ -138,9 +138,9 @@ Le Module 3 enseigne SQLite → **Postgres** (store transactionnel de l'app). Cy
 - **DuckDB** = entrepôt analytique : lake → DuckDB → dbt (staging→marts), copilote warehouse. **Le différenciateur DE, conservé.**
 - Le pipeline ingère les données transactionnelles Postgres dans l'entrepôt pour l'analytique (`fct_session`, `mart_feedback_summary`).
 
-Coût : +1-2 j, 2 stores. **Zéro € préservé** (Postgres en conteneur compose + free tier Render). Alternative minimale si le temps manque : DuckDB-only avec multi-env documenté — **passe** le crit 7 (libellé 2026 générique), mais raconte une histoire moins propre. Reco : la séparation, puisque tu es ouverte.
+Coût : +1-2 j, 2 stores. **Zéro € préservé** (Postgres en conteneur compose + **free tier Neon** en prod — voir ADR-009 : le free tier Postgres de Render est limité dans le temps, ce qui casserait la condition §18 « URL déployée vivante depuis au moins une semaine » ; Render héberge l'API, Neon la base). Alternative minimale si le temps manque : DuckDB-only avec multi-env documenté — **passe** le crit 7 (libellé 2026 générique), mais raconte une histoire moins propre. Reco : la séparation, puisque tu es ouverte.
 
-> **Impact phases :** Postgres transactionnel s'ajoute en **phase 4** (backend/persistance) ; l'entrepôt DuckDB reste **phase 2**. Le durcissement « 2 fichiers DuckDB single-writer » (§2.3) ne concerne plus que l'analytique.
+> **Impact phases :** Postgres transactionnel s'ajoute en **phase 4** (backend/persistance) ; l'entrepôt DuckDB reste **phase 2**. **Formalisé par ADR-009** (2026-08-30), qui supersede ADR-008 — celui-ci avait placé sessions/feedback dans DuckDB, faute d'avoir lu cette section. Le durcissement « 2 fichiers DuckDB single-writer » (§2.3) ne concerne plus que l'analytique.
 
 ---
 
