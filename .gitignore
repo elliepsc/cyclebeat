@@ -43,6 +43,9 @@ logs/
 data/feedback.json
 data/*.duckdb
 data/*.duckdb.wal
+# The SQLite fallback for the transactional store (ADR-009). Local state, like the
+# warehouse beside it -- Postgres is the real store in compose and production.
+data/*.db
 
 # Phase-1 spike: HTTP response cache and downloaded audio (E.8 permanent cache, but
 # hundreds of MB of CC mp3 have no business in git). The raw measurement output next to

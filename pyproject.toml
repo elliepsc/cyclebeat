@@ -19,6 +19,11 @@ dependencies = [
     # purging those broke `import dlt`, so it is now declared explicitly.
     # Dropped when dlt is upgraded in phase 2.
     "setuptools>=70,<81",
+    # Transactional store (ADR-009). Postgres in compose and on Neon; a bare clone falls back
+    # to stdlib sqlite3, so this is only imported when DATABASE_URL points at Postgres.
+    # `[binary]` ships the libpq wheel, which keeps `uv sync` from needing system Postgres
+    # headers on a clean machine.
+    "psycopg[binary]>=3.1,<4",
     # Warehouse — imported directly by db/runtime.py, so declared explicitly
     # instead of relying on the dlt[duckdb]/dbt-duckdb transitive pin.
     "duckdb==0.10.2",

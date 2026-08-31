@@ -25,6 +25,13 @@ LAKE_ROOT = Path("lake")
 TRACKS = "raw/tracks"
 RESOLUTIONS = "raw/resolutions"
 
+# The transactional side of the lake (ADR-009). `sessions` and `feedback` are produced by the
+# API into Postgres/SQLite and EXTRACTED here, so the warehouse is fed by the same lake as
+# everything else instead of dbt reaching across into an OLTP database. Keeping one entry
+# point into the warehouse is what makes `make ingest && make dbt` reproducible from cold.
+SESSIONS = "raw/sessions"
+FEEDBACK = "raw/feedback"
+
 # Stable identifiers for the two lake datasets, used by the DAGs to declare their ordering
 # to Airflow (`Asset(...)`). Logical URIs, deliberately not filesystem paths: the lake root
 # differs between the container, CI and a checkout, while the identity does not. They live
@@ -32,6 +39,7 @@ RESOLUTIONS = "raw/resolutions"
 # because building the Asset object -- the only Airflow-aware part -- stays in the DAGs.
 ASSET_TRACKS = "cyclebeat://lake/raw/tracks"
 ASSET_RESOLUTIONS = "cyclebeat://lake/raw/resolutions"
+ASSET_APP_DB = "cyclebeat://lake/raw/app_db"
 
 
 def partition_dir(dataset: str, dt: date | str, root: Path | None = None) -> Path:

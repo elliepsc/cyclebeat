@@ -45,11 +45,14 @@ dbt:
 # Airflow and no network. Three stages, in order:
 #   1. the pattern knowledge base (dlt -> DuckDB), unchanged since phase 0;
 #   2. extract into the Parquet lake — DEMO by default, off the committed snapshot (E.8);
-#   3. load the lake into DuckDB and materialize the E.2 verdict dbt reads.
+#   3. extract the TRANSACTIONAL store (sessions, feedback) into the lake — ADR-009/§2.7.
+#      A no-op when nobody has generated a session yet, so a clean clone still works;
+#   4. load the lake into DuckDB and materialize the E.2 verdict dbt reads.
 # `make ingest && make dbt` is therefore runnable on a clean clone with no credentials.
 ingest:
 	$(RUN) python -m ingest.ingest_pipeline
 	$(RUN) python -m cyclebeat.cli ingest
+	$(RUN) python -m cyclebeat.cli extract-app
 	$(RUN) python -m cyclebeat.cli load
 
 # Live extraction against the real Deezer API. Opt-in, never part of the DoD or CI (E.8).

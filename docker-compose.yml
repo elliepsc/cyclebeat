@@ -54,6 +54,28 @@ services:
     restart: "no"
 
   # ── FastAPI REST API ─────────────────────────────────────────────
+  # ── Postgres: the TRANSACTIONAL store (ADR-009) ──────────────────
+  # Sessions and feedback. DuckDB stays the analytical warehouse -- two stores, two roles.
+  # Zero cost (E.8): a container locally, Neon's free tier in production.
+  #
+  # No host port published on purpose: only the API talks to it, and publishing 5432 would
+  # collide with any Postgres the developer already runs. Reach it for debugging with
+  # `docker compose exec postgres psql -U cyclebeat`.
+  postgres:
+    image: postgres:16-alpine
+    container_name: cyclebeat_postgres
+    environment:
+      - POSTGRES_USER=cyclebeat
+      - POSTGRES_PASSWORD=cyclebeat
+      - POSTGRES_DB=cyclebeat
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cyclebeat"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build: .
     container_name: cyclebeat_api
@@ -61,9 +83,15 @@ services:
       - "${CYCLEBEAT_API_PORT:-8000}:8000"
     environment:
       - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
+      # Set => Postgres. Unset => the SQLite fallback, which is what a bare clone gets.
+      # The password here is a LOCAL dev credential for a container with no published port;
+      # the production DSN is a Neon secret and never appears in this file (E.0.5).
+      - DATABASE_URL=postgresql://cyclebeat:cyclebeat@postgres:5432/cyclebeat
     depends_on:
       ingest:
         condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
     volumes:
       - ./data:/app/data
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000
@@ -159,4 +187,5 @@ services:
       - prometheus
 
 volumes:
+  postgres_data:
   grafana_data:

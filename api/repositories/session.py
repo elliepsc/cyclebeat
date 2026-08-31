@@ -1,36 +1,52 @@
-"""Persists and reads sessions — the E.2 `fct_session` table (ADR-008)."""
+"""Sessions in the transactional store (ADR-009).
+
+Writes to Postgres, or to SQLite on a bare clone. **Not to DuckDB** — that was the ADR-008
+mistake this supersedes. The warehouse gets these rows by ingestion, and `fct_session` is a dbt
+model built from `raw.sessions`, not something the API writes.
+
+The public interface is unchanged from the DuckDB version on purpose: `api/services/session.py`
+and its tests know nothing about the store, so swapping engines touched neither.
+"""
 
 from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
-from api.repositories.connection import readable, table_exists, writable
+from api.repositories.database import connection
 
 
 class SessionRepository:
-    """`fct_session` read/write.
+    """`sessions` read/write.
 
-    DuckDB is the source of truth here, not a best-effort mirror of a JSON file. That was the
-    residual gap E.2's dated note left to phase 4, and closing it is why a failed write now
-    raises instead of being swallowed: a session the caller was told exists must exist.
+    A failed write raises. E.2 recorded the v1 API's `try/except pass` as debt, and closing it
+    is the point: a session the caller was told exists must exist.
     """
 
-    def __init__(self, db_path: Path | None = None) -> None:
-        self._db_path = db_path
-
     def save(self, plan: dict[str, Any]) -> None:
-        """Store a generated session. `plan` is the serialized wire SessionPlan."""
-        with writable(self._db_path) as con:
-            con.execute(
+        """Store a generated session. `plan` is the serialized wire SessionPlan.
+
+        `ON CONFLICT DO UPDATE` rather than a plain insert so a retry replaces instead of
+        duplicating — the same idempotency the lake partitions have. Native to both engines
+        (SQLite >= 3.24), which is why no dialect branch is needed here.
+        """
+        with connection() as db:
+            db.execute(
                 """
-                insert or replace into fct_session (
+                insert into sessions (
                     session_id, level, goal, duration_min, verdict,
-                    n_segments, duration_gap_s, llm_cost_usd, latency_ms,
-                    created_at, plan_json
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    n_segments, duration_gap_s, created_at, plan_json
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                on conflict (session_id) do update set
+                    level          = excluded.level,
+                    goal           = excluded.goal,
+                    duration_min   = excluded.duration_min,
+                    verdict        = excluded.verdict,
+                    n_segments     = excluded.n_segments,
+                    duration_gap_s = excluded.duration_gap_s,
+                    created_at     = excluded.created_at,
+                    plan_json      = excluded.plan_json
                 """,
                 [
                     plan["session_id"],
@@ -40,10 +56,6 @@ class SessionRepository:
                     plan["verdict"],
                     len(plan.get("segments", [])),
                     float(plan.get("duration_gap_s", 0.0)),
-                    # Both stay NULL until phase 6 wires LiteLLM; the columns exist now
-                    # because E.2 declares them on fct_session.
-                    None,
-                    None,
                     _parse_ts(plan.get("created_at")),
                     json.dumps(plan, ensure_ascii=False),
                 ],
@@ -51,11 +63,9 @@ class SessionRepository:
 
     def get(self, session_id: str) -> dict[str, Any] | None:
         """The stored plan, replayed exactly as it was served."""
-        with readable(self._db_path) as con:
-            if not table_exists(con, "fct_session"):
-                return None
-            row = con.execute(
-                "select plan_json from fct_session where session_id = ?", [session_id]
+        with connection() as db:
+            row = db.execute(
+                "select plan_json from sessions where session_id = ?", [session_id]
             ).fetchone()
         if not row or row[0] is None:
             return None
@@ -63,37 +73,33 @@ class SessionRepository:
         return loaded
 
     def exists(self, session_id: str) -> bool:
-        with readable(self._db_path) as con:
-            if not table_exists(con, "fct_session"):
-                return False
-            row = con.execute(
-                "select 1 from fct_session where session_id = ?", [session_id]
+        with connection() as db:
+            row = db.execute(
+                "select 1 from sessions where session_id = ?", [session_id]
             ).fetchone()
         return row is not None
 
     def list(self, limit: int, offset: int) -> tuple[list[dict[str, Any]], int]:
         """A page of summaries, newest first, plus the unpaged total.
 
-        Summaries are read from the scalar columns rather than by parsing `plan_json` — the
-        reason those columns exist beside the blob.
+        Read from the scalar columns rather than by parsing `plan_json` — which is why those
+        columns sit beside the blob at all.
         """
-        with readable(self._db_path) as con:
-            if not table_exists(con, "fct_session"):
-                return [], 0
-            total_row = con.execute("select count(*) from fct_session").fetchone()
+        with connection() as db:
+            total_row = db.execute("select count(*) from sessions").fetchone()
             total = int(total_row[0]) if total_row else 0
-            rows = con.execute(
+            rows = db.execute(
                 """
                 select session_id, level, goal, duration_min, verdict,
                        n_segments, duration_gap_s, created_at
-                from fct_session
+                from sessions
                 order by created_at desc, session_id desc
                 limit ? offset ?
                 """,
                 [limit, offset],
             ).fetchall()
 
-        items = [
+        return [
             {
                 "session_id": str(r[0]),
                 "level": r[1],
@@ -105,8 +111,7 @@ class SessionRepository:
                 "created_at": r[7],
             }
             for r in rows
-        ]
-        return items, total
+        ], total
 
 
 def _parse_ts(value: Any) -> datetime:

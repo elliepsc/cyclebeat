@@ -1,37 +1,37 @@
-"""Session feedback — `raw.feedback`, rekeyed on `session_id` (ADR-008)."""
+"""Session feedback in the transactional store (ADR-008 keying, ADR-009 store)."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
-from api.repositories.connection import readable, table_exists, writable
+from api.repositories.database import connection
 
 
 class FeedbackRepository:
-    """Writes and reads `feedback`.
+    """`feedback` read/write.
 
-    ADR-008 added `session_id` as the real key. `session_title` stays populated because the
-    existing dbt chain (`stg_feedback -> int_feedback_enriched -> mart_feedback_summary`) is
-    declared normative by E.2 and groups on it — the change is additive, so that chain and its
-    tests keep working untouched.
+    ADR-008 made `session_id` the real key and ADR-009 moved the table to Postgres/SQLite.
+    `session_title` is still written: the normative dbt chain (`stg_feedback` →
+    `int_feedback_enriched` → `mart_feedback_summary`) groups on it, and the warehouse gets
+    these rows by ingestion, so the label has to be in the row when it is ingested.
+
+    The `rating` written here is E.3's `up`/`down`. It is stored **verbatim** — the warehouse
+    keeps the two scales apart (`rating_scale`) rather than mapping one onto the other, because
+    satisfaction and perceived effort are different axes and any equivalence would be invented.
     """
-
-    def __init__(self, db_path: Path | None = None) -> None:
-        self._db_path = db_path
 
     def add(
         self, session_id: str, rating: str, note: str | None, session_title: str = ""
     ) -> dict[str, Any]:
         created_at = datetime.now(UTC)
-        with writable(self._db_path) as con:
-            con.execute(
+        with connection() as db:
+            db.execute(
                 """
                 insert into feedback (session_id, session_title, rating, note, created_at)
                 values (?, ?, ?, ?, ?)
                 """,
-                [session_id, session_title, rating, note or "", created_at],
+                [session_id, session_title, rating, note, created_at],
             )
         return {
             "session_id": session_id,
@@ -41,10 +41,8 @@ class FeedbackRepository:
         }
 
     def for_session(self, session_id: str) -> list[dict[str, Any]]:
-        with readable(self._db_path) as con:
-            if not table_exists(con, "feedback"):
-                return []
-            rows = con.execute(
+        with connection() as db:
+            rows = db.execute(
                 """
                 select session_id, rating, note, created_at
                 from feedback
@@ -57,7 +55,7 @@ class FeedbackRepository:
             {
                 "session_id": str(r[0]),
                 "rating": r[1],
-                "note": r[2] or None,
+                "note": r[2],
                 "created_at": r[3],
             }
             for r in rows

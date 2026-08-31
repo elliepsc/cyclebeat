@@ -111,6 +111,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SessionPage"
+        # The server really does answer 422 here — `?limit=9999` breaches the bound above.
+        # Undeclared, the generated client would have no typed branch for a failure it will
+        # actually see.
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
 
   /v1/sessions/{session_id}:
     get:
@@ -420,7 +425,14 @@ components:
         n_tracks:
           type: integer
           description: Tracks this source gave an opinion on.
-        pct_of_catalogue: { type: number }
+        pct_of_catalogue:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: >
+            A PERCENTAGE, 0-100 — not a 0-1 ratio. Computed as n_usable over the WHOLE
+            catalogue, not over n_tracks, so the figures are comparable between sources.
+            Stated here because the frontend reads this file and nothing else.
         n_usable:
           type: integer
           description: Of those, how many carried a usable BPM after E.2 normalization.
@@ -434,9 +446,17 @@ components:
         n_with_bpm:
           type: integer
           description: Planner-eligible tracks — E.2 excludes the rest.
-        pct_with_bpm: { type: number }
+        pct_with_bpm:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: "A percentage, 0-100 — not a 0-1 ratio."
         n_flagged_review: { type: integer }
-        pct_flagged_review: { type: number }
+        pct_flagged_review:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: "A percentage, 0-100 — not a 0-1 ratio."
         avg_confidence:
           type: [number, "null"]
         by_method:

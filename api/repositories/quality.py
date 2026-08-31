@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from api.repositories.connection import readable, table_exists
+from api.repositories.warehouse import readable, table_exists
 
 
 class QualityRepository:
