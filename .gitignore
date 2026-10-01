@@ -47,6 +47,9 @@ data/*.duckdb.wal
 # warehouse beside it -- Postgres is the real store in compose and production.
 data/*.db
 
+# Per-machine Claude Code settings
+.claude/settings.local.json
+
 # Phase-1 spike: HTTP response cache and downloaded audio (E.8 permanent cache, but
 # hundreds of MB of CC mp3 have no business in git). The raw measurement output next to
 # it, data/spike/raw_output.json, IS committed — the report's figures must be traceable.
