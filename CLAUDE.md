@@ -35,6 +35,9 @@ Conflict detected → the highest source wins AND you flag it.
   line by line, exact order, no omission or merging. Every new behavior ships
   its test in the same commit. A step deemed useless →
   ask, don't delete.
+- **Name the reference branch before verifying a doc.** Run `git branch --show-current`
+  and state what the claims are checked against (normally `origin/main`) *before* reading
+  any code. A feature branch's Makefile, openapi.yaml or tests are not main's.
 - **Re-verify, don't remember.** A runbook step believed "already done" is re-run
   through its own verification command before being skipped. In particular:
   `git ls-remote origin` before relying on an archive/safety branch, and cut work

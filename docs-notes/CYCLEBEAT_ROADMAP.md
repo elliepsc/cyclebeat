@@ -43,6 +43,7 @@ Correspondance des fichiers hérités (aucun n'est supprimé — voir §7) :
 | Phase 2 — Cœur DE | ✅ **DONE** — resolver + cross-validation, lake Parquet, DuckDB/dbt, 3 DAGs Airflow chaînés sur les assets du lake — PR #10, #12 |
 | Phase 3 — Moteur | ✅ **DONE** — planner + evaluator déterministes, ADR-007, mutation check vert en CI — PR #11 |
 | Phase 4 — Contrat + backend | ✅ **DONE** — `openapi.yaml` contract-first, API en couches, `fct_session` (ADR-008), `mart_bpm_coverage`, schemathesis + test de divergence en CI |
+| Chore A1 — README V3 | 🟡 **EN PR** (`docs/readme-v3`) — README réécrit (v1 retiré), `CONTRIBUTING.md` (env. WSL + workflow PR), `tools/check_links.py` branché sur `make lint` / CI ; chiffres re-mesurés : 233 tests unitaires, 55 évals, 23 contrat, 51 dbt |
 | Phases 5 → 11 | ⬜ **TODO** — rien démarré ; la phase 5 (frontend React) est la prochaine à ouvrir |
 | Couche L1 (B1–B7) | 🔒 **GATÉE** |
 
