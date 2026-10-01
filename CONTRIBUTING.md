@@ -245,3 +245,23 @@ make ingest && make dbt
 
 Or leave your database alone and point the run elsewhere:
 `RUNTIME_DB_PATH=/tmp/cb_clean.duckdb make ingest && RUNTIME_DB_PATH=/tmp/cb_clean.duckdb make dbt`.
+
+### `make contract` fails on the quality endpoints
+
+Symptom: `tests/test_api_contract.py` fails (or schemathesis reports errors) on the
+data-quality endpoints, on a checkout where the code is fine.
+
+Cause: those endpoints read the dbt marts, and `make contract` does not build them. It must
+run **after** `make dbt`, on a database that has been through `make ingest`.
+
+Fix:
+
+```bash
+make ingest && make dbt && make contract
+```
+
+### Experiments never write to the real `lake/` or `data/`
+
+When you try something out (a rebuild, a count, a spike), work in an export or a temporary
+directory: `RUNTIME_DB_PATH=/tmp/cb_try.duckdb`, a copy of the folder, never an in-place run on
+`lake/` or `data/`. Those are the state your next real run starts from.

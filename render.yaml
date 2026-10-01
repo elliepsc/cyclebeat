@@ -24,6 +24,5 @@ services:
     envVars:
       - key: RUNTIME_DB_PATH
         value: /app/data/cyclebeat_runtime.duckdb
-    startCommand: >
-      sh -c "python -m ingest.ingest_pipeline &&
-             uvicorn api.main:app --host 0.0.0.0 --port $PORT"
+    # No startCommand: the demo warehouse is baked into the image at build time (ADR-003),
+    # so the Dockerfile CMD (uvicorn) starts straight away. The CMD binds to Render's $PORT.
