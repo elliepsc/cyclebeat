@@ -50,19 +50,30 @@ Orchestration: three chained Airflow DAGs (`dags/`). Monitoring: Prometheus + Gr
 | Deterministic planner, no LLM in the core | Cadence and effort must be computed, not generated | [ADR-007](docs/adr/adr-007-session-construction-rules.md) |
 | Evaluator validated by a **mutation check** | An evaluator tested on the planner's own output proves nothing | [ADR-007](docs/adr/adr-007-session-construction-rules.md) |
 | `openapi.yaml` written by hand before the backend | The contract drives the code, and CI checks they never diverge | — |
-| Postgres for app state *(decided, not yet implemented)*, DuckDB for analytics | OLTP and OLAP have different jobs | [ADR-009](docs/adr/adr-009-postgres-transactional-duckdb-analytical.md) |
+| Postgres for app state (sessions, feedback), DuckDB for analytics | OLTP and OLAP have different jobs | [ADR-009](docs/adr/adr-009-postgres-transactional-duckdb-analytical.md) |
 
 All decisions: [docs/adr/](docs/adr/README.md).
 
-## Quality gates (all run in CI)
+**Where sessions and feedback are stored.** Postgres when `DATABASE_URL` is set (the compose
+stack sets it), SQLite at `data/cyclebeat_app.db` otherwise, so a clean clone runs with no
+service. Choosing the engine from the URL is unit-tested, but the Postgres code path is **not
+yet exercised in CI against a real database** (CI has no Postgres service). The public demo
+sets no `DATABASE_URL` and has no persistent disk ([ADR-003](docs/adr/adr-003-render-no-disk.md)),
+so sessions created there are ephemeral.
 
-| Check | Command | Current result |
+## Quality gates
+
+[![CI](https://github.com/elliepsc/cyclebeat/actions/workflows/ci.yml/badge.svg)](https://github.com/elliepsc/cyclebeat/actions/workflows/ci.yml)
+
+Every check below runs in CI on every push. Counts are in each PR description, not here.
+
+| Check | Command | What it covers |
 |---|---|---|
-| Lint + strict typing | `make lint` · `make typecheck` | green |
-| Unit tests (`tests/`, includes the contract suite) | `make test-unit` | 233 passed |
-| Evals (adversarial playlists, mutation check) | `make eval` | 55 passed |
-| dbt models and data tests | `make dbt` | 51 passed |
-| API contract (contract-vs-code + schemathesis) | `make contract` | 23 passed |
+| Lint, strict typing, dead links | `make lint` · `make typecheck` | ruff, strict mypy, relative Markdown links |
+| Unit tests | `make test-unit` | everything under `tests/`, including the API contract suite |
+| Evals | `make eval` | adversarial playlists and the planner **mutation check** |
+| dbt models and data tests | `make dbt` | staging → intermediate → marts, and the data tests |
+| API contract | `make contract` | `openapi.yaml` vs the schema FastAPI generates, plus schemathesis against the real app |
 
 ## Run it locally
 

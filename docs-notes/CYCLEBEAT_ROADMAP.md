@@ -44,6 +44,7 @@ Correspondance des fichiers hérités (aucun n'est supprimé — voir §7) :
 | Phase 3 — Moteur | ✅ **DONE** — planner + evaluator déterministes, ADR-007, mutation check vert en CI — PR #11 |
 | Phase 4 — Contrat + backend | ✅ **DONE** — `openapi.yaml` contract-first, API en couches, `fct_session` (ADR-008), `mart_bpm_coverage`, schemathesis + test de divergence en CI |
 | Chore A1 — README V3 | 🟡 **EN PR** (`docs/readme-v3`) — README réécrit (v1 retiré), `CONTRIBUTING.md` (env. WSL + workflow PR), `tools/check_links.py` branché sur `make lint` / CI ; chiffres re-mesurés : 233 tests unitaires, 55 évals, 23 contrat, 51 dbt |
+| Phase 4b — Persistance Postgres (ADR-009) | 🟡 **EN PR** (`phase-4/postgres-persistence`) — sessions et feedback dans Postgres si `DATABASE_URL`, SQLite sinon ; chemin Postgres non encore testé en CI contre une vraie base ; sessions de démo éphémères (ADR-003) |
 | Phases 5 → 11 | ⬜ **TODO** — rien démarré ; la phase 5 (frontend React) est la prochaine à ouvrir |
 | Couche L1 (B1–B7) | 🔒 **GATÉE** |
 

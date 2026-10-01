@@ -1,5 +1,20 @@
 # AI workflow log
 
+## Session 2026-10-01 — Phase 4 (Postgres persistence) — Update `phase-4/postgres-persistence` on `origin/main` after chore A1 merged, and correct the README's Postgres claims
+
+**Loop**: fetch → merge → resolve → re-read the code → edit README → run → diff → review → commit
+**Tool/model**: Claude Code / Sonnet 5.5
+**Initial prompt**: (owner) bring the phase-4 branch up to date with `origin/main` now that A1 (README V3) is merged, then make the README's Postgres statement true for this branch.
+**Notable iterations**:
+- **Merge, not rebase** (`git log origin/main..HEAD`: `8689d4a` feat(api) plus merge commit `7d78a5c`). The only conflict was `.gitignore`: both sides had added `data/*.db`. Resolved by keeping the branch's comment about the SQLite fallback (ADR-009) and main's `.claude/settings.local.json` rule; both are present in the file (`.gitignore:46-51`). `Makefile` auto-merged: `lint` carries `tools.check_links` (`Makefile:21`) and `ingest` carries `extract-app` (`Makefile:56`).
+- **The README line "Postgres ... decided, not yet implemented" was stale on this branch** and was corrected after re-reading the code, not from memory. What is true: the engine is chosen by `DATABASE_URL` (`api/repositories/database.py`), with SQLite at `data/cyclebeat_app.db` as the default. The selection is unit-tested, but `.github/workflows/ci.yml` has no Postgres service, so the Postgres SQL path is not tested against a real database, and the README now says so. `render.yaml` sets no `DATABASE_URL` and ADR-003 gives no disk, so demo sessions are ephemeral; the README says that too.
+- **Uncommitted at the time of writing** (`git diff HEAD`): only `README.md` (+19/-8) plus this entry.
+**Corrected by human review**: two owner decisions, nothing else recorded. (1) Test counts are removed from the README in favour of a CI status badge and a "what it covers" column, because the counts go stale on every PR; the measured counts go in the PR description instead. (2) The owner specified the exact content of the corrected Postgres line; the agent then verified each part of it against the code and CI config as listed above.
+**Role split**: written by the human: the badge-instead-of-counts decision, the content of the Postgres line / delegated: the merge and the `.gitignore` resolution, the code and CI check behind the Postgres line, the README edit, the measurements, this entry.
+**Verification**: measured on this branch from a clean DB: `make lint` including links ok; typecheck ok (19 files); test-unit 244; eval 55; dbt 65/65; contract 25. The ingest step extracted 3 sessions, and 3 feedback rows had been written by the earlier test run. Postgres itself was not run against a real server.
+**Lesson**: the merge was cheap (one trivial conflict); the value was in re-reading the code before keeping a README sentence. Writing the known gap (no Postgres in CI, ephemeral demo sessions) into the README is more useful to a reader than a count.
+**To capitalize in CLAUDE.md**: nothing.
+
 ## Session 2026-10-01 — Chore A1 (README V3) — Replace the README with the owner's V3 draft, claim-checked against the code, and make dead links fail CI
 
 **Loop**: read the draft → verify each claim against the code → edit → run → test → diff → review → commit
