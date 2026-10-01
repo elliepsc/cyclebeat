@@ -1,5 +1,21 @@
 # AI workflow log
 
+## Session 2026-10-01 — Phase 4 (A4, demo image) — Build the demo DuckDB at image-build time as ADR-003 prescribes, and drop the ingestion-at-boot start command
+
+**Loop**: spec (ADR-003) → context → reproduce the old config → edit → run → test → diff → review → fix → commit
+**Tool/model**: Claude Code / Sonnet 5.5
+**Initial prompt**: (owner) PR "A4 - demo warehouse built at image build (ADR-003)" on `phase-4/a4-demo-image`: make the image carry the demo warehouse instead of building it at boot.
+**Notable iterations**:
+- **The old configuration was reproduced before being described as broken** (owner instruction). The `origin/main` image with the `render.yaml` `startCommand` (which ran only `python -m ingest.ingest_pipeline`, then uvicorn) gave `/health` 200, but `POST /v1/sessions/generate` with the demo source returned 422 with reasons `["empty_catalogue"]`. A deploy would have looked healthy and served a broken demo. Cause: `ingest_pipeline` loads only the patterns knowledge base, not the lake or the warehouse.
+- **New Dockerfile** rebuilds the demo DuckDB from versioned files only: `ingest_pipeline`, `cli ingest`, `extract-app`, `load`, `dbt build` (65/65, 48 of them tests). `.dockerignore` left unchanged; the `RUN` wipes the local state it does not cover (root `*.duckdb`, `data/*.db`). The `render.yaml` `startCommand` was removed.
+- Also in the PR: a dated implementation note in ADR-003 (the Compose bind mount of `./data` shadows the baked DB; the baked DB is what Render serves); two `CONTRIBUTING.md` entries (`make contract` needs `make dbt` first; experiments never write to the real `lake/` or `data/`); two roadmap items tagged `[P1]` (multi-stage image, non-root user), not done.
+**Corrected by human review**: three defects, found in review and then fixed. (1) `HEALTHCHECK` hard-coded port 8000 while `CMD` followed `$PORT`; now `${PORT:-8000}`, and the container reaches healthy with `PORT=10000`. (2) `CMD` had no `exec`, so the shell stayed PID 1 and uvicorn would not receive the stop signal; `exec` added, `docker stop` takes 1.06 s, exit code 0. (3) A suspected mojibake ("citÃ©") in the generate response was checked on the raw bytes: `c3 a9` present, `c3 83 c2 a9` absent. It came from the Windows cp1252 pipe used to display the response, not from the API; no code change. The owner also required the old-config failure to be recorded only after reproducing it (done, above).
+**Role split**: written by the human: the review findings, the reproduce-first instruction / delegated: the Dockerfile and `render.yaml` change, the ADR-003 note, the CONTRIBUTING entries, the roadmap items, the measurements, this entry.
+**Verification**: `docker build` ok; `/health` 200 in 1.32 s from `docker run` without `PORT`, and 200 with `PORT=10000`; `POST /v1/sessions/generate` 200 with 13 segments; image 911 MB; `ruff`, `check_links` and `pytest` green. Not verified: nothing was tested on Render itself, and no cold (no-cache) build time was measured.
+**Spec/actual gaps**: ADR-003 prescribes a baked demo warehouse; the previous `render.yaml` did not deliver one (see the reproduction above). It is now aligned, with the Compose bind-mount caveat noted in the ADR.
+**Lesson**: a green `/health` proved nothing here; only a call to the real endpoint exposed the empty catalogue. Of the three review findings, two were container-runtime details (port, signal handling) invisible to the build and the health check, and the third was a display artefact, settled by looking at bytes.
+**To capitalize in CLAUDE.md**: (1) a deploy-config change is verified by calling a business endpoint (e.g. `POST /v1/sessions/generate` with the demo source), not `/health` alone. (2) For a container, check that `HEALTHCHECK` and `CMD` use the same `$PORT`, and that `CMD` uses `exec` so uvicorn receives the stop signal. (3) Before suspecting an encoding bug in an API response, inspect the raw bytes; the Windows console is cp1252.
+
 ## Session 2026-10-01 — Phase 4 (Postgres persistence) — Update `phase-4/postgres-persistence` on `origin/main` after chore A1 merged, and correct the README's Postgres claims
 
 **Loop**: fetch → merge → resolve → re-read the code → edit README → run → diff → review → commit
