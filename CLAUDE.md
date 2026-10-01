@@ -116,6 +116,8 @@ pacing ≥ 0.3 s. Any live eval: 5-case sample first.
 - BPM half-time/double-time: the E.2 normalization is THE answer, not a local
   heuristic.
 - Music API quotas: never re-fetch in CI/review — committed demo snapshot.
+- A deploy-config change is verified by calling a business endpoint (e.g. `POST /v1/sessions/generate`
+  with the demo source), not `/health` alone: the old Render config returned 200 there and 422 `empty_catalogue` on generate.
 - Groq free tier ≈ 6,000 TPM: throttle via LiteLLM upstream, don't suffer the 429s.
 - Removing a heavy dependency can remove a runtime import something else was
   silently relying on (dlt 0.5.4 needs `pkg_resources`/setuptools, previously

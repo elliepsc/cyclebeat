@@ -37,13 +37,20 @@ COPY . .
 # data/*.db SQLite store), so wipe them here instead of trusting the build context: what
 # ends up in the image is then a function of git, not of the machine that ran the build.
 # lake/ and data/*.duckdb are already excluded by .dockerignore; the rm is belt and braces.
-RUN rm -rf lake data/*.duckdb data/*.duckdb.wal data/*.db *.duckdb     && python -m ingest.ingest_pipeline     && python -m cyclebeat.cli ingest     && python -m cyclebeat.cli extract-app     && python -m cyclebeat.cli load     && dbt build --project-dir dbt --profiles-dir dbt
+RUN rm -rf lake data/*.duckdb data/*.duckdb.wal data/*.db *.duckdb \
+    && python -m ingest.ingest_pipeline \
+    && python -m cyclebeat.cli ingest \
+    && python -m cyclebeat.cli extract-app \
+    && python -m cyclebeat.cli load \
+    && dbt build --project-dir dbt --profiles-dir dbt
 
 # The image serves the API. The React UI lands in phase 5 with its own service.
 EXPOSE 8000
 
+# HEALTHCHECK and CMD must read the same ${PORT:-8000}: Render injects $PORT, and a probe
+# hard-coded to 8000 would keep reporting a healthy server as sick.
 HEALTHCHECK CMD curl --fail http://localhost:${PORT:-8000}/health || exit 1
 
-# Render injects $PORT; everywhere else the API stays on 8000. `exec` makes uvicorn PID 1,
-# so it receives the stop signal itself instead of the wrapping shell swallowing it.
+# `exec` makes uvicorn PID 1, so it receives the stop signal itself; without it the wrapping
+# `sh -c` stays PID 1 and swallows it. Everywhere but Render the API stays on 8000.
 CMD ["sh", "-c", "exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
