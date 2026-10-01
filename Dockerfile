@@ -29,9 +29,21 @@ RUN uv sync --locked ${UV_SYNC_ARGS}
 # Source code
 COPY . .
 
+# Demo warehouse, built at image-build time (ADR-003): the served DuckDB is rebuilt from
+# the VERSIONED files only -- data/cycling_patterns.json and the committed spike snapshot --
+# so a deploy starts with no ingestion and no network (E.8, DEMO by default).
+#
+# .dockerignore does not cover every kind of local state (a root-level *.duckdb, the
+# data/*.db SQLite store), so wipe them here instead of trusting the build context: what
+# ends up in the image is then a function of git, not of the machine that ran the build.
+# lake/ and data/*.duckdb are already excluded by .dockerignore; the rm is belt and braces.
+RUN rm -rf lake data/*.duckdb data/*.duckdb.wal data/*.db *.duckdb     && python -m ingest.ingest_pipeline     && python -m cyclebeat.cli ingest     && python -m cyclebeat.cli extract-app     && python -m cyclebeat.cli load     && dbt build --project-dir dbt --profiles-dir dbt
+
 # The image serves the API. The React UI lands in phase 5 with its own service.
 EXPOSE 8000
 
-HEALTHCHECK CMD curl --fail http://localhost:8000/health || exit 1
+HEALTHCHECK CMD curl --fail http://localhost:${PORT:-8000}/health || exit 1
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Render injects $PORT; everywhere else the API stays on 8000. `exec` makes uvicorn PID 1,
+# so it receives the stop signal itself instead of the wrapping shell swallowing it.
+CMD ["sh", "-c", "exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -234,6 +234,8 @@ L1 · EXTENSIONS (bonus portfolio, +0 pt)
 | 4 | **Branches mergées non balayées** | `chore/dev-env-setup`, `docs/session-2026-07-sync`, `phase-1/source-spike`, `docs/status-2026-07-29` = `0` commit hors main → suppressibles ; `archive/v1-llm-zoomcamp` = `0` aussi mais **à ne JAMAIS supprimer** |
 | 5 | **Entrées `ai-workflow.md` manquantes** (PR #6, #7) | Critère 2 de la grille — le plus souvent perdu en étant écrit après coup |
 | 6 | **Drift contrat E.2 ↔ code** (chaîne `feedback`) | `raw.feedback → … → mart_feedback_summary` existe en dbt mais pas dans E.2 ; écriture DuckDB best-effort à fiabiliser ; exposer `mart_feedback_summary` sur l'allowlist du copilote |
+| 7 | **[P1] Image Docker en deux étapes** | L'image de démo (A4) pèse 911 Mo : tout `build-essential` et le cache de build restent dans l'image finale. Un build multi-étapes (dépendances + base construites dans une étape, copie du seul nécessaire dans une image `slim`) la réduirait. Non fait, hors A4 |
+| 8 | **[P1] Utilisateur non root dans le conteneur** | L'image tourne en root (le build, la base embarquée et uvicorn). À corriger avec un utilisateur dédié et les droits en écriture limités au dossier de la base SQLite des sessions. Non fait, hors A4 |
 
 ---
 
