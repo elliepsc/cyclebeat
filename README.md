@@ -114,3 +114,5 @@ The decisions taken â€” including the ones taken *against* an agent's proposal â
 
 *The v1 prototype (LLM Zoomcamp capstone: Spotify, Qdrant, LangGraph) is preserved on the
 `archive/v1-llm-zoomcamp` branch.*
+
+**License:** MIT. See [LICENSE](LICENSE).

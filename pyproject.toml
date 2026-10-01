@@ -3,6 +3,8 @@ name = "cyclebeat"
 version = "0.1.0"
 description = "CycleBeat — BPM-driven cycling session planner (data pipeline + API + coaching UI)"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11,<3.12"
 
 # Migrated 1:1 from requirements.txt (phase 0, runbook step 4), then reduced to
