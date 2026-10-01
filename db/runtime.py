@@ -1,8 +1,15 @@
-"""
-CycleBeat Runtime Database — DuckDB persistence for sessions and feedback.
+"""CycleBeat runtime DuckDB — the cycling-pattern knowledge base.
 
-Provides the SQL foundation for dbt models (staging → intermediate → marts).
-Tables written here by the API are the raw source layer for dbt transforms.
+**Patterns only.** Sessions and feedback used to live here too; ADR-009 moved them to the
+transactional store (`api/repositories/`), and the warehouse now receives them through the
+lake like every other dataset. What remains is the phase-0 ingestion of the 40-pattern KB,
+which `ingest/ingest_pipeline.py` calls.
+
+The session and feedback helpers that used to sit below were deleted rather than left: they
+had no callers after the contract-first rewrite, and `save_feedback` was actively BROKEN —
+adding `session_id` to the table left its positional `INSERT ... VALUES (?, ?, ?, now())`
+supplying four values for five columns. Dead code that raises is worse than no code, and
+removing it makes ADR-008/009's claim that the SQL left this module actually true.
 """
 
 import json
@@ -15,31 +22,6 @@ _DB_ENV = os.environ.get("RUNTIME_DB_PATH", "")
 _DB_PATH = _DB_ENV if _DB_ENV else str(
     Path(__file__).parent.parent / "data" / "cyclebeat_runtime.duckdb"
 )
-
-_DDL_SESSIONS = """
-    CREATE TABLE IF NOT EXISTS sessions (
-        title        VARCHAR,
-        playlist_url VARCHAR,
-        created_at   TIMESTAMP DEFAULT now(),
-        duration_s   DOUBLE,
-        track_count  INTEGER,
-        session_json VARCHAR
-    )
-"""
-
-# ADR-008 added `session_id` as the real key. Kept in step with
-# `api/repositories/connection.py:DDL_FEEDBACK`, because either module can be the one that
-# creates this table first: `make ingest` calls init_db() here, while the API creates it on
-# its first write. If the two DDLs drift, whichever runs first wins and the other breaks.
-_DDL_FEEDBACK = """
-    CREATE TABLE IF NOT EXISTS feedback (
-        session_id    VARCHAR,
-        session_title VARCHAR,
-        rating        VARCHAR,
-        note          VARCHAR,
-        created_at    TIMESTAMP DEFAULT now()
-    )
-"""
 
 _DDL_PATTERNS = """
     CREATE TABLE IF NOT EXISTS patterns (
@@ -69,18 +51,10 @@ def _open_rw():
     return duckdb.connect(_DB_PATH)
 
 
-def _open_ro():
-    try:
-        return duckdb.connect(_DB_PATH, read_only=True)
-    except Exception:
-        return duckdb.connect(_DB_PATH)
-
 
 def init_db() -> None:
     con = _open_rw()
     try:
-        con.execute(_DDL_SESSIONS)
-        con.execute(_DDL_FEEDBACK)
         con.execute(_DDL_PATTERNS)
     finally:
         con.close()
@@ -121,71 +95,3 @@ def save_patterns(patterns: list[dict]) -> None:
             )
     finally:
         con.close()
-
-
-def save_session(session: dict, playlist_url: str = "") -> None:
-    init_db()
-    con = _open_rw()
-    try:
-        con.execute(
-            "INSERT INTO sessions VALUES (?, ?, now(), ?, ?, ?)",
-            [
-                session.get("session", {}).get("title", ""),
-                playlist_url,
-                session.get("session", {}).get("total_duration_s", 0.0),
-                len(session.get("tracks", [])),
-                json.dumps(session, ensure_ascii=False),
-            ],
-        )
-    finally:
-        con.close()
-
-
-def save_feedback(session_title: str, rating: str, note: str) -> None:
-    init_db()
-    con = _open_rw()
-    try:
-        con.execute(
-            "INSERT INTO feedback VALUES (?, ?, ?, now())",
-            [session_title, rating, note or ""],
-        )
-    finally:
-        con.close()
-
-
-def get_feedback() -> list[dict]:
-    init_db()
-    con = _open_ro()
-    try:
-        rows = con.execute(
-            "SELECT session_title, rating, note, created_at "
-            "FROM feedback ORDER BY created_at"
-        ).fetchall()
-    finally:
-        con.close()
-    return [
-        {"session": r[0], "rating": r[1], "note": r[2] or "", "timestamp": str(r[3])}
-        for r in rows
-    ]
-
-
-def get_sessions() -> list[dict]:
-    init_db()
-    con = _open_ro()
-    try:
-        rows = con.execute(
-            "SELECT title, playlist_url, created_at, duration_s, track_count "
-            "FROM sessions ORDER BY created_at DESC"
-        ).fetchall()
-    finally:
-        con.close()
-    return [
-        {
-            "title": r[0],
-            "playlist_url": r[1],
-            "created_at": str(r[2]),
-            "duration_s": r[3],
-            "track_count": r[4],
-        }
-        for r in rows
-    ]

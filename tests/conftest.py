@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -52,3 +53,38 @@ def airflow_db() -> None:
     from airflow.utils.db import initdb
 
     initdb()
+
+
+# ── Store isolation ─────────────────────────────────────────────────────────────────────
+# The API's transactional store defaults to data/cyclebeat_app.db, and a developer may have
+# DATABASE_URL exported for compose. Without this, any test that drives the app (the contract
+# suite, the service tests) writes real sessions into that store -- and `make ingest` then
+# carries them into the warehouse, so the dbt result depends on what the tests happened to do.
+REAL_APP_DB = REPO_ROOT / "data" / "cyclebeat_app.db"
+
+
+def _fingerprint(path: Path) -> tuple[bool, int, int]:
+    if not path.exists():
+        return (False, 0, 0)
+    stat = path.stat()
+    return (True, stat.st_size, stat.st_mtime_ns)
+
+
+_REAL_APP_DB_AT_START = _fingerprint(REAL_APP_DB)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _isolated_app_store(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+    """No DATABASE_URL, and a throwaway SQLite file, for the whole suite."""
+    path = tmp_path_factory.mktemp("app-store") / "app.db"
+    with pytest.MonkeyPatch.context() as patch:
+        patch.delenv("DATABASE_URL", raising=False)
+        patch.setenv("APP_DB_PATH", str(path))
+        yield path
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """Fail the run if anything wrote to the real app store, whatever the test did."""
+    if _fingerprint(REAL_APP_DB) != _REAL_APP_DB_AT_START:
+        print(f"\nFAILED: the suite modified {REAL_APP_DB}; a test escaped store isolation")
+        session.exitstatus = 1

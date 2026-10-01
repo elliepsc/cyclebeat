@@ -1,4 +1,4 @@
-"""dag_build_warehouse — load_duckdb <- lake -> dbt_build (E.5).
+"""dag_build_warehouse — extract_app_db -> load_duckdb -> dbt_build (E.5).
 
 `load_duckdb` replays the whole lake into DuckDB (full replace from the partitions, so it is
 idempotent) and materializes the E.2 verdict from `cyclebeat.e2`. `dbt_build` then runs
@@ -41,6 +41,19 @@ DBT_DIR = PROJECT_ROOT / "dbt"
     doc_md=__doc__,
 )
 def dag_build_warehouse() -> None:
+    @task(task_id="extract_app_db")
+    def extract_app_db() -> dict[str, int]:
+        """Transactional store -> lake (ADR-009, §2.7).
+
+        Upstream of `load_duckdb` because the warehouse loads the lake, and the lake has to
+        carry today's sessions before it is loaded. Postgres unreachable and no SQLite file
+        means no new partition, and the warehouse rebuilds from the previous ones -- the
+        offline-rebuild property phase 2 established stays intact.
+        """
+        from cyclebeat.app_store import extract_to_lake
+
+        return extract_to_lake()
+
     @task(task_id="load_duckdb")
     def load_duckdb() -> dict[str, int]:
         """Lake -> DuckDB raw layer + the materialized E.2 verdict dbt reads."""
@@ -61,7 +74,7 @@ def dag_build_warehouse() -> None:
         retries=0,
     )
 
-    load_duckdb() >> dbt_build
+    extract_app_db() >> load_duckdb() >> dbt_build
 
 
 dag_build_warehouse()

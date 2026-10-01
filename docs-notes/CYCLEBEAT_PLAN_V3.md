@@ -497,6 +497,23 @@ fct_agent_runs    : run_id, ts, question, tools_called JSON, n_steps, verdict, d
 > monte la confidence, il ne déplace jamais la valeur) ; l'arbitrage librosa score **0.6**, comme
 > `single_source`, en conservant `confidence_method = 'librosa_arbitrated'` pour rester auditable.
 
+> **Note 2026-08-31 (phase 4 — `raw.feedback.rating` porte DEUX échelles).** E.3 fixe le rating
+> de l'API à `up`/`down` — un jugement de **satisfaction**. Les lignes v1 déjà présentes portent
+> `Great`/`Okay`/`Hard` — un jugement d'**effort perçu**. Ce sont deux axes différents : une séance
+> peut être très dure et très appréciée, donc `down` n'est pas `Hard` et aucune correspondance
+> entre les deux n'est mesurable. En inventer une est précisément ce qu'E.0.2 interdit.
+>
+> `stg_feedback` expose donc `rating_scale` (`satisfaction` | `effort`), garde `rating_raw`, et
+> normalise **à l'intérieur** de chaque échelle. `mart_feedback_summary` groupe sur
+> (`rating_scale`, `rating`) et calcule ses pourcentages par échelle — sinon un dénominateur
+> d'effort diviserait des comptages de satisfaction. `dbt/tests/check_invalid_rating.sql` échoue
+> sur `rating_scale = 'unknown'`, ce qui fait qu'un TROISIÈME vocabulaire casse le build au lieu
+> d'être absorbé silencieusement.
+>
+> **C'était un défaut réel, pas une précaution** : la version ADR-008 écrivait `up` dans une chaîne
+> qui le rejetait, et le premier `POST /v1/sessions/{id}/feedback` faisait passer `make dbt` au
+> rouge. La CI ne le voyait pas parce qu'elle lance `make dbt` avant tout POST, sur une table vide.
+
 > **Note 2026-08-30 (ADR-009 — supersede la note ADR-008 ci-dessous).** La note ADR-008 place
 > `fct_session` et `raw.feedback` dans **DuckDB**, écrites par l'API. C'est **corrigé** : le
 > ROADMAP §2.7 assigne la persistance transactionnelle à **Postgres** (prod : Neon free tier),

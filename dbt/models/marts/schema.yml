@@ -50,6 +50,34 @@ models:
         description: "False exactly when bpm_effective is NULL — E.2's 'excluded from the planner'."
         tests: [not_null]
 
+  - name: fct_session
+    description: >
+      The E.2 session fact, one row per `session_id`. Built from `stg_sessions`, which comes
+      from the transactional store via the lake — the API writes no warehouse table
+      (ADR-009 correcting ADR-008).
+    columns:
+      - name: session_id
+        description: "Grain."
+        tests: [not_null, unique]
+
+      - name: verdict
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['safe', 'review']
+
+      - name: duration_gap_s
+        description: "Signed. Positive means the session overruns its target."
+        tests: [not_null]
+
+      - name: llm_cost_usd
+        description: >
+          Declared by E.2, NULL until phase 6 wires LiteLLM. Present now so the table matches
+          the appendix shape rather than being altered later.
+
+      - name: latency_ms
+        description: "Declared by E.2, NULL until phase 6."
+
   - name: mart_bpm_coverage
     description: >
       BPM resolution coverage per source. Grain is `source`. Backs `GET /v1/quality/coverage`

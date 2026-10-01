@@ -109,6 +109,22 @@ def cmd_load(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_extract_app(args: argparse.Namespace) -> int:
+    """App store (Postgres/SQLite) -> lake, so the warehouse can model it (ADR-009, §2.7).
+
+    Its own step rather than part of `load`, mirroring the `extract_app_db` task in
+    `dag_build_warehouse`: the CLI and the DAG should have the same shape, so a failure in
+    one is diagnosable from the other.
+    """
+    from cyclebeat.app_store import extract_to_lake
+
+    root = Path(args.lake) if args.lake else None
+    counts = extract_to_lake(root=root)
+    for dataset, count in counts.items():
+        print(f"app store -> lake: {dataset} {count} rows")
+    return 0
+
+
 def cmd_confidence_report(args: argparse.Namespace) -> int:
     """The measured confidence distribution — phase 2's exit criterion."""
     root = Path(args.lake) if args.lake else None
@@ -142,6 +158,9 @@ def main(argv: list[str] | None = None) -> int:
 
     resolve_cmd = subparsers.add_parser("resolve", help="librosa over unresolved previews")
     resolve_cmd.set_defaults(func=cmd_resolve)
+
+    extract_app = subparsers.add_parser("extract-app", help="app store -> lake")
+    extract_app.set_defaults(func=cmd_extract_app)
 
     load = subparsers.add_parser("load", help="lake -> DuckDB")
     load.add_argument("--db", help="DuckDB path (default: RUNTIME_DB_PATH)")

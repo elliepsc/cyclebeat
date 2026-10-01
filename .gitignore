@@ -43,6 +43,8 @@ logs/
 data/feedback.json
 data/*.duckdb
 data/*.duckdb.wal
+# The SQLite fallback for the transactional store (ADR-009). Local state, like the
+# warehouse beside it -- Postgres is the real store in compose and production.
 data/*.db
 
 # Per-machine Claude Code settings

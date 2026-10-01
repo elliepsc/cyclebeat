@@ -15,4 +15,4 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health", response_model=Health, operation_id="getHealth")
 def get_health() -> Health:
-    return Health()
+    return Health(status="ok")

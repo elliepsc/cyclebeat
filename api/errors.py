@@ -96,3 +96,21 @@ def register_error_handlers(app: FastAPI) -> None:
                 detail=str(exc.detail) if exc.detail else None,
             )
         )
+
+    @app.exception_handler(Exception)
+    async def _unexpected_error(_: Request, exc: Exception) -> JSONResponse:
+        """The last uncovered path: without this, a 500 answers `text/plain`.
+
+        A generated TypeScript client typed against `Problem` would get plain text exactly
+        when it is least able to cope. The exception itself is deliberately NOT put in the
+        body — E.4's rule for the copilot ("erreurs → message structuré, pas de stack") is the
+        right instinct for the whole API, and a stack trace in a response is an information
+        leak. It still propagates to the logs.
+        """
+        return _problem(
+            Problem(
+                title="Internal Server Error",
+                status=500,
+                detail="The request could not be completed.",
+            )
+        )

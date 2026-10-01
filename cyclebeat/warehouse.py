@@ -45,6 +45,43 @@ _RESOLUTIONS_DDL = """
     )
 """
 
+# The transactional side (ADR-009). Produced by the API into Postgres/SQLite, extracted into
+# the lake by `cyclebeat.app_store`, and loaded here like any other dataset.
+#
+# CREATE OR REPLACE, not CREATE IF NOT EXISTS. Both tables already exist on any machine that
+# ran v1 or the ADR-008 build, in shapes that do not match -- and IF NOT EXISTS is a silent
+# no-op against them, which is precisely how the earlier `feedback` binder error happened.
+# Replacing is also simply correct here: ADR-009 makes the lake the single source for the
+# warehouse, and `_load_dataset` already does a full replace from it, so any row that exists
+# only in DuckDB is an orphan of the superseded design rather than data to preserve.
+#
+# `sessions` keeps the OLTP name; the E.2 fact table `fct_session` is a dbt model built ON
+# TOP of it, not a table the API writes -- the correction ADR-009 makes to ADR-008.
+_SESSIONS_DDL = """
+    CREATE OR REPLACE TABLE sessions (
+        session_id     VARCHAR,
+        level          VARCHAR,
+        goal           VARCHAR,
+        duration_min   INTEGER,
+        verdict        VARCHAR,
+        n_segments     INTEGER,
+        duration_gap_s DOUBLE,
+        created_at     TIMESTAMP,
+        dt             DATE
+    )
+"""
+
+_FEEDBACK_DDL = """
+    CREATE OR REPLACE TABLE feedback (
+        session_id    VARCHAR,
+        session_title VARCHAR,
+        rating        VARCHAR,
+        note          VARCHAR,
+        created_at    TIMESTAMP,
+        dt            DATE
+    )
+"""
+
 # The E.2 verdict, materialized from Python rather than recomputed in SQL. E.2 forbids
 # variants of the confidence rule, so there is exactly one implementation (`cyclebeat.e2`)
 # and dbt only ever READS its output. Re-deriving the rule in a model would be the second
@@ -89,7 +126,7 @@ def load_lake(db_path: Path | None = None, lake_root: Path | None = None) -> dic
     per partition, so rebuilding from it is idempotent by construction. That is what makes
     `make ingest && make dbt` runnable from cold on a clean clone.
     """
-    from cyclebeat.lake import read_dataset
+    from cyclebeat.lake import FEEDBACK, SESSIONS, read_dataset
     from cyclebeat.resolve import cross_validate
 
     target = db_path or database_path()
@@ -101,10 +138,17 @@ def load_lake(db_path: Path | None = None, lake_root: Path | None = None) -> dic
         con.execute(_TRACKS_DDL)
         con.execute(_RESOLUTIONS_DDL)
         con.execute(_RESOLVED_DDL)
+        con.execute(_SESSIONS_DDL)
+        con.execute(_FEEDBACK_DDL)
 
         counts = {
             "raw_tracks": _load_dataset(con, "raw_tracks", TRACKS, root),
             "raw_resolutions": _load_dataset(con, "raw_resolutions", RESOLUTIONS, root),
+            # The app store may legitimately be empty (nobody has generated a session yet),
+            # in which case no partition exists and these stay 0 -- the warehouse still
+            # builds, which is what keeps `make dbt` runnable on a clean clone.
+            "sessions": _load_dataset(con, "sessions", SESSIONS, root),
+            "feedback": _load_dataset(con, "feedback", FEEDBACK, root),
         }
 
         track_ids = [str(row["track_id"]) for row in read_dataset(TRACKS, root)]

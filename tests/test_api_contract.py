@@ -106,6 +106,79 @@ def test_every_contracted_success_status_is_implemented(
         assert promised <= actual, f"{method.upper()} {path}: missing {promised - actual}"
 
 
+def test_no_schema_diverges_from_the_contract(
+    contract: dict[str, Any], generated: dict[str, Any]
+) -> None:
+    """Property sets and `required` sets, per shared schema. The load-bearing check.
+
+    Without it the divergence tests compare only paths, methods, operationIds and 2xx
+    statuses — so **dropping `SessionPlan.warnings` from the code passed CI**, which is exactly
+    the silent mutation the contract exists to prevent. Found by contract-guardian, and
+    `test_the_divergence_check_actually_catches_a_dropped_field` proves this one bites.
+    """
+    contracted = contract["components"]["schemas"]
+    implemented = generated.get("components", {}).get("schemas", {})
+
+    problems: list[str] = []
+    for name, schema in contracted.items():
+        actual = implemented.get(name)
+        if actual is None:
+            # Not every contract schema is a response model FastAPI emits — `Problem` is
+            # rendered by an exception handler, so it has no generated counterpart.
+            continue
+
+        expected_props = set(schema.get("properties", {}))
+        actual_props = set(actual.get("properties", {}))
+        if missing := expected_props - actual_props:
+            problems.append(f"{name}: contracted but not implemented: {sorted(missing)}")
+        if extra := actual_props - expected_props:
+            problems.append(f"{name}: implemented but not contracted: {sorted(extra)}")
+
+        expected_required = set(schema.get("required", []))
+        actual_required = set(actual.get("required", []))
+        if expected_required != actual_required:
+            problems.append(
+                f"{name}: required differs — contract-only "
+                f"{sorted(expected_required - actual_required)}, "
+                f"code-only {sorted(actual_required - expected_required)}"
+            )
+
+    assert not problems, " | ".join(problems)
+
+
+def test_the_divergence_check_actually_catches_a_dropped_field(
+    contract: dict[str, Any]
+) -> None:
+    """The check on the check.
+
+    Mutates the *generated* schema the way a careless edit to `api/schemas.py` would — drops a
+    required field — and asserts the comparison above reports it. Without this, a weakened
+    divergence test would look exactly like a passing one.
+    """
+    mutated = {
+        "components": {
+            "schemas": {
+                name: {
+                    **schema,
+                    "properties": {
+                        k: v for k, v in schema.get("properties", {}).items() if k != "warnings"
+                    },
+                    "required": [r for r in schema.get("required", []) if r != "warnings"],
+                }
+                if name == "SessionPlan"
+                else schema
+                for name, schema in app.openapi()["components"]["schemas"].items()
+            }
+        }
+    }
+
+    with pytest.raises(AssertionError) as raised:
+        test_no_schema_diverges_from_the_contract(contract, mutated)
+
+    assert "SessionPlan" in str(raised.value)
+    assert "warnings" in str(raised.value)
+
+
 def test_operation_ids_match(contract: dict[str, Any], generated: dict[str, Any]) -> None:
     """`operationId` is what generates the phase-5 TypeScript client's method names.
 

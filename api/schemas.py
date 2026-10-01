@@ -28,7 +28,10 @@ SourceType = Literal["deezer_url", "csv", "demo"]
 
 
 class Health(BaseModel):
-    status: Literal["ok"] = "ok"
+    # No default. `openapi.yaml` marks it required, and a pydantic default makes FastAPI emit
+    # it as optional -- a divergence the contract test now fails on. The contract is the
+    # authority, so the model matches it rather than the reverse.
+    status: Literal["ok"]
 
 
 class Problem(BaseModel):
@@ -49,7 +52,10 @@ class Problem(BaseModel):
 
 class TrackSource(BaseModel):
     type: SourceType
-    value: str = ""
+    # Required, as E.3 writes it (`{"type": ..., "value": str}`). `demo` ignores the content
+    # but the key is still expected -- being laxer than the contract is how a client starts
+    # depending on behaviour the contract never promised.
+    value: str
 
 
 class GenerateSessionRequest(BaseModel):
@@ -77,7 +83,8 @@ class Coaching(BaseModel):
 
     instruction: str
     transition_cue: str
-    kb_refs: list[str] = Field(default_factory=list)
+    # Required per E.3. Empty is fine; absent is not.
+    kb_refs: list[str]
 
 
 class Segment(BaseModel):
@@ -102,8 +109,10 @@ class SessionPlan(BaseModel):
     verdict: Verdict
     segments: list[Segment]
     excluded: list[ExcludedTrack] = Field(default_factory=list)
-    duration_gap_s: float = 0.0
-    warnings: list[str] = Field(default_factory=list)
+    # Both required by E.3's 200 shape. The planner always produces them, so a default only
+    # ever served to make the generated schema disagree with the contract.
+    duration_gap_s: float
+    warnings: list[str]
     created_at: datetime
 
 
@@ -157,4 +166,4 @@ class QualitySummary(BaseModel):
     n_flagged_review: int
     pct_flagged_review: float
     avg_confidence: float | None = None
-    by_method: dict[str, int] = Field(default_factory=dict)
+    by_method: dict[str, int]
