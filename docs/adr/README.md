@@ -28,6 +28,7 @@ Lightweight format (MADR-inspired): **Context → Options → Decision → Conse
 | [adr-007-session-construction-rules](adr-007-session-construction-rules.md) | Session construction rules: warmup/cooldown, level and goal caps, 2-value verdict + blocking list, full-track segments | Accepted |
 | [adr-008-session-persistence](adr-008-session-persistence.md) | `fct_session` materialized; `raw.feedback` rekeyed on `session_id`; DuckDB primary; SQL moved into `api/repositories/` | **Superseded by adr-009** |
 | [adr-009-postgres-transactional-duckdb-analytical](adr-009-postgres-transactional-duckdb-analytical.md) | Postgres (Neon) as the transactional store beside DuckDB analytical; the warehouse ingests from Postgres | Accepted |
+| [adr-010-track-and-bpm-sources](adr-010-track-and-bpm-sources.md) | Three source roles (playback / identity / BPM); Spotify and YouTube identity-only, never BPM; Spotify ISRC import of ADR-005 dropped | Accepted |
 
 ### Bonus (B series — V3.2 plan) — **all `Gated`**
 > Common opening condition: the **core V3.1 must be deployed, live, and tested from a clean clone**,

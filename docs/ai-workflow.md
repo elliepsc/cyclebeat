@@ -1,5 +1,17 @@
 # AI workflow log
 
+## Session 2026-10-02 — Chore (A3, ADR-010) — Separate the three source roles and verify the Spotify, YouTube and Deezer claims against official pages
+
+**Loop**: plan (validated by the owner) → web search + fetch of the official pages → write the ADR with a URL per claim → ADR-005 status line + index row → link check
+**Tool/model**: Claude Code / Sonnet 5.5
+**Initial prompt**: (owner) background task A3: write ADR-010 (listening / track identity / BPM as separate roles), verify each Spotify, YouTube and Deezer claim on the official documentation with its URL or mark it "non vérifié", leave the owner's Premium test field empty, and supersede only the Spotify-import section of ADR-005.
+**Notable iterations**: the sources disagreed with each other. The February 2026 Spotify changelog and migration guide list `external_ids` (the ISRC) as removed, but the March 2026 changelog says it "will continue to be available"; the ADR states the later source. The YouTube "background player" rule is in the developer policies (III.I.9), not in the Required Minimum Functionality page where it was first looked for. Reading the Deezer guidelines surfaced a point the brief did not ask about: "Local Storage/Offline Storage of audio data is strictly forbidden", while the pipeline caches the 30 s MP3 in the gitignored `data/audio_cache/`. The ADR records it as an open risk on the backbone rather than resolving it.
+**Corrected by human review**: (1) the abandonment of the Spotify import must not rest on the ISRC disappearing, since `external_ids` stays available per the March 2026 changelog; the reasons are the owner-Premium requirement, the five-user cap and a feature unusable by reviewers, and the ISRC is noted as enabling an exact Spotify → Deezer match in Idea 2 (ADR-011). (2) Decision on the audio cache: no persistent audio storage; the preview is analysed from a temporary file deleted immediately and only the numbers are kept; ADR-005's status line now says its "cache previews permanently" mitigation is replaced by ADR-010; the code fix is a separate branch `fix/no-audio-cache`, after phase 5, with no code change in this PR. (3) ADR-010 is `Accepted` once these are in. The owner re-reads the Deezer quotation on the page before merging.
+**Role split**: written by the agent: the ADR, the ADR-005 status line, the index row, this entry / delegated: web verification (search and page fetches; the page text came back summarized by the fetch tool, so quotes should be re-read on the page before being relied on legally) / written by the human: the brief and decisions, the Premium test (field left empty).
+**Verification**: every verified claim carries its official URL; "expiry of user authorizations" and "no API for what the YouTube app plays" could not be confirmed on an official page and are marked "non vérifié"; `check_links`: 0 dead link. No code changed, so no test run is claimed.
+**Lesson**: when a vendor reverts a change in a later changelog, the earlier pages (and a migration guide) can still describe the removal; cite the latest dated source and say the earlier ones disagree.
+**To capitalize in CLAUDE.md**: nothing.
+
 ## Session 2026-10-02 — Chore (test/postgres-ci) — Run the repository tests against a real Postgres in CI
 
 **Loop**: plan (validated by the owner) → read the adapter and tests → parametrize the store fixture → run against a throwaway local Postgres → mutate the `?` → `%s` rewrite to confirm the tests catch it → CI service + step → README
