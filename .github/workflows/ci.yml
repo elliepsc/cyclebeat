@@ -23,6 +23,24 @@ jobs:
     env:
       RUNTIME_DB_PATH: ${{ github.workspace }}/data/cyclebeat_runtime.duckdb
 
+    # A real Postgres for the repository tests (ADR-009). Same image as docker-compose.yml.
+    # It is reached through TEST_DATABASE_URL, never DATABASE_URL: the test suite strips the
+    # latter, which is the production variable.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cyclebeat
+          POSTGRES_PASSWORD: cyclebeat
+          POSTGRES_DB: cyclebeat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cyclebeat"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -48,6 +66,14 @@ jobs:
 
       - name: Unit tests
         run: make test-unit
+
+      # The Postgres path of the transactional store against a real server. `test-unit` already
+      # collects these tests but skips them (no TEST_DATABASE_URL there). Here the variable is
+      # set, so they run; an unreachable server errors in the fixture rather than skipping.
+      - name: Repository tests on Postgres
+        env:
+          TEST_DATABASE_URL: postgresql://cyclebeat:cyclebeat@localhost:5432/cyclebeat
+        run: uv run pytest tests/unit/test_api_repositories.py -rs
 
       # The phase-3 exit criterion (§15) and condition 2 of §2.5: the mutation
       # check green IN CI, not merely on a developer's machine. Kept a separate

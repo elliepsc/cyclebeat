@@ -1,5 +1,17 @@
 # AI workflow log
 
+## Session 2026-10-02 — Chore (test/postgres-ci) — Run the repository tests against a real Postgres in CI
+
+**Loop**: plan (validated by the owner) → read the adapter and tests → parametrize the store fixture → run against a throwaway local Postgres → mutate the `?` → `%s` rewrite to confirm the tests catch it → CI service + step → README
+**Tool/model**: Claude Code / Sonnet 5.5
+**Initial prompt**: (owner) background task "test/postgres-ci": the Postgres path (`DATABASE_URL` set) is never run against a real server; add a `postgres:16-alpine` CI service and run the repository tests on both engines with the same test code.
+**Notable iterations**: the brief said to point `DATABASE_URL` at the service, but `tests/conftest.py` strips `DATABASE_URL` for the whole suite, so the tests would have silently stayed on SQLite. The plan flagged it and the owner chose a dedicated `TEST_DATABASE_URL` (also safer: `DATABASE_URL` is the production variable and may be exported towards the compose database). Postgres tests run in a throwaway schema selected through `search_path`, so `public` is never written.
+**Corrected by human review**: the variable choice (`TEST_DATABASE_URL`, not `DATABASE_URL`). The owner also asked to fix the literal-`%` limit instead of documenting it: `Database.execute` now doubles `%` before rewriting `?`. Self-corrected before commit: the first CI step comment claimed a skip would fail the step, which pytest does not do; the real guarantee is that an unreachable server errors in the fixture, so the comment was rewritten.
+**Role split**: written by the agent: fixture, parametrized tests, three new tests, CI service and step, README paragraph, this entry / written by the human: the brief and the variable decision / PR opened and merged by the human.
+**Verification**: final measurements, taken after the last code change, on `tests/unit/test_api_repositories.py`: 43 passed against a temporary `postgres:16-alpine` container (port 55432, removed afterwards); 28 passed + 15 skipped with no `TEST_DATABASE_URL`. Full suite without it: 246 passed, 21 skipped; the 6 skips outside the file are `tests/test_dags.py` (Airflow does not support Windows). Mutations: with the first version (40 tests on Postgres), turning the `?` → `%s` rewrite into a no-op failed exactly the 14 Postgres cases; after the `%` fix, removing only the `%` escape failed exactly the 2 `%` tests (psycopg: "2 placeholders but 1 parameters"). Both restored. No throwaway schema left behind. CI result: see the PR.
+**Lesson**: a test-isolation fixture that strips an environment variable also silently disables any CI wiring that sets it; check what the suite does with the variable before pointing a service at it.
+**To capitalize in CLAUDE.md**: no `DATABASE_URL` in production until the Postgres CI job is green on main.
+
 ## Session 2026-10-01 — Phase 4 (A4, demo image) — Build the demo DuckDB at image-build time as ADR-003 prescribes, and drop the ingestion-at-boot start command
 
 **Loop**: spec (ADR-003) → context → reproduce the old config → edit → run → test → diff → review → fix → commit
