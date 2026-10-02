@@ -63,3 +63,11 @@ def test_wildcard_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(CORS_ORIGINS_ENV, "*")
     with pytest.raises(ValueError):
         create_app()
+
+
+def test_empty_variable_allows_no_origin(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(CORS_ORIGINS_ENV, "")
+    client = TestClient(create_app())
+    for origin in ("http://localhost:5173", ALLOWED):
+        response = client.get("/health", headers={"Origin": origin})
+        assert "access-control-allow-origin" not in response.headers
