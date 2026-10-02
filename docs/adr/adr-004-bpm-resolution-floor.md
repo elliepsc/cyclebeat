@@ -73,6 +73,6 @@ only fixes **which source is the backbone vs. which is optional**.
 
 ## References
 
-- `docs-notes/CYCLEBEAT_PLAN_V3.md` §2, §12 (API risks), phase-1 spike; E.2 confidence rule.
+- `docs/archive/CYCLEBEAT_PLAN_V3.md` §2, §12 (API risks), phase-1 spike; E.2 confidence rule.
 - `docs/adr/adr-001-v3-repositioning.md` (Spotify purge, source substitution).
-- `docs-notes/DECISIONS_SESSION_2026-07.md` (audit + session decisions that produced this ADR).
+- `docs/archive/DECISIONS_SESSION_2026-07.md` (audit + session decisions that produced this ADR).

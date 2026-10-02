@@ -48,14 +48,15 @@ présentable ; + `[production]` = prêt pour un vrai système.
 ### `[présentable]`
 | Livrable | État |
 |---|---|
-| Chemin Postgres testé en CI contre une vraie base (`test/postgres-ci`) | ⬜ |
+| Chemin Postgres testé en CI contre une vraie base (`test/postgres-ci`) | ✅ |
 | Neon en production, seulement après le point précédent | ⬜ |
-| ADR-010 : sources de morceaux et de BPM, conditions d'utilisation Deezer | ⬜ |
+| ADR-010 : sources de morceaux et de BPM, conditions d'utilisation Deezer | ✅ |
+| Aucun stockage durable d'audio : extrait analysé depuis un fichier temporaire supprimé (`fix/no-audio-cache`, ADR-010) | ✅ |
 | Documentation à source unique (plans archivés, index des ADR) | ⬜ |
 | Mesure de la justesse du BPM sur des pistes de référence (zone correcte, erreurs d'octave, calibration de la confiance). Cas observés en production le 2 octobre 2026 : « Ain't No Sunshine » à 161,5 BPM avec une confiance de 0,9 (erreur d'octave probable, recoupement validé à tort) ; « Blinding Lights » à 86,1 BPM (mi-tempo probable). Aucune correction dans le code à ce stade | ⬜ |
 | Warehouse Copilot borné : lecture seule sur les marts, tests d'injection, évaluations en CI | ⬜ |
 | Écran de KPI qualité branché sur `/v1/quality/*` | ⬜ |
-| Image en deux étapes, utilisateur non root | ⬜ |
+| Image en deux étapes (l'image de démo pèse 911 Mo : `build-essential` et le cache de build restent dans l'image finale), utilisateur non root (l'image tourne en root ; droits en écriture limités au dossier de la base SQLite) | ⬜ |
 | GIF de démo, test depuis un clone propre par une autre personne | ⬜ |
 | Récit d'entretien : décisions prises contre l'avis de l'agent | ⬜ |
 
@@ -81,7 +82,7 @@ Le versioning actuel est une des sources du désordre : trois plans parallèles 
 | **L0** | **CORE** | Plan V3 (§1–§18) + durcissements « V3.1 » (D1–D8) fondus dedans | **À livrer d'abord.** Non négociable. C'est le 30/30 de la grille + la sécurité/infra. |
 | **L1** | **EXTENSIONS** | Plan V3.2 (bonus B1–B7) | **Gaté.** N'ajoute aucun point ; ajoute de la profondeur portfolio. Ne démarre qu'après L0 en ligne. |
 
-Correspondance des fichiers hérités (aucun n'est supprimé — voir §7) :
+Correspondance des fichiers hérités (aucun n'est supprimé ; ils sont désormais dans `docs/archive/` — voir §7) :
 
 | Fichier hérité | Devient | Action recommandée |
 |---|---|---|
@@ -292,18 +293,16 @@ L1 · EXTENSIONS (bonus portfolio, +0 pt)
 |---|---|---|
 | 1 | **Fichier V3.1 inexistant** (D1–D8 canoniques) | Les durcissements sont dispersés/résumés ; §2.3 les rassemble mais la liste D complète manque → à formaliser ou à considérer close par ce document |
 | 2 | ~~**Truth-source #4 absente** (`V2 §6-9`)~~ | ✅ **CLOSE (2026-08-15)** — `CLAUDE.md` ne la référence plus : l'Annexe E est déclarée auto-suffisante, V1/V2 sont des archives hors repo et ne sont jamais source de vérité |
-| 3 | **Conflit de langue** | E.6 dit « docs en français » ; CLAUDE.md dit « repo docs in English ». Non tranché — ce document est en FR (docs-notes bilingue toléré) |
+| 3 | **Conflit de langue** | E.6 dit « docs en français » ; CLAUDE.md dit « repo docs in English ». Non tranché — ce document est en FR (archives bilingues tolérées) |
 | 4 | **Branches mergées non balayées** | `chore/dev-env-setup`, `docs/session-2026-07-sync`, `phase-1/source-spike`, `docs/status-2026-07-29` = `0` commit hors main → suppressibles ; `archive/v1-llm-zoomcamp` = `0` aussi mais **à ne JAMAIS supprimer** |
 | 5 | **Entrées `ai-workflow.md` manquantes** (PR #6, #7) | Critère 2 de la grille — le plus souvent perdu en étant écrit après coup |
 | 6 | **Drift contrat E.2 ↔ code** (chaîne `feedback`) | `raw.feedback → … → mart_feedback_summary` existe en dbt mais pas dans E.2 ; écriture DuckDB best-effort à fiabiliser ; exposer `mart_feedback_summary` sur l'allowlist du copilote |
-| 7 | **[P1] Image Docker en deux étapes** | L'image de démo (A4) pèse 911 Mo : tout `build-essential` et le cache de build restent dans l'image finale. Un build multi-étapes (dépendances + base construites dans une étape, copie du seul nécessaire dans une image `slim`) la réduirait. Non fait, hors A4 |
-| 8 | **[P1] Utilisateur non root dans le conteneur** | L'image tourne en root (le build, la base embarquée et uvicorn). À corriger avec un utilisateur dédié et les droits en écriture limités au dossier de la base SQLite des sessions. Non fait, hors A4 |
 
 ---
 
 ## 8. Annexe E — contrats d'exécution (normatifs, par référence)
 
-Les contrats normatifs **ne sont pas dupliqués ici** pour éviter le drift : ils restent l'Annexe E.0–E.8 du plan V3 (`CYCLEBEAT_PLAN_V3.md`, lignes 352→577). Ils couvrent :
+Les contrats normatifs **ne sont pas dupliqués ici** pour éviter le drift : ils restent l'Annexe E.0–E.8 du plan V3 (`docs/archive/CYCLEBEAT_PLAN_V3.md`, lignes 352→577). Ils couvrent :
 
 - **E.0** Règles du modèle exécutant (invent nothing, 1 phase = 1 PR, DoD, interdits).
 - **E.1** État vérifié du repo + runbook Phase 0.

@@ -85,7 +85,7 @@ site. E.2's scores, normalization and source enum are **unchanged**.
 
 ## References
 
-- `docs-notes/CYCLEBEAT_PLAN_V3.md` E.2 (confidence rule + the dated 2026-08-15 notes).
+- `docs/archive/CYCLEBEAT_PLAN_V3.md` E.2 (confidence rule + the dated 2026-08-15 notes).
 - `docs/adr/adr-005-deezer-preview-backbone.md` (backbone vs enrichment).
 - `docs/spikes/phase1-source-coverage.md` (the measurements, and open point 3 that raised this).
 - `cyclebeat/e2.py`, `tests/test_spike_coverage.py` (the ADR-006 test block).

@@ -27,7 +27,7 @@ DuckDB runtime, dbt, dlt ingest, docker-compose/Dockerfile/render.yaml, the 40 c
 - The V1 state is preserved on branch `archive/v1-llm-zoomcamp` before purge.
 - Deezer/Jamendo/CSV replace Spotify (validated by the phase-1 source spike).
 - Two agentic layers are documented separately (product copilot vs process workflow) to avoid reviewer confusion.
-- Full rationale: `docs-notes/CYCLEBEAT_PLAN_V3.md` §0, and the V3.1 hardening delta (D1-D8).
+- Full rationale: `docs/archive/CYCLEBEAT_PLAN_V3.md` §0, and the V3.1 hardening delta (D1-D8).
 
 ## Execution notes — purge run on 2026-07-28
 

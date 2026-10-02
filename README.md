@@ -117,7 +117,7 @@ Windows/WSL notes and the branch/PR workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
 | — | Public deployment (API) | ✅ |
 | 6+ | Bounded warehouse copilot, agent extension pack, security audit | planned |
 
-Detailed roadmap: [docs-notes/CYCLEBEAT_ROADMAP.md](docs-notes/CYCLEBEAT_ROADMAP.md).
+Detailed roadmap: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## How it was built
 

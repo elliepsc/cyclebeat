@@ -48,7 +48,7 @@ yourself).
   #5 of §18 of the plan); the others can be short entries.
 - Never an after-the-fact reconstruction presented as real time: if you fill
   a history gap, mark the entry `[reconstructed]`.
-- Language: repo docs in English (E.6). The `docs-notes/` ultraplans may stay
+- Language: repo docs in English (E.6). The archived plans in `docs/archive/` may stay
   bilingual. Code and identifiers cited in English.
 
 ## Prohibitions
