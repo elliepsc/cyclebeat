@@ -88,7 +88,7 @@ Option A. The scalar columns are what `GET /v1/sessions` pages over and what dbt
 
 ## References
 
-- `docs-notes/CYCLEBEAT_PLAN_V3.md` E.2 (`fct_session`, `raw.feedback`, and the 2026-07-28 /
+- `docs/archive/CYCLEBEAT_PLAN_V3.md` E.2 (`fct_session`, `raw.feedback`, and the 2026-07-28 /
   2026-08-15 notes that assigned this to phase 4), E.3 (the session endpoints), E.0.5 (SQL only
   in `api/repositories/` and `dbt/`), §7 (layering).
 - `docs/adr/adr-006-e2-open-points.md` — the precedent for annotating E.2 from an ADR.

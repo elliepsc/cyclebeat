@@ -98,9 +98,9 @@ URL must be live for at least a week before submission. §2.7 is corrected in th
 
 ## References
 
-- `docs-notes/CYCLEBEAT_ROADMAP.md` §2.7 (the decision this ADR formalizes), §2.3 (the
+- `docs/ROADMAP.md` §2.7 (the decision this ADR formalizes), §2.3 (the
   single-writer hardening, now scoped to the analytical store), §2.6 (criterion 7).
-- `docs-notes/CYCLEBEAT_PLAN_V3.md` E.2 (the `try/except pass` debt and the `raw.feedback`
+- `docs/archive/CYCLEBEAT_PLAN_V3.md` E.2 (the `try/except pass` debt and the `raw.feedback`
   contract), E.3 (the session endpoints), E.8 (zero cost), §15 phases 4, 8 and 9.
 - `docs/adr/adr-008-session-persistence.md` (superseded).
 - `docs/adr/adr-003-render-no-disk.md` (no persistent disk in production).

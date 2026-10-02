@@ -12,8 +12,8 @@ review report. You modify NO file — you flag, the human or the main agent fixe
 ## Truth sources (E.0 order)
 
 1. The repo code as it is.
-2. `docs-notes/CYCLEBEAT_PLAN_V3.md` appendix E.2 (NORMATIVE data contracts).
-3. The body of the V3 plan, then CYCLEBEAT_PLAN_V2.md §6-9.
+2. `docs/archive/CYCLEBEAT_PLAN_V3.md` appendix E.2 (NORMATIVE data contracts).
+3. The body of the V3 plan (`docs/archive/CYCLEBEAT_PLAN_V3.md`). V1/V2 are never a source.
 
 ## Review checklist (exhaustive, in this order)
 

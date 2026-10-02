@@ -93,5 +93,5 @@ core ships), never a core dependency.
 - `docs/adr/adr-004-bpm-resolution-floor.md` (**superseded**).
 - `docs/adr/adr-001-v3-repositioning.md` (Spotify purge, source substitution).
 - `docs/spikes/phase1-source-coverage.md` (measured Deezer + librosa-on-preview figures).
-- `docs-notes/CYCLEBEAT_PLAN_V3.md` §2, §12 (API risks), E.2 (confidence rule), E.5 (`dag_ingest`).
-- `docs-notes/CYCLEBEAT_ROADMAP.md` §1, §6 (phase-1 status).
+- `docs/archive/CYCLEBEAT_PLAN_V3.md` §2, §12 (API risks), E.2 (confidence rule), E.5 (`dag_ingest`).
+- `docs/ROADMAP.md` §1, §6 (phase-1 status).

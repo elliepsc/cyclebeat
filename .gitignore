@@ -1,14 +1,7 @@
-# Planning notes. Most of docs-notes/ is raw working material and stays local;
-# the files a reader needs to follow the repo's own truth-source chain are
-# committed. `docs-notes/*` (not `docs-notes/`) is required: git cannot
-# re-include a file whose parent directory is excluded.
-docs-notes/*
-!docs-notes/CYCLEBEAT_PLAN_V3.md
-!docs-notes/CYCLEBEAT_PLAN_V3.2.md
-!docs-notes/CYCLEBEAT_PLAN_V3.2.fr.md
-!docs-notes/CYCLEBEAT_ROADMAP.md
-!docs-notes/DECISIONS_SESSION_2026-07.md
-!docs-notes/PEER_REVIEW.md
+# docs-notes/ is the owner's local working material and is NOT tracked. Everything a reader
+# needs is committed under docs/: ROADMAP.md (where we are), adr/ (why), PEER_REVIEW.md, and
+# archive/ (superseded plans and session notes, kept for history only).
+docs-notes/
 
 BACKLOG.md
 ROADMAP_V1_RENFORCEE.md

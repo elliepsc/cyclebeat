@@ -191,7 +191,7 @@ first.
 
 ## References
 
-- `docs-notes/CYCLEBEAT_PLAN_V3.md` §15 phase 3 (exit criterion), §7 (layering), §11 (test
+- `docs/archive/CYCLEBEAT_PLAN_V3.md` §15 phase 3 (exit criterion), §7 (layering), §11 (test
   strategy), E.2 (zones, normalization, planner exclusion), E.3 (request/response shapes).
 - `docs-notes/cyclebeat_ultraplan.md` phases 3 and 5 — the prior art this ADR promotes; **not**
   a truth source.
