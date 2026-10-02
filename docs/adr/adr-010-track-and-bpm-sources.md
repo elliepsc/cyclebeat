@@ -117,3 +117,5 @@ values only (BPM, confidence), not audio. A written reading from Deezer was not 
 - `docs/adr/adr-005-deezer-preview-backbone.md` (backbone; Spotify import section superseded here).
 - `docs/adr/adr-001-v3-repositioning.md`.
 - `cyclebeat/resolve.py`, `cyclebeat/http.py` (preview download and local cache).
+
+Note (2026-10-02): the known gap above is corrected on branch `fix/no-audio-cache`. `cyclebeat/http.py` now downloads a preview into a temporary file removed in a `finally` (success, failed analysis or failed download), `cyclebeat/resolve.py` and `tools/spike/source_coverage.py` use that same API, and no code path writes audio durably. The JSON metadata cache is unchanged.

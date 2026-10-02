@@ -17,8 +17,9 @@ never enters `pyproject.toml`, `uv.lock` or the Docker image:
 
 This script MEASURES. It builds no resolver — that is phase 2.
 
-Zero cost (E.8): every call is read-only, paced at >= 0.3 s, and cached on disk so a second
-run re-fetches nothing. `--report` recomputes every figure from the raw output with no
+Zero cost (E.8): every call is read-only, paced at >= 0.3 s, and its JSON responses are
+cached on disk so a second run re-fetches no metadata. Audio is never cached (ADR-010): it is
+re-downloaded each run. `--report` recomputes every figure from the raw output with no
 network at all, which is what makes the report reproducible from a clean checkout.
 """
 
@@ -32,6 +33,8 @@ import sys
 import time
 import urllib.parse
 from collections import Counter
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -39,6 +42,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from cyclebeat.e2 import normalize_bpm, resolve, window_stability  # noqa: E402
+from cyclebeat.http import temporary_download  # noqa: E402
 
 # --- Zero-cost guardrails (E.8) -----------------------------------------------------------
 
@@ -48,7 +52,6 @@ USER_AGENT = "cyclebeat-phase1-spike/1.0 (+https://github.com/elliepsc/cyclebeat
 
 SPIKE_DIR = REPO_ROOT / "data" / "spike"
 CACHE_DIR = SPIKE_DIR / ".cache"
-AUDIO_DIR = CACHE_DIR / "audio"
 DEFAULT_RAW_OUTPUT = SPIKE_DIR / "raw_output.json"
 
 # --- Endpoints ----------------------------------------------------------------------------
@@ -142,21 +145,13 @@ class PacedSession:
         self.calls += 1
         return payload, latency_ms
 
-    def download(self, url: str, destination: Path) -> Path:
-        """Fetch an audio file once. Cached on disk; the cache is gitignored."""
-        if destination.exists() and destination.stat().st_size > 0:
-            self.cache_hits += 1
-            return destination
-
+    @contextmanager
+    def download_temporary(self, url: str) -> Iterator[Path]:
+        """Paced audio download into a temporary file removed on exit. Never cached (ADR-010)."""
         self._wait()
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        with self.session.get(url, stream=True, timeout=HTTP_TIMEOUT) as response:
-            response.raise_for_status()
-            with open(destination, "wb") as handle:
-                for chunk in response.iter_content(chunk_size=1 << 16):
-                    handle.write(chunk)
-        self.calls += 1
-        return destination
+        with temporary_download(self.session, url) as path:
+            self.calls += 1
+            yield path
 
 
 # --- librosa ------------------------------------------------------------------------------
@@ -309,8 +304,8 @@ def run_fetch(args: argparse.Namespace) -> int:
                 row.deezer_bpm_raw = detail.get("bpm")
                 preview = detail.get("preview")
                 if preview and not args.skip_audio:
-                    path = session.download(preview, AUDIO_DIR / f"deezer_{row.deezer_id}.mp3")
-                    a, b, seconds = analyse_audio(path)
+                    with session.download_temporary(preview) as path:
+                        a, b, seconds = analyse_audio(path)
                     row.librosa_window_a, row.librosa_window_b = a, b
                     row.audio_kind, row.audio_seconds = "deezer_preview", seconds
         except Exception as exc:  # noqa: BLE001 - a spike records failures, never aborts
