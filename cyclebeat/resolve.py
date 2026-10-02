@@ -19,34 +19,32 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from datetime import UTC, date, datetime
-from pathlib import Path
 from typing import Any
 
 from cyclebeat.e2 import resolve as e2_resolve
 from cyclebeat.http import PacedSession
 from cyclebeat.models import RawResolution, RawTrack, ResolvedTrack
 
-AUDIO_CACHE = Path("data") / "audio_cache"
-
 
 def resolve_track_bpm(
     session: PacedSession,
     track: RawTrack,
-    cache_dir: Path | None = None,
 ) -> RawResolution | None:
     """Download a track's preview and estimate its BPM with librosa (ADR-005 backbone).
 
     Returns None when the track has no preview or librosa cannot lock a stable tempo —
     absence of a source, which E.2 reads as "no opinion", never as a BPM of 0.
+
+    The preview is analysed from a temporary file that is deleted as soon as the analysis
+    ends, success or failure (ADR-010): only the derived BPM is kept, never the audio.
     """
     if not track.preview_url:
         return None
 
     from cyclebeat.audio import analyse, backbone_bpm
 
-    destination = (cache_dir or AUDIO_CACHE) / f"deezer_{track.track_id}.mp3"
-    path = session.download(track.preview_url, destination)
-    bpm = backbone_bpm(analyse(path))
+    with session.download_temporary(track.preview_url) as path:
+        bpm = backbone_bpm(analyse(path))
     if bpm is None:
         return None
 

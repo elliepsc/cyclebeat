@@ -13,14 +13,39 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import tempfile
 import time
 import urllib.parse
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 PACING_SECONDS = 0.3  # floor imposed by E.8; never lower it
 HTTP_TIMEOUT = 30
 USER_AGENT = "cyclebeat/2.0 (+https://github.com/elliepsc/cyclebeat)"
+
+
+@contextmanager
+def temporary_download(http_session: Any, url: str) -> Iterator[Path]:
+    """Download `url` to a temporary file that is deleted when the block exits.
+
+    ADR-010: audio is never stored durably. The file lives only for the analysis, and the
+    `finally` removes it whether the download failed, the caller raised, or all went well.
+    Nothing here knows about a cache directory, so there is no path to leave audio in.
+    """
+    descriptor, name = tempfile.mkstemp(prefix="cyclebeat_preview_", suffix=".mp3")
+    path = Path(name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            with http_session.get(url, stream=True, timeout=HTTP_TIMEOUT) as response:
+                response.raise_for_status()
+                for chunk in response.iter_content(chunk_size=1 << 16):
+                    handle.write(chunk)
+        yield path
+    finally:
+        path.unlink(missing_ok=True)
 
 
 class PacedSession:
@@ -75,22 +100,14 @@ class PacedSession:
         self.calls += 1
         return fetched, latency_ms
 
-    def download(self, url: str, destination: Path) -> Path:
-        """Fetch an audio file once. Cached on disk; the cache is gitignored.
+    @contextmanager
+    def download_temporary(self, url: str) -> Iterator[Path]:
+        """Paced audio download into a temporary file removed on exit (see `temporary_download`).
 
-        ADR-005 leans on this: previews are cached permanently so a Deezer tightening
-        degrades future ingestion rather than destroying what was already resolved.
+        Not cached: ADR-010 forbids keeping audio, so a track that needs analysing again is
+        downloaded again. Only the JSON metadata responses are cached (`get_json`).
         """
-        if destination.exists() and destination.stat().st_size > 0:
-            self.cache_hits += 1
-            return destination
-
         self._wait()
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        with self.session.get(url, stream=True, timeout=HTTP_TIMEOUT) as response:
-            response.raise_for_status()
-            with open(destination, "wb") as handle:
-                for chunk in response.iter_content(chunk_size=1 << 16):
-                    handle.write(chunk)
-        self.calls += 1
-        return destination
+        with temporary_download(self.session, url) as path:
+            self.calls += 1
+            yield path
