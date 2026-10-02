@@ -1,6 +1,6 @@
 # ADR-010 — Track and BPM sources: three roles, Spotify and YouTube for identity only
 
-- **Status**: Accepted — **supersedes the "Spotify import" section of ADR-005** (the rest of ADR-005, the BPM backbone, stays in force)
+- **Status**: Accepted — **supersedes the "Spotify import" section and the "cache previews permanently" mitigation of ADR-005** (the rest of ADR-005, the BPM backbone, stays in force)
 - **Date**: 2026-10-02
 - **Owner**: Ellie
 
@@ -61,16 +61,19 @@ owner-Premium requirement is unknown and is tested by the owner, not inferred):
 **This is a risk on the backbone, stated plainly.** The pipeline downloads the 30-second preview and
 analyses it with librosa (`cyclebeat/resolve.py`), and it keeps the MP3 in `data/audio_cache/`
 (gitignored and `.dockerignore`d, never committed or served). Whether that cache counts as the
-"local storage of audio data" the guidelines forbid is **an open question this ADR does not settle**;
-ADR-005's "cache previews permanently" mitigation rests on it. What the repo does publish is derived
+"local storage of audio data" the guidelines forbid is **not decided here**: the Decision below removes
+the question by dropping persistent audio storage, until the code catches up;
+ADR-005's "cache previews permanently" mitigation rested on it. What the repo does publish is derived
 values only (BPM, confidence), not audio. A written reading from Deezer was not obtained.
 
 ## Options
 
-1. **Keep the ADR-005 Spotify import** (playlist → ISRC → Deezer match → librosa). Rejected: it adds an
-   OAuth flow, cross-catalogue matching, and a Development Mode that needs the owner's Premium and caps
-   users at five, for an optional feature. It also would not reduce the Deezer dependency (the BPM would
-   still come from the Deezer preview).
+1. **Keep the ADR-005 Spotify import** (playlist → ISRC → Deezer match → librosa). Rejected, for three
+   reasons: Development Mode **requires the app owner to hold Premium**; it allows **at most five
+   authorized users**; and the feature would therefore be **unusable by the project's reviewers**, who
+   cannot be added to an allowlist of five. The ISRC is **not** a reason: `external_ids` remains available
+   (March 2026 changelog above). The import would also not reduce the Deezer dependency, since the BPM
+   would still come from the Deezer preview.
 2. **Use Spotify or YouTube for BPM.** Rejected: Spotify audio endpoints are closed to new apps, and the
    YouTube policies above forbid isolating or audio-only use of the audio.
 3. **Separate the three roles; Deezer for BPM, Spotify/YouTube (if ever) for identity only.** Chosen.
@@ -85,14 +88,26 @@ values only (BPM, confidence), not audio. A written reading from Deezer was not 
   point here; its text is not rewritten.
 - **"Idea 2"** — an observation table of BPM (tap tempo, microphone, YouTube then Spotify as identity
   sources) — is **deferred to a design ADR, ADR-011**, to be written after the `v1.0-submission` tag.
-  Nothing in it is designed here.
+  Nothing in it is designed here. **Note for that ADR**: since the ISRC stays available from Spotify,
+  it will allow an **exact Spotify → Deezer track match** in Idea 2 (identity by ISRC, not by fuzzy
+  title/artist matching).
+- **No persistent storage of audio.** The 30-second preview is downloaded to a **temporary file, analysed,
+  and deleted immediately**; only the derived numbers (BPM, confidence, window figures) are kept. This
+  replaces ADR-005's mitigation "cache previews permanently in the lake" and resolves the Deezer
+  local-storage question below by not storing audio at all. The code change (today `cyclebeat/resolve.py`
+  and `cyclebeat/http.py` cache the MP3 in `data/audio_cache/`) is **not part of this ADR's PR**: it is a
+  separate branch `fix/no-audio-cache`, after phase 5.
 
 ## Consequences
 
 - No Spotify code or credential enters the core. The "People are on Spotify" caveat in ADR-005 stays a
   product note, not a feature.
 - The Deezer analysis question (above) stays open and is the largest unresolved risk on the backbone;
-  the mitigations ADR-005 lists (CSV floor, committed demo snapshot, no audio in CI) are what carry it.
+  the mitigations that carry it are the CSV floor, the committed demo snapshot and no audio in CI. The
+  "cache previews permanently" mitigation is withdrawn: re-resolving after a change to the confidence
+  rule will re-download previews instead of reading a local audio cache (the lake keeps the numbers, so
+  replays that only change the rule stay offline). Until `fix/no-audio-cache` lands, the code still
+  caches audio, which this ADR treats as a known gap.
 - A future identity-only source must respect the rules in the tables: Spotify Development Mode limits;
   a displayed YouTube player, no audio extraction.
 - Cost: unchanged, 0 €.
