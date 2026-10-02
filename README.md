@@ -61,8 +61,9 @@ All decisions: [docs/adr/](docs/adr/README.md).
 
 **Where sessions and feedback are stored.** Postgres when `DATABASE_URL` is set (the compose
 stack sets it), SQLite at `data/cyclebeat_app.db` otherwise, so a clean clone runs with no
-service. Choosing the engine from the URL is unit-tested, but the Postgres code path is **not
-yet exercised in CI against a real database** (CI has no Postgres service). The public demo
+service. Choosing the engine from the URL is unit-tested, and the Postgres code path is exercised
+in CI against a real database (a `postgres:16-alpine` service; the repository tests run on both
+engines, and are skipped locally unless `TEST_DATABASE_URL` points at a server). The public demo
 sets no `DATABASE_URL` and has no persistent disk ([ADR-003](docs/adr/adr-003-render-no-disk.md)),
 so sessions created there are ephemeral.
 
