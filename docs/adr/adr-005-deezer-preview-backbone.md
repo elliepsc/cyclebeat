@@ -1,6 +1,6 @@
 # ADR-005 — BPM backbone: Deezer source + librosa on preview; CC/Jamendo floor dropped
 
-- **Status**: Accepted — **supersedes ADR-004**
+- **Status**: Accepted — **supersedes ADR-004**; Spotify import section superseded by [ADR-010](adr-010-track-and-bpm-sources.md)
 - **Date**: 2026-08-14
 - **Owner**: Ellie
 
