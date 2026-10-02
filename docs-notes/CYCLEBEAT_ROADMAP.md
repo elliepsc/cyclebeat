@@ -10,6 +10,68 @@
 
 ---
 
+## Priorités et calendrier — état au 2 octobre 2026
+
+### Légende
+- `[rendu]` : nécessaire pour le rendu AI Dev Tools Zoomcamp 2026.
+- `[présentable]` : solide et défendable en entretien, après le rendu.
+- `[production]` : ce qu'il faudrait pour un vrai système. Sans date.
+
+Règle de verdict : `[rendu]` complet = robuste pour le homework ; + `[présentable]` = solide et
+présentable ; + `[production]` = prêt pour un vrai système.
+
+### Calendrier
+- Point de décision : **12 octobre 2026**. Si le frontend n'appelle pas l'API de bout en bout en
+  local à cette date, bascule sur le filet du 17 novembre et replanifie.
+- Application complète en ligne : au plus tard le **20 octobre** (URL vivante depuis au moins une
+  semaine le jour du rendu).
+- Gel : **25 octobre**. Rendu : **26 octobre au soir** (échéance le 27 à minuit).
+  Filet : **17 novembre**.
+- Au rendu : tag `v1.0-submission`, et c'est ce commit qui est soumis.
+
+### `[rendu]`
+| Livrable | État |
+|---|---|
+| Moteur, ingestion, dbt, DAGs, contrat OpenAPI, backend, CI | ✅ |
+| README réécrit, `CONTRIBUTING.md`, contrôle des liens en CI | ✅ |
+| Persistance : Postgres si `DATABASE_URL`, SQLite par défaut | ✅ |
+| API déployée sur Render, base de démo construite dans l'image | ✅ |
+| URL de l'API et documentation interactive (`/docs`) ajoutées au README | ✅ |
+| Frontend minimal (phase 5) : client généré, 2 écrans, vitest, CORS, job CI | ⬜ |
+| Frontend en ligne, déploiement automatique après passage de la CI (`checksPass`) | ⬜ |
+| `docker compose` complet et tests d'intégration | ⬜ |
+| Critère 12 : un skill, un hook, un outil MCP, note sur les permissions | ⬜ |
+| Critère 13 : audit de PR, scan Semgrep ou Bandit en CI, notes de sécurité agent, diagnostic opérationnel, politique IA | ⬜ |
+| Carte des critères de la grille vers les chemins du repo, pour les reviewers | ⬜ |
+| Test depuis un clone propre, gel, tag | ⬜ |
+
+### `[présentable]`
+| Livrable | État |
+|---|---|
+| Chemin Postgres testé en CI contre une vraie base (`test/postgres-ci`) | ⬜ |
+| Neon en production, seulement après le point précédent | ⬜ |
+| ADR-010 : sources de morceaux et de BPM, conditions d'utilisation Deezer | ⬜ |
+| Documentation à source unique (plans archivés, index des ADR) | ⬜ |
+| Mesure de la justesse du BPM sur des pistes de référence (zone correcte, erreurs d'octave, calibration de la confiance). Cas observés en production le 2 octobre 2026 : « Ain't No Sunshine » à 161,5 BPM avec une confiance de 0,9 (erreur d'octave probable, recoupement validé à tort) ; « Blinding Lights » à 86,1 BPM (mi-tempo probable). Aucune correction dans le code à ce stade | ⬜ |
+| Warehouse Copilot borné : lecture seule sur les marts, tests d'injection, évaluations en CI | ⬜ |
+| Écran de KPI qualité branché sur `/v1/quality/*` | ⬜ |
+| Image en deux étapes, utilisateur non root | ⬜ |
+| GIF de démo, test depuis un clone propre par une autre personne | ⬜ |
+| Récit d'entretien : décisions prises contre l'avis de l'agent | ⬜ |
+
+### `[production]` — sans date
+- « Idée 2 » : lecteur YouTube intégré, table d'observations de BPM, tap tempo, micro, puis
+  Spotify « en cours de lecture ». ADR-011 de conception d'abord, après le tag `v1.0-submission`.
+- Générateur de consignes par LLM, avec évaluations et coût par séance mesuré.
+- Authentification, limitation de débit, gestion des secrets.
+- Gates de qualité bloquants, alerting, runbook (B7).
+- Infra as code et entrepôt cloud (B4).
+- Tests de charge, agent de premier diagnostic en lecture seule.
+- Licence musicale valable pour un usage réel.
+- Bornes d'effort physique validées par une coach.
+
+---
+
 ## 0. Pourquoi ce document (refonte du versioning)
 
 Le versioning actuel est une des sources du désordre : trois plans parallèles (`V3`, `V3.1`, `V3.2`) au lieu d'une progression, dont **deux références de vérité pointent vers des fichiers absents** (`CYCLEBEAT_PLAN_V3.1.md` n'existe pas ; `CYCLEBEAT_PLAN_V2.md §6-9` non plus). On remplace cette pile par **deux couches linéaires** :
