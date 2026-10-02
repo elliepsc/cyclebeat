@@ -12,9 +12,9 @@ own evaluator, and a contract-first API.
 > The data pipeline, the engine and the API are done and tested, and the API is deployed. The
 > frontend is the next phase (see [Roadmap](#roadmap)).
 >
-> **Live API:** <https://cyclebeat-api.onrender.com/> (`GET /health`, `POST /v1/sessions/generate`
-> with the demo source). It runs on Render's free tier on a demo database baked into the image,
-> which resets on every deploy ([ADR-003](docs/adr/adr-003-render-no-disk.md)); the free tier
+> **Live API:** <https://cyclebeat-api.onrender.com/> · interactive docs: <https://cyclebeat-api.onrender.com/docs>
+> (`GET /health`, `POST /v1/sessions/generate` with the demo source). It runs on Render's free
+> tier on a demo database baked into the image, which resets on every deploy ([ADR-003](docs/adr/adr-003-render-no-disk.md)); the free tier
 > also spins down when idle, so the first request after a pause can be slow.
 
 ---
