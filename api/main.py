@@ -16,13 +16,31 @@ the contract binding rather than decorative.
 
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from api.errors import register_error_handlers
 from api.routers import health, quality, sessions
 
 # Kept in step with `info.version` in openapi.yaml; the contract test compares them.
 API_VERSION = "1.0.0"
+
+# Origins allowed to call the API from a browser: comma-separated, never `*`. Unset means the
+# Vite dev server only; production sets it in render.yaml (the Blueprint owns the value).
+CORS_ORIGINS_ENV = "CORS_ALLOW_ORIGINS"
+DEFAULT_CORS_ORIGINS = ("http://localhost:5173",)
+
+
+def cors_origins() -> list[str]:
+    raw = os.environ.get(CORS_ORIGINS_ENV)
+    if raw is None:
+        return list(DEFAULT_CORS_ORIGINS)
+    origins = [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
+    if "*" in origins:
+        raise ValueError(f"{CORS_ORIGINS_ENV} must list explicit origins, never '*'")
+    return origins
 
 
 def create_app() -> FastAPI:
@@ -33,6 +51,13 @@ def create_app() -> FastAPI:
             "BPM-driven indoor-cycling session planner. Sessions are built by a "
             "deterministic engine; no LLM makes a structural decision."
         ),
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins(),
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
     )
 
     register_error_handlers(app)
