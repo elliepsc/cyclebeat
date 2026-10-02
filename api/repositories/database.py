@@ -122,11 +122,15 @@ class Database:
     def execute(self, sql: str, params: Sequence[Any] | None = None) -> Cursor:
         """Run a statement, translating the parameter marker for the driver.
 
-        The SQL in this package is written with `?`. A plain replace is safe here **because no
-        statement contains a `?` inside a string literal** — if one ever does, this is the line
-        that will be wrong, which is why the constraint is written down rather than assumed.
+        The SQL in this package is written with `?`. For psycopg, `%` is the marker's escape
+        character, so a literal `%` (a `LIKE '%x'`) is doubled FIRST, then `?` becomes `%s`.
+        Order matters: the other way round would double the `%` of the new markers.
+
+        One constraint remains and is written down rather than assumed: no statement may
+        contain a `?` inside a string literal, as it would be rewritten too. Values are
+        unaffected, they are bound by the driver and never part of the text.
         """
-        statement = sql.replace("?", "%s") if self._postgres else sql
+        statement = sql.replace("%", "%%").replace("?", "%s") if self._postgres else sql
         cursor: Cursor = self._connection.cursor()
         cursor.execute(statement, tuple(params or ()))
         return cursor

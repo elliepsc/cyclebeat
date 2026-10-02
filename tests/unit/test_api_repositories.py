@@ -305,23 +305,65 @@ def test_a_note_may_be_absent(store: Store) -> None:
     assert FeedbackRepository().for_session("s1")[0]["note"] is None
 
 
+class _Recorder:
+    """A stand-in connection that records the statement each driver would receive."""
+
+    def __init__(self) -> None:
+        self.statements: list[str] = []
+
+    def cursor(self) -> _Recorder:
+        return self
+
+    def execute(self, sql: str, params: Any = ()) -> None:
+        self.statements.append(sql)
+
+
 def test_the_placeholder_is_translated_for_psycopg_only() -> None:
     """Runs everywhere, no server needed: the statement each driver actually receives."""
 
-    class Recorder:
-        def __init__(self) -> None:
-            self.statements: list[str] = []
-
-        def cursor(self) -> Recorder:
-            return self
-
-        def execute(self, sql: str, params: Any = ()) -> None:
-            self.statements.append(sql)
-
     for postgres, expected in ((True, "select %s, %s"), (False, "select ?, ?")):
-        recorder = Recorder()
+        recorder = _Recorder()
         db_module.Database(recorder, postgres=postgres).execute("select ?, ?", [1, 2])
         assert recorder.statements == [expected]
+
+
+def test_a_literal_percent_in_the_sql_is_escaped_for_psycopg_only() -> None:
+    sql = "select 1 where a like '%x' and b = ?"
+    for postgres, expected in (
+        (True, "select 1 where a like '%%x' and b = %s"),
+        (False, sql),
+    ):
+        recorder = _Recorder()
+        db_module.Database(recorder, postgres=postgres).execute(sql, [1])
+        assert recorder.statements == [expected]
+
+
+def test_a_like_with_a_literal_percent_and_a_parameter_runs_on_both_engines(
+    store: Store,
+) -> None:
+    """The edge case of the `?` -> `%s` rewrite: a `%` in the SQL text next to a bound value.
+
+    Without the escape psycopg reads `'%x'` as a placeholder and raises. The bound value also
+    carries a `%`, which must match literally and not be re-interpreted.
+    """
+    repo = FeedbackRepository()
+    repo.add(session_id="s1", rating="up", note="100% sure")
+    repo.add(session_id="s2", rating="up", note="abc")
+    repo.add(session_id="s3", rating="down", note="100% sure")
+
+    with db_module.connection() as database:
+        rows = database.execute(
+            "select session_id from feedback where note like '%sure' and rating = ?"
+            " order by session_id",
+            ["up"],
+        ).fetchall()
+        by_value = database.execute(
+            "select session_id from feedback where note like ? order by session_id",
+            ["100%"],
+        ).fetchall()
+
+    assert [r[0] for r in rows] == ["s1"]
+    assert [r[0] for r in by_value] == ["s1", "s3"]
 
 
 def test_a_percent_or_question_mark_in_a_value_is_stored_untouched(store: Store) -> None:
