@@ -9,8 +9,13 @@ a Parquet lake, a DuckDB warehouse modelled with dbt, a deterministic planning e
 own evaluator, and a contract-first API.
 
 > **Status (October 2026): work in progress — AI Dev Tools Zoomcamp 2026 project.**
-> The data pipeline, the engine and the API are done and tested. The frontend and the public
-> deployment are the next phases (see [Roadmap](#roadmap)).
+> The data pipeline, the engine and the API are done and tested, and the API is deployed. The
+> frontend is the next phase (see [Roadmap](#roadmap)).
+>
+> **Live API:** <https://cyclebeat-api.onrender.com/> (`GET /health`, `POST /v1/sessions/generate`
+> with the demo source). It runs on Render's free tier on a demo database baked into the image,
+> which resets on every deploy ([ADR-003](docs/adr/adr-003-render-no-disk.md)); the free tier
+> also spins down when idle, so the first request after a pause can be slow.
 
 ---
 
@@ -108,7 +113,7 @@ Windows/WSL notes and the branch/PR workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
 | 3 | Planner + evaluator, mutation check | ✅ |
 | 4 | Contract-first API | ✅ |
 | 5 | Frontend (React, client generated from `openapi.yaml`) | 🔜 next |
-| — | Public deployment | 🔜 next |
+| — | Public deployment (API) | ✅ |
 | 6+ | Bounded warehouse copilot, agent extension pack, security audit | planned |
 
 Detailed roadmap: [docs-notes/CYCLEBEAT_ROADMAP.md](docs-notes/CYCLEBEAT_ROADMAP.md).
