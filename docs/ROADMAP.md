@@ -63,6 +63,20 @@ présentable ; + `[production]` = prêt pour un vrai système.
 ### `[production]` — sans date
 - « Idée 2 » : lecteur YouTube intégré, table d'observations de BPM, tap tempo, micro, puis
   Spotify « en cours de lecture ». ADR-011 de conception d'abord, après le tag `v1.0-submission`.
+  - Séquences dans la chanson (ADR-011 à écrire après le rendu). Décisions de produit, à valider :
+    - Chaque chanson est découpée en sections (intro, couplets, refrains, pont, fin). La première
+      chanson de la séance est un échauffement calme.
+    - Cadence de la section = BPM de la section × multiplicateur (1 ou ½), dans une plage de
+      cadence sûre à valider.
+    - Résistance inversement liée à la cadence (lent = plus lourd), amplitude ajustée selon le
+      niveau.
+    - Intensité interne de 1 à 10 par section, relative à une résistance de base choisie à
+      l'échauffement. Affichage « niveau X » pour les vélos gradués, « ±¼ tour » pour les vélos
+      à molette.
+    - Sections obtenues par marquage manuel pendant l'écoute, puis par découpage automatique sur
+      des fichiers personnels, mesuré contre les marquages manuels.
+    - À valider avec la pratique ou un coach : plage de cadence, choix du multiplicateur,
+      conversion niveau vers tours.
 - Générateur de consignes par LLM, avec évaluations et coût par séance mesuré.
 - Authentification, limitation de débit, gestion des secrets.
 - Gates de qualité bloquants, alerting, runbook (B7).
