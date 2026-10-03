@@ -37,7 +37,7 @@ présentable ; + `[production]` = prêt pour un vrai système.
 | Persistance : Postgres si `DATABASE_URL`, SQLite par défaut | ✅ |
 | API déployée sur Render, base de démo construite dans l'image | ✅ |
 | URL de l'API et documentation interactive (`/docs`) ajoutées au README | ✅ |
-| Frontend minimal (phase 5) : client généré, 2 écrans, vitest, CORS, job CI | 🔄 **EN COURS** (`phase-5/frontend`, PR pas encore ouverte) |
+| Frontend minimal (phase 5) : client généré, 2 écrans, vitest, CORS, job CI | ✅ (PR #27 mergée ; test navigateur du propriétaire, voir `docs/ai-workflow.md`) |
 | Frontend en ligne, déploiement piloté par GitHub Actions après CI verte (`autoDeployTrigger: off` + deploy hooks, branche `ci/deploy-job`) | ⬜ |
 | `docker compose` complet et tests d'intégration | ⬜ |
 | Critère 12 : un skill, un hook, un outil MCP, note sur les permissions | ⬜ |
@@ -108,7 +108,7 @@ Correspondance des fichiers hérités (aucun n'est supprimé ; ils sont désorma
 | Phase 4 — Contrat + backend | ✅ **DONE** — `openapi.yaml` contract-first, API en couches, `fct_session` (ADR-008), `mart_bpm_coverage`, schemathesis + test de divergence en CI |
 | Chore A1 — README V3 | 🟡 **EN PR** (`docs/readme-v3`) — README réécrit (v1 retiré), `CONTRIBUTING.md` (env. WSL + workflow PR), `tools/check_links.py` branché sur `make lint` / CI ; chiffres re-mesurés : 233 tests unitaires, 55 évals, 23 contrat, 51 dbt |
 | Phase 4b — Persistance Postgres (ADR-009) | 🟡 **EN PR** (`phase-4/postgres-persistence`) — sessions et feedback dans Postgres si `DATABASE_URL`, SQLite sinon ; chemin Postgres non encore testé en CI contre une vraie base ; sessions de démo éphémères (ADR-003) |
-| Phase 5 — Frontend | 🔄 **EN COURS** (`phase-5/frontend`) |
+| Phase 5 — Frontend | ✅ |
 | Phases 6 → 11 | ⬜ **TODO** — rien démarré |
 | Couche L1 (B1–B7) | 🔒 **GATÉE** |
 
