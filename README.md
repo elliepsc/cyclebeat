@@ -10,7 +10,7 @@ own evaluator, and a contract-first API.
 
 > **Status (October 2026): work in progress — AI Dev Tools Zoomcamp 2026 project.**
 > The data pipeline, the engine and the API are done and tested, and the API is deployed. The
-> frontend is the next phase (see [Roadmap](#roadmap)).
+> frontend (phase 5) is being built on `phase-5/frontend` (see [Roadmap](#roadmap)).
 >
 > **Live API:** <https://cyclebeat-api.onrender.com/> · interactive docs: <https://cyclebeat-api.onrender.com/docs>
 > (`GET /health`, `POST /v1/sessions/generate` with the demo source). It runs on Render's free
@@ -92,6 +92,22 @@ make dbt        # builds the warehouse
 make api        # API on http://localhost:8000 — docs at /docs
 ```
 
+Frontend (React + Vite, in `frontend/`). It needs the Node version pinned in
+`frontend/.nvmrc`, and `make api` running in another terminal. Run it from one OS only
+(Windows or WSL): `node_modules` holds native binaries specific to the OS that installed it.
+
+```bash
+make front        # dev server on http://localhost:5173 (installs from the lockfile first)
+make front-test   # vitest
+make front-gen    # regenerate the TypeScript client from openapi.yaml
+```
+
+- The API URL is `VITE_API_URL`, fixed at build time (default `http://localhost:8000`).
+- The API only answers browsers whose origin is listed in `CORS_ALLOW_ORIGINS`
+  (comma-separated, never `*`; default `http://localhost:5173`).
+- `frontend/src/api/schema.d.ts` is generated from `openapi.yaml`, never edited by hand: CI
+  regenerates it and fails if the committed file differs.
+
 Full stack with Airflow and monitoring: `make compose-pipeline`.
 Windows/WSL notes and the branch/PR workflow: [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -113,7 +129,7 @@ Windows/WSL notes and the branch/PR workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
 | 2 | Data-engineering core: resolver, lake, DuckDB, dbt, Airflow | ✅ |
 | 3 | Planner + evaluator, mutation check | ✅ |
 | 4 | Contract-first API | ✅ |
-| 5 | Frontend (React, client generated from `openapi.yaml`) | 🔜 next |
+| 5 | Frontend (React, client generated from `openapi.yaml`) | 🔄 in progress |
 | — | Public deployment (API) | ✅ |
 | 6+ | Bounded warehouse copilot, agent extension pack, security audit | planned |
 

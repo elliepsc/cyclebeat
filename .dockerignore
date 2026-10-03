@@ -54,3 +54,6 @@ docs-notes/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Frontend: built by its own Render static site (see render.yaml), not part of the API image.
+frontend/

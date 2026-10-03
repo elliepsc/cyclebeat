@@ -37,8 +37,8 @@ présentable ; + `[production]` = prêt pour un vrai système.
 | Persistance : Postgres si `DATABASE_URL`, SQLite par défaut | ✅ |
 | API déployée sur Render, base de démo construite dans l'image | ✅ |
 | URL de l'API et documentation interactive (`/docs`) ajoutées au README | ✅ |
-| Frontend minimal (phase 5) : client généré, 2 écrans, vitest, CORS, job CI | ⬜ |
-| Frontend en ligne, déploiement automatique après passage de la CI (`checksPass`) | ⬜ |
+| Frontend minimal (phase 5) : client généré, 2 écrans, vitest, CORS, job CI | 🔄 **EN COURS** (`phase-5/frontend`, PR pas encore ouverte) |
+| Frontend en ligne, déploiement piloté par GitHub Actions après CI verte (`autoDeployTrigger: off` + deploy hooks, branche `ci/deploy-job`) | ⬜ |
 | `docker compose` complet et tests d'intégration | ⬜ |
 | Critère 12 : un skill, un hook, un outil MCP, note sur les permissions | ⬜ |
 | Critère 13 : audit de PR, scan Semgrep ou Bandit en CI, notes de sécurité agent, diagnostic opérationnel, politique IA | ⬜ |
@@ -108,7 +108,8 @@ Correspondance des fichiers hérités (aucun n'est supprimé ; ils sont désorma
 | Phase 4 — Contrat + backend | ✅ **DONE** — `openapi.yaml` contract-first, API en couches, `fct_session` (ADR-008), `mart_bpm_coverage`, schemathesis + test de divergence en CI |
 | Chore A1 — README V3 | 🟡 **EN PR** (`docs/readme-v3`) — README réécrit (v1 retiré), `CONTRIBUTING.md` (env. WSL + workflow PR), `tools/check_links.py` branché sur `make lint` / CI ; chiffres re-mesurés : 233 tests unitaires, 55 évals, 23 contrat, 51 dbt |
 | Phase 4b — Persistance Postgres (ADR-009) | 🟡 **EN PR** (`phase-4/postgres-persistence`) — sessions et feedback dans Postgres si `DATABASE_URL`, SQLite sinon ; chemin Postgres non encore testé en CI contre une vraie base ; sessions de démo éphémères (ADR-003) |
-| Phases 5 → 11 | ⬜ **TODO** — rien démarré ; la phase 5 (frontend React) est la prochaine à ouvrir |
+| Phase 5 — Frontend | 🔄 **EN COURS** (`phase-5/frontend`) |
+| Phases 6 → 11 | ⬜ **TODO** — rien démarré |
 | Couche L1 (B1–B7) | 🔒 **GATÉE** |
 
 **Ce que la phase 1 a tranché.** Elle s'est close par **une décision, pas par une mesure supplémentaire**. **ADR-005** (supersede ADR-004) fixe le backbone BPM = **`librosa` sur le preview Deezer de 30 s** (vraie musique mainstream, source de métadonnées = source de lecture), le champ `bpm` de Deezer en **enrichissement** et le CSV en socle manuel ; Jamendo/CC est abandonné. Ce chemin était **déjà mesuré** : **82 % de pistes exploitables** (41/50), avec un biais haussier documenté. Le prix accepté, chiffré : **`single_source` 0.6 domine à 54 %**, `cross_validated` 0.9 plafonne à 26 % — car il dépend du champ `bpm` de Deezer, présent sur **23,3 %** des sorties récentes contre **65 %** des classiques. 12 % des pistes restent sans BPM (exclues du planner). Détail : `docs/spikes/phase1-source-coverage.md`.

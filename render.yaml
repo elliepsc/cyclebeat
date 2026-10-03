@@ -1,14 +1,20 @@
 ###############################################################################
 # CycleBeat — Render.com deployment config
 #
-# Phase 0 purge (ADR-001): the Spotify/Qdrant env vars and the UI service are
-# gone — those bricks no longer exist in the repo. What remains is the API
-# service. The full deployment pipeline (auto-deploy on green main, React
-# front) is phase 9; this file is kept coherent, not finished.
+# Two services: the API (Docker) and the React frontend (static site, phase 5).
+#
+# Syntax checked against the Blueprint spec: https://render.com/docs/blueprint-spec
+#
+# autoDeployTrigger is `off` on both: Render deploys nothing by itself. The next branch
+# (ci/deploy-job) has GitHub Actions trigger deploy hooks after the tests pass. Until it
+# lands, a deploy is a manual "Deploy latest commit" in the Render dashboard.
+#
+# This file owns every value below (the Blueprint overwrites a dashboard edit on the next
+# sync): change them here, not in the dashboard.
 #
 # Deploy:
 #   1. Connect this repo to Render (New → Blueprint)
-#   2. Render builds and deploys the API service
+#   2. Render builds and deploys both services
 ###############################################################################
 
 services:
@@ -21,8 +27,30 @@ services:
     dockerContext: .
     plan: free
     healthCheckPath: /health
+    autoDeployTrigger: "off"
     envVars:
       - key: RUNTIME_DB_PATH
         value: /app/data/cyclebeat_runtime.duckdb
+      # Origins the browser may call the API from (comma-separated, never `*`). Must equal the
+      # real URL of cyclebeat-web: check it in the dashboard after the site is created.
+      - key: CORS_ALLOW_ORIGINS
+        value: https://cyclebeat-web.onrender.com
     # No startCommand: the demo warehouse is baked into the image at build time (ADR-003),
     # so the Dockerfile CMD (uvicorn) starts straight away. The CMD binds to Render's $PORT.
+
+  # ── Frontend (static site, built by Vite) ──────────────────────────────────
+  - type: web
+    name: cyclebeat-web
+    runtime: static
+    buildCommand: cd frontend && npm ci && npm run build
+    # Relative to the repo root (no rootDir here).
+    staticPublishPath: ./frontend/dist
+    autoDeployTrigger: "off"
+    envVars:
+      # Set explicitly: Render reads .nvmrc at the repo root, and ours lives in frontend/.
+      # Keep in step with frontend/.nvmrc and package.json engines.
+      - key: NODE_VERSION
+        value: 24.19.0
+      # Baked into the bundle at build time. The public URL of cyclebeat-api (README).
+      - key: VITE_API_URL
+        value: https://cyclebeat-api.onrender.com

@@ -1,4 +1,4 @@
-.PHONY: setup lock lint typecheck contract test-unit test-integration dbt ingest ingest-live confidence-report airflow api front eval audit compose-ports compose-up compose-pipeline compose-build compose-down
+.PHONY: setup lock lint typecheck contract test-unit test-integration dbt ingest ingest-live confidence-report airflow api front front-test front-gen eval audit compose-ports compose-up compose-pipeline compose-build compose-down
 
 # Everything runs through uv: it provisions the Python 3.11 toolchain itself
 # (see .python-version) and resolves from uv.lock, so no global pip is involved.
@@ -113,8 +113,20 @@ compose-down:
 api:
 	$(RUN) uvicorn api.main:app --host 0.0.0.0 --port 8000
 
+# Frontend (phase 5): React/Vite in frontend/. Node is pinned in frontend/.nvmrc; run it from one OS
+# only (Windows OR WSL) -- node_modules holds native binaries specific to the OS that installed them.
 front:
-	@echo "No frontend is defined yet." && exit 1
+	npm --prefix frontend ci
+	npm --prefix frontend run dev
+
+front-test:
+	npm --prefix frontend ci
+	npm --prefix frontend test
+
+# Regenerates frontend/src/api/schema.d.ts from openapi.yaml. CI fails if the committed file differs.
+front-gen:
+	npm --prefix frontend ci
+	npm --prefix frontend run gen:api
 
 # The adversarial playlists and the MUTATION CHECK -- the phase-3 exit criterion (§15).
 # Physically separate from `test-unit` because §11 puts them in different buckets, and
