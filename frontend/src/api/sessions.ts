@@ -11,6 +11,7 @@ export type SegmentRole = Schemas["SegmentRole"];
 export type GenerateSessionRequest = Schemas["GenerateSessionRequest"];
 export type SessionPlan = Schemas["SessionPlan"];
 export type Segment = Schemas["Segment"];
+export type Problem = Schemas["Problem"];
 export type FeedbackRequest = Schemas["FeedbackRequest"];
 export type Feedback = Schemas["Feedback"];
 
@@ -31,8 +32,10 @@ interface Outcome<T> {
 }
 
 function toProblem(status: number, body: unknown): ApiFailure {
-  const problem: Record<string, unknown> =
-    typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
+  // A 5xx can carry a non-JSON body, hence the runtime guards. Typing the fields against the
+  // contract's Problem schema makes tsc fail if `title`, `detail` or `reasons` is renamed.
+  const problem: Partial<Problem> =
+    typeof body === "object" && body !== null ? (body as Partial<Problem>) : {};
   const reasons = Array.isArray(problem.reasons)
     ? problem.reasons.filter((r): r is string => typeof r === "string")
     : [];

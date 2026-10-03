@@ -260,6 +260,12 @@ Fix:
 make ingest && make dbt && make contract
 ```
 
+### `/health` answers something other than `{"status":"ok"}`
+
+Another service is using port 8000 (for example the `weather-mlops` container), not CycleBeat.
+Stop it, or run the API on another port and set `VITE_API_URL` to match when you start the
+frontend.
+
 ### An API response looks double-encoded (mojibake such as "citÃ©")
 
 Symptom: accents come out as `Ã©` when you pipe a response through a script on Windows.
