@@ -10,7 +10,7 @@ own evaluator, and a contract-first API.
 
 > **Status (October 2026): work in progress — AI Dev Tools Zoomcamp 2026 project.**
 > The data pipeline, the engine and the API are done and tested, and the API is deployed. The
-> frontend (phase 5) is being built on `phase-5/frontend` (see [Roadmap](#roadmap)).
+> frontend (phase 5) is done; its public deployment is next (see [Roadmap](#roadmap)).
 >
 > **Live API:** <https://cyclebeat-api.onrender.com/> · interactive docs: <https://cyclebeat-api.onrender.com/docs>
 > (`GET /health`, `POST /v1/sessions/generate` with the demo source). It runs on Render's free
@@ -129,7 +129,7 @@ Windows/WSL notes and the branch/PR workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
 | 2 | Data-engineering core: resolver, lake, DuckDB, dbt, Airflow | ✅ |
 | 3 | Planner + evaluator, mutation check | ✅ |
 | 4 | Contract-first API | ✅ |
-| 5 | Frontend (React, client generated from `openapi.yaml`) | 🔄 in progress |
+| 5 | Frontend (React, client generated from `openapi.yaml`) | ✅ |
 | — | Public deployment (API) | ✅ |
 | 6+ | Bounded warehouse copilot, agent extension pack, security audit | planned |
 

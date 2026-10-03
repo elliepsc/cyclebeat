@@ -37,7 +37,7 @@ présentable ; + `[production]` = prêt pour un vrai système.
 | Persistance : Postgres si `DATABASE_URL`, SQLite par défaut | ✅ |
 | API déployée sur Render, base de démo construite dans l'image | ✅ |
 | URL de l'API et documentation interactive (`/docs`) ajoutées au README | ✅ |
-| Frontend minimal (phase 5) : client généré, 2 écrans, vitest, CORS, job CI | 🔄 **EN COURS** (`phase-5/frontend`, PR pas encore ouverte) |
+| Frontend minimal (phase 5) : client généré, 2 écrans, vitest, CORS, job CI | ✅ (PR #27 mergée ; test navigateur du propriétaire, voir `docs/ai-workflow.md`) |
 | Frontend en ligne, déploiement piloté par GitHub Actions après CI verte (`autoDeployTrigger: off` + deploy hooks, branche `ci/deploy-job`) | ⬜ |
 | `docker compose` complet et tests d'intégration | ⬜ |
 | Critère 12 : un skill, un hook, un outil MCP, note sur les permissions | ⬜ |
@@ -63,6 +63,20 @@ présentable ; + `[production]` = prêt pour un vrai système.
 ### `[production]` — sans date
 - « Idée 2 » : lecteur YouTube intégré, table d'observations de BPM, tap tempo, micro, puis
   Spotify « en cours de lecture ». ADR-011 de conception d'abord, après le tag `v1.0-submission`.
+  - Séquences dans la chanson (ADR-011 à écrire après le rendu). Décisions de produit, à valider :
+    - Chaque chanson est découpée en sections (intro, couplets, refrains, pont, fin). La première
+      chanson de la séance est un échauffement calme.
+    - Cadence de la section = BPM de la section × multiplicateur (1 ou ½), dans une plage de
+      cadence sûre à valider.
+    - Résistance inversement liée à la cadence (lent = plus lourd), amplitude ajustée selon le
+      niveau.
+    - Intensité interne de 1 à 10 par section, relative à une résistance de base choisie à
+      l'échauffement. Affichage « niveau X » pour les vélos gradués, « ±¼ tour » pour les vélos
+      à molette.
+    - Sections obtenues par marquage manuel pendant l'écoute, puis par découpage automatique sur
+      des fichiers personnels, mesuré contre les marquages manuels.
+    - À valider avec la pratique ou un coach : plage de cadence, choix du multiplicateur,
+      conversion niveau vers tours.
 - Générateur de consignes par LLM, avec évaluations et coût par séance mesuré.
 - Authentification, limitation de débit, gestion des secrets.
 - Gates de qualité bloquants, alerting, runbook (B7).
@@ -108,7 +122,7 @@ Correspondance des fichiers hérités (aucun n'est supprimé ; ils sont désorma
 | Phase 4 — Contrat + backend | ✅ **DONE** — `openapi.yaml` contract-first, API en couches, `fct_session` (ADR-008), `mart_bpm_coverage`, schemathesis + test de divergence en CI |
 | Chore A1 — README V3 | 🟡 **EN PR** (`docs/readme-v3`) — README réécrit (v1 retiré), `CONTRIBUTING.md` (env. WSL + workflow PR), `tools/check_links.py` branché sur `make lint` / CI ; chiffres re-mesurés : 233 tests unitaires, 55 évals, 23 contrat, 51 dbt |
 | Phase 4b — Persistance Postgres (ADR-009) | 🟡 **EN PR** (`phase-4/postgres-persistence`) — sessions et feedback dans Postgres si `DATABASE_URL`, SQLite sinon ; chemin Postgres non encore testé en CI contre une vraie base ; sessions de démo éphémères (ADR-003) |
-| Phase 5 — Frontend | 🔄 **EN COURS** (`phase-5/frontend`) |
+| Phase 5 — Frontend | ✅ |
 | Phases 6 → 11 | ⬜ **TODO** — rien démarré |
 | Couche L1 (B1–B7) | 🔒 **GATÉE** |
 
