@@ -1,11 +1,13 @@
-# Grading criteria — AI Dev Tools Zoomcamp 2026 (draft)
+# Grading criteria — AI Dev Tools Zoomcamp 2026 (draft source, copy verified)
 
 - **Source:** <https://github.com/DataTalksClub/ai-dev-tools-zoomcamp/tree/main/project>
 - **Retrieved:** 2026-10-09. The text below was pasted by the repository owner, unmodified.
-- **Checked by the agent on 2026-10-09:** the source page carries the same opening note, and the same
-  titles and point ranges (0-2) for criteria 8, 9 and 14. The rest of the text was not compared line by line.
-- **Status:** a draft. The page itself says the final rules, scoring, deadlines and peer-review
-  requirements may change. Re-read the source before the freeze (25 October 2026).
+- **Verified:** the repository owner re-read this copy against the course page and confirmed it
+  matches (reported on 2026-10-09). Earlier, the agent had checked only the opening note and the titles
+  and point ranges of criteria 8, 9 and 14.
+- **Status of the source:** still a draft. The page itself says the final rules, scoring, deadlines
+  and peer-review requirements may change. This copy is verified against the page as it was; it does not
+  follow later edits. Re-read the source before the freeze (25 October 2026).
 
 The text starts on the next line and ends at the end of the file.
 
