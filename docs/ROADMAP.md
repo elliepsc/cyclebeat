@@ -254,9 +254,9 @@ propriétaire, pas des sources.**
 
 | | Minimum pour la grille — `[rendu]` | Version complète — `[présentable]` |
 |---|---|---|
-| **Éléments** | Une **bibliothèque d'outils en lecture seule sur les marts**, sans LLM :<br>• `query_marts`, rapport qualité, file de revue<br>• garde-fous E.4 qui ne dépendent pas d'un LLM : SELECT unique (sqlglot), liste de tables autorisées, `LIMIT 200`, délai de 5 s<br>• tests d'injection **au niveau SQL**, dans le même commit que les outils (E.4). Répartition des 9 tests de `test_copilot_guards.py` : voir « À confirmer », point 1 | La couche LLM :<br>• LiteLLM + Ollama<br>• CoachingGenerator (RAG sur 3 passages, garde-fous, éval de fidélité sur 10 cas de référence, §9)<br>• évaluations du copilote (10 questions de référence comparées à un SQL indépendant, §9)<br>• `fct_llm_calls` et `fct_agent_runs`, coût par séance mesuré (§10)<br>• boucle d'agent et caps de run (6 appels d'outils, question ≤ 500 caractères, délai de 60 s, budget LiteLLM, E.4)<br>• `explain_track` et `trigger_resolve` (plafond de 10, `confirm=true`, journalisé) avec ses 2 tests<br>• durcissements D (§2.3) : sandbox DuckDB, confirmation hors du canal LLM, injection indirecte |
+| **Éléments** | Une **bibliothèque d'outils en lecture seule sur les marts**, sans LLM :<br>• `query_marts`, rapport qualité, file de revue<br>• garde-fous E.4 qui ne dépendent pas d'un LLM : SELECT unique (sqlglot), liste de tables autorisées, `LIMIT 200`, délai de 5 s<br>• tests d'injection **au niveau SQL**, dans le même commit que les outils (E.4). Répartition des 9 tests de `test_copilot_guards.py` : voir « Décisions et points ouverts », point 1 | La couche LLM :<br>• LiteLLM + Ollama<br>• CoachingGenerator (RAG sur 3 passages, garde-fous, éval de fidélité sur 10 cas de référence, §9)<br>• évaluations du copilote (10 questions de référence comparées à un SQL indépendant, §9)<br>• `fct_llm_calls` et `fct_agent_runs`, coût par séance mesuré (§10)<br>• boucle d'agent et caps de run (6 appels d'outils, question ≤ 500 caractères, délai de 60 s, budget LiteLLM, E.4)<br>• `explain_track` et `trigger_resolve` (plafond de 10, `confirm=true`, journalisé) avec ses 2 tests<br>• durcissements D (§2.3) : sandbox DuckDB, confirmation hors du canal LLM, injection indirecte |
 | **Effort estimé** (propriétaire) | Outils et serveur MCP ensemble : 2 à 3 jours (comptés avec la phase 7) | Couche LLM : 4 à 5 jours (hors rendu) |
-| **Points de grille** | Aucun critère dédié au copilote dans le §16. Les outils sont le code de l'outil MCP (critère 12) et la cible des tests d'injection de `agent-security.md` (critère 13) | À définir (aucun point supplémentaire documenté). Voir « À confirmer », point 3 |
+| **Points de grille** | Aucun critère dédié au copilote dans le §16. Les outils sont le code de l'outil MCP (critère 12) et la cible des tests d'injection de `agent-security.md` (critère 13) | À définir (aucun point supplémentaire documenté). Voir « Décisions et points ouverts » |
 | **Valeur en entretien** | Outils bornés en lecture seule, garde-fous testés, **partagés** par le serveur MCP et le futur copilote (§12 : « une seule implémentation, deux consommateurs ») | « Agent borné en lecture, transposable en entreprise » (§9) ; « comment gouvernes-tu tes usages LLM ? » : coût LLM requêtable en SQL (§10) |
 
 #### Phase 7 — Pack d'extension d'agent (critère 12, 2 points)
@@ -275,7 +275,7 @@ dans la liste retenue (elle tourne déjà en CI via `make contract`).
 
 | | Minimum pour la grille — `[rendu]` | Version complète — `[présentable]` |
 |---|---|---|
-| **Éléments** | Les 5 artefacts du critère 13 :<br>• **audits de PR produits par le sous-agent `security-auditor`**. PR-Agent est écarté : d'après la relecture du propriétaire, il exige une clé LLM payante, contraire au coût zéro (E.8) ; non revérifié ici. Le nombre de rapports est à définir<br>• **Semgrep en CI**<br>• `docs/security/agent-security.md` : surface d'attaque du serveur MCP et des outils en lecture seule, tests d'injection<br>• diagnostic d'un incident compose réel<br>• `docs/security/ai-policy.md` | • scan Snyk en plus de Semgrep (§13)<br>• K8sGPT sur un cluster kind jetable (optionnel dans le plan)<br>• PR-Agent, tant qu'il reste incompatible avec le coût zéro : à définir<br>• hors périmètre : la pile OTel/Loki/Tempo/Grafana complète (« le minimum qui max le critère 13, pas une plateforme d'observabilité », §2.6) |
+| **Éléments** | Les 5 artefacts du critère 13 :<br>• **audits de PR produits par le sous-agent `security-auditor`**. PR-Agent est écarté : il demande un modèle LLM (clé d'API ou modèle local), soit une dépendance et une configuration de plus, et `security-auditor` produit déjà des audits de PR. Le nombre de rapports est à définir<br>• **Semgrep en CI**<br>• `docs/security/agent-security.md` : surface d'attaque du serveur MCP et des outils en lecture seule, tests d'injection<br>• diagnostic d'un incident compose réel<br>• `docs/security/ai-policy.md` | • scan Snyk en plus de Semgrep (§13)<br>• K8sGPT sur un cluster kind jetable (optionnel dans le plan)<br>• hors périmètre : la pile OTel/Loki/Tempo/Grafana complète (« le minimum qui max le critère 13, pas une plateforme d'observabilité », §2.6) |
 | **Effort estimé** (propriétaire) | 1,5 à 2 jours | À définir |
 | **Points de grille** | 2 (critère 13, §16) | 0 de plus : les 5 artefacts atteignent déjà le plafond (§2.6) |
 | **Valeur en entretien** | À définir | À définir |
@@ -294,20 +294,27 @@ Dépendance : le diagnostic d'incident compose demande la phase 8 (`docker compo
 | **Total `[rendu]`** (somme des bornes ci-dessus) | **7,5 à 10,5 jours** |
 | Couche LLM (phase 6, complète) | 4 à 5 jours, hors rendu |
 
-#### À confirmer
+#### Décisions et points ouverts
 
-1. **Répartition des 9 tests de garde-fous (E.4 est normatif : à valider).** Proposition. Dans le
-   `[rendu]`, les 6 tests qui ne passent pas par un LLM : `rejects_multi_statement`,
-   `rejects_non_select`, `rejects_table_outside_allowlist`, `limit_injected_when_absent`,
-   `legit_question_with_delete_word_passes` (adapté en SQL : un SELECT contenant « delete » n'est pas
-   bloqué) et `rejects_prompt_injection_drop` (adapté en SQL : une instruction `DROP TABLE` est
-   rejetée). Dans le `[présentable]`, les 3 qui demandent la boucle d'agent ou `trigger_resolve` :
-   `max_tool_calls_cap`, `trigger_resolve_requires_confirm`, `trigger_resolve_caps_track_list`. Les
-   deux adaptations changent l'entrée de deux tests normatifs du plan.
-2. **Hook** : la vérification de divergence d'`openapi.yaml` du plan n'est pas reprise.
-3. **Critères 8, 9 et 14.** Le §16 les relie à `litellm` et `ollama` (compose complet, parcours
-   `copilot/ask`, démo sans clé). Avec la couche LLM en `[présentable]`, ces trois critères se jugent
-   sans elle. À confirmer sur le texte officiel de la grille, absent du dépôt.
+**Décidé par le propriétaire le 9 octobre 2026 :**
+1. **Répartition des 9 tests de garde-fous (E.4).** Dans le `[rendu]`, les 6 tests qui ne passent pas
+   par un LLM : `rejects_multi_statement`, `rejects_non_select`, `rejects_table_outside_allowlist`,
+   `limit_injected_when_absent`, `legit_question_with_delete_word_passes` (adapté en SQL : un SELECT
+   contenant « delete » n'est pas bloqué) et `rejects_prompt_injection_drop` (adapté en SQL : une
+   instruction `DROP TABLE` est rejetée). Dans le `[présentable]`, les 3 qui demandent la boucle
+   d'agent ou `trigger_resolve` : `max_tool_calls_cap`, `trigger_resolve_requires_confirm`,
+   `trigger_resolve_caps_track_list`. Cette modification du contrat E.4 sera formalisée par un ADR,
+   écrit dans la branche de la phase 6 au moment de coder les outils (séparation outils / LLM,
+   adaptation des deux tests).
+2. **Hook** : la vérification de divergence d'`openapi.yaml` du plan n'est pas reprise ; ce contrôle
+   reste en CI.
+3. **PR-Agent** : écarté (voir la phase 10).
+
+**À confirmer :**
+- **Critères 8, 9 et 14.** Le §16 les relie à `litellm` et `ollama` (compose complet, parcours
+  `copilot/ask`, démo sans clé). Avec la couche LLM en `[présentable]`, ces trois critères se jugent
+  sans elle. À confirmer sur le texte officiel de la grille, que le propriétaire ajoutera dans
+  `docs/grading-criteria.md` ; ce point reste ouvert d'ici là.
 
 ---
 
