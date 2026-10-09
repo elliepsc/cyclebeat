@@ -227,6 +227,74 @@ Coût : +1-2 j, 2 stores. **Zéro € préservé** (Postgres en conteneur compos
 
 > **Impact phases :** Postgres transactionnel s'ajoute en **phase 4** (backend/persistance) ; l'entrepôt DuckDB reste **phase 2**. **Formalisé par ADR-009** (2026-08-30), qui supersede ADR-008 — celui-ci avait placé sessions/feedback dans DuckDB, faute d'avoir lu cette section. Le durcissement « 2 fichiers DuckDB single-writer » (§2.3) ne concerne plus que l'analytique.
 
+### 2.8 Phases 6, 7 et 10 — minimum pour la grille ou version complète
+
+Chaque tableau oppose le **minimum pour la grille** (`[rendu]`) à la **version complète**. La version
+complète devient `[rendu]` si elle tient avant le gel du **25 octobre**, sinon `[présentable]`. Cet
+arbitrage se fait phase par phase, une fois l'effort défini.
+
+**Sources.** Tableau des phases (§2.1), grille (§2.6), plan archivé (`docs/archive/CYCLEBEAT_PLAN_V3.md` :
+§9, §10, §12, §13, §15, §16, §18, E.4), lignes `[rendu]` de ce document. Ce que ces sources ne disent pas
+est marqué **à définir**, et non estimé. Le plan ne chiffre que l'ensemble (« 32-40 jours effectifs »,
+§15) : **aucun effort par phase n'existe**, donc la ligne « Effort » est à définir partout.
+
+**État du dépôt le 9 octobre 2026 (vérifié).**
+- Phase 6 : rien. Ni `litellm` ni `sqlglot` dans `pyproject.toml`, ni `test_copilot_guards.py`, ni
+  `fct_llm_calls` / `fct_agent_runs` dans dbt.
+- Phase 7 : `CLAUDE.md` et `AGENTS.md` existent, ainsi que 4 sous-agents (`dbt-reviewer`,
+  `ai-workflow-scribe`, `security-auditor`, `contract-guardian`). Il n'y a ni skill, ni hook, ni
+  serveur MCP, ni note de permissions, ni plugin.
+- Phase 10 : rien (`docs/security/` n'existe pas).
+
+#### Phase 6 — LLM et copilote
+
+| | Minimum pour la grille — `[rendu]` | Version complète — `[rendu]` si avant le 25/10, sinon `[présentable]` |
+|---|---|---|
+| **Éléments** | Les parties que les sources rendent obligatoires :<br>• `query_marts` et les outils que le MCP réutilise (« le même code », §12) : rapport qualité, file de revue<br>• garde-fous E.4 (SELECT unique, liste de tables, `LIMIT 200`, délai de 5 s) et caps de run (6 appels d'outils, question ≤ 500 caractères, délai de 60 s)<br>• les 9 tests de `test_copilot_guards.py`, dans le même commit que les outils (E.4)<br>• tests d'injection committés et verts en CI (§18, condition 2)<br>• LiteLLM + Ollama, pour une démo sans clé (§10, critère 14) | En plus du minimum :<br>• `explain_track` et `trigger_resolve` (plafond de 10, `confirm=true`, journalisé) (§9)<br>• CoachingGenerator : RAG sur 3 passages, garde-fous, éval de fidélité sur 10 cas de référence (§9)<br>• éval du copilote sur 10 questions de référence, comparées à un SQL indépendant (§9)<br>• `fct_llm_calls` et `fct_agent_runs`, coût par séance mesuré (§10, critère de sortie de la phase)<br>• durcissements D : sandbox DuckDB, confirmation hors du canal LLM, défense contre l'injection indirecte (§2.3) |
+| **Effort estimé** | À définir | À définir |
+| **Points de grille** | Aucun critère dédié au copilote dans le §16. Il alimente les critères 8 (compose avec `litellm` + `ollama`), 9 (parcours `copilot/ask` sur Ollama) et 14 (démo sans clé), et la condition 2 du §18 | À définir (aucun point supplémentaire documenté) |
+| **Valeur en entretien** | « Agent borné en lecture, transposable en entreprise » (§9) ; l'idée forte du projet est la symétrie copilote produit / MCP de développement (§12) | « Réponse de data engineer à : comment gouvernes-tu tes usages LLM ? » (§10) : coût LLM requêtable en SQL |
+
+À trancher (E.0 : demander, ne pas supprimer) : 2 des 9 tests de garde-fous portent sur `trigger_resolve`
+(`confirm=true` et plafond de 10). Si l'outil n'est pas dans le minimum, ces deux tests ne s'appliquent
+pas. Le plan ne dit pas lequel des deux choix est retenu.
+
+#### Phase 7 — Pack d'extension d'agent (critère 12, 2 points)
+
+| | Minimum pour la grille — `[rendu]` | Version complète — `[rendu]` si avant le 25/10, sinon `[présentable]` |
+|---|---|---|
+| **Éléments** | Un de chaque, utilisé au moins une fois (preuve dans `ai-workflow.md`) :<br>• instructions de projet : fait (`CLAUDE.md`, `AGENTS.md`)<br>• un sous-agent : fait (4 existent)<br>• un skill, un hook, un outil MCP : à faire<br>• notes de permissions : à faire<br>(ligne `[rendu]` « Critère 12 » et liste du §2.6) | Les implémentations décrites au §12 :<br>• skill `new-mart` : un mart dbt de bout en bout (modèle, `schema.yml`, tests, doc, endpoint)<br>• hook de pré-commit : `dbt build` et pytest, détection de secret (gitleaks), divergence de `openapi.yaml`<br>• serveur MCP `mcp/cyclebeat-warehouse` : `query_marts`, rapport qualité, file de revue, **même code que le copilote**<br>• plugin installable + `docs/agent-pack.md` (permissions, périmètre, sécurité) |
+| **Effort estimé** | À définir | À définir |
+| **Points de grille** | 2 (critère 12, §16) | 0 de plus d'après la liste de 6 briques du §2.6, qui atteint déjà le plafond de 2 points. À confirmer : le texte officiel de la grille n'est pas dans le dépôt |
+| **Valeur en entretien** | À définir | « La symétrie copilote produit / MCP de développement est l'idée forte du projet » (§12) |
+
+Dépendance : l'outil MCP du plan réutilise le code des outils du copilote (phase 6). Un outil MCP
+indépendant, pour le minimum, est une option **à définir**.
+Écart entre les sources : le §12 du plan met « plugin / packaging » comme sixième brique, le §2.6 de ce
+document met « notes de permissions ». Le tableau retient le §2.6 pour le minimum et le §12 pour la
+version complète.
+
+#### Phase 10 — Sécurité, audit, DevOps (critère 13, 2 points)
+
+| | Minimum pour la grille — `[rendu]` | Version complète — `[rendu]` si avant le 25/10, sinon `[présentable]` |
+|---|---|---|
+| **Éléments** | Les 5 artefacts du critère 13 (ligne `[rendu]` « Critère 13 », §13) :<br>• audit de PR (PR-Agent, le plan prévoit 2 ou 3 rapports ; le nombre minimal est à définir)<br>• scan déterministe en CI : Semgrep **ou** Bandit<br>• `docs/security/agent-security.md` (surface d'attaque du MCP et du copilote, tests d'injection)<br>• diagnostic d'un incident compose réel<br>• `docs/security/ai-policy.md` | En plus du minimum :<br>• scan Snyk en plus de Semgrep (§13)<br>• 2 ou 3 rapports d'audit de PR committés dans `docs/security/pr-audits/` (§13)<br>• K8sGPT sur un cluster kind jetable (**optionnel** dans le plan)<br>• hors périmètre : la pile OTel/Loki/Tempo/Grafana complète. Le plan demande « le minimum qui max le critère 13, pas une plateforme d'observabilité » (§2.6) |
+| **Effort estimé** | À définir | À définir |
+| **Points de grille** | 2 (critère 13, §16) | 0 de plus : les 5 artefacts atteignent déjà le plafond (§2.6) |
+| **Valeur en entretien** | À définir | À définir |
+
+Dépendances : `agent-security.md` décrit des surfaces qui n'existent qu'après les phases 6 et 7 ; le
+diagnostic d'incident compose demande la phase 8 (`docker compose` complet).
+
+#### À arbitrer par vous
+
+1. La ligne `[présentable]` « Warehouse Copilot borné : lecture seule sur les marts, tests d'injection,
+   évaluations en CI » contredit le §18 (condition 2 : tests d'injection du copilote verts en CI avant
+   soumission). La phase 6 n'est dans aucune ligne `[rendu]`. Le tableau ci-dessus met le minimum de
+   la phase 6 en `[rendu]` sans modifier cette ligne.
+2. L'effort par phase, pour décider ce qui tient avant le 25 octobre.
+3. La question de `trigger_resolve` ci-dessus.
+
 ---
 
 ## 3. LE GATE (barrière unique L0 → L1)
