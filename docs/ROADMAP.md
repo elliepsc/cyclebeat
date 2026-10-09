@@ -236,7 +236,8 @@ Règle de la version complète : `[rendu]` si elle tient avant le gel du **25 oc
 `[présentable]`. **Arbitrage du 9 octobre 2026 (propriétaire)** : toutes les parties « version
 complète » ci-dessous sont classées `[présentable]`.
 
-**Sources.** Tableau des phases (§2.1), grille (§2.6), plan archivé (`docs/archive/CYCLEBEAT_PLAN_V3.md` :
+**Sources.** Tableau des phases (§2.1), grille (§2.6), texte du brouillon de la grille
+(`docs/grading-criteria.md`), plan archivé (`docs/archive/CYCLEBEAT_PLAN_V3.md` :
 §9, §10, §12, §13, §15, §16, §18, E.4), lignes `[rendu]` de ce document, et les arbitrages du propriétaire
 du 9 octobre. Ce que ces sources ne disent pas est marqué **à définir**. Le plan ne chiffre que
 l'ensemble (« 32-40 jours effectifs », §15) : **les efforts ci-dessous viennent de la relecture du
@@ -265,7 +266,7 @@ propriétaire, pas des sources.**
 |---|---|---|
 | **Éléments** | Chaque brique utilisée au moins une fois (preuve dans `ai-workflow.md`) :<br>• instructions de projet : fait (`CLAUDE.md`, `AGENTS.md`)<br>• sous-agent : fait (4 existent)<br>• **serveur MCP** réutilisant les outils de la phase 6 (version complète de la brique MCP)<br>• skill `new-mart` : un mart dbt de bout en bout (modèle, `schema.yml`, tests, doc, endpoint)<br>• hook de pré-commit : tests et détection de secrets<br>• notes de permissions | • packaging en **plugin** installable + `docs/agent-pack.md` (permissions, périmètre, sécurité) (§12) |
 | **Effort estimé** (propriétaire) | Serveur MCP : compté avec la phase 6. Skill, hook et permissions : 1 à 1,5 jour | À définir |
-| **Points de grille** | 2 (critère 12, §16) | 0 de plus d'après la liste de 6 briques du §2.6, qui atteint déjà le plafond de 2 points. À confirmer : le texte officiel de la grille n'est pas dans le dépôt |
+| **Points de grille** | 2 (critère 12, §16) | 0 de plus. Confirmé par le brouillon de la grille (`docs/grading-criteria.md`, critère 12) : le plafond de 2 points demande instructions de projet, workflow réutilisable, sous-agent, outil ou serveur MCP, hook ou garde-fou, notes de permissions. Le plugin n'y figure pas |
 | **Valeur en entretien** | « La symétrie copilote produit / MCP de développement est l'idée forte du projet » (§12), ici avec les outils partagés et un copilote futur | À définir |
 
 Le hook du plan (§12) vérifiait aussi la divergence de `openapi.yaml` ; cette vérification n'est pas
@@ -277,7 +278,7 @@ dans la liste retenue (elle tourne déjà en CI via `make contract`).
 |---|---|---|
 | **Éléments** | Les 5 artefacts du critère 13 :<br>• **audits de PR produits par le sous-agent `security-auditor`**. PR-Agent est écarté : il demande un modèle LLM (clé d'API ou modèle local), soit une dépendance et une configuration de plus, et `security-auditor` produit déjà des audits de PR. Le nombre de rapports est à définir<br>• **Semgrep en CI**<br>• `docs/security/agent-security.md` : surface d'attaque du serveur MCP et des outils en lecture seule, tests d'injection<br>• diagnostic d'un incident compose réel<br>• `docs/security/ai-policy.md` | • scan Snyk en plus de Semgrep (§13)<br>• K8sGPT sur un cluster kind jetable (optionnel dans le plan)<br>• hors périmètre : la pile OTel/Loki/Tempo/Grafana complète (« le minimum qui max le critère 13, pas une plateforme d'observabilité », §2.6) |
 | **Effort estimé** (propriétaire) | 1,5 à 2 jours | À définir |
-| **Points de grille** | 2 (critère 13, §16) | 0 de plus : les 5 artefacts atteignent déjà le plafond (§2.6) |
+| **Points de grille** | 2 (critère 13, §16) | 0 de plus : les 5 artefacts atteignent déjà le plafond (§2.6). Confirmé par le brouillon de la grille (critère 13) |
 | **Valeur en entretien** | À définir | À définir |
 
 Dépendance : le diagnostic d'incident compose demande la phase 8 (`docker compose` complet).
@@ -310,11 +311,22 @@ Dépendance : le diagnostic d'incident compose demande la phase 8 (`docker compo
    reste en CI.
 3. **PR-Agent** : écarté (voir la phase 10).
 
-**À confirmer :**
-- **Critères 8, 9 et 14.** Le §16 les relie à `litellm` et `ollama` (compose complet, parcours
-  `copilot/ask`, démo sans clé). Avec la couche LLM en `[présentable]`, ces trois critères se jugent
-  sans elle. À confirmer sur le texte officiel de la grille, que le propriétaire ajoutera dans
-  `docs/grading-criteria.md` ; ce point reste ouvert d'ici là.
+**Résolu le 9 octobre 2026, d'après le brouillon de la grille (`docs/grading-criteria.md`).** Critères 8, 9
+et 14 : le plafond de 2 points se juge sans la couche LLM. Le §16 du plan les reliait à `litellm` et
+`ollama`, mais le texte de la grille ne les cite pas :
+- **Critère 8, conteneurisation** : « The full system runs via Docker or Docker Compose with clear
+  instructions ». Aucun service précis n'est exigé.
+- **Critère 9, tests d'intégration** : « clearly separated, cover key workflows, and documented ». Les
+  parcours clés suffisent (générer, relire, noter une séance ; qualité). Le parcours `copilot/ask` n'est pas
+  exigé.
+- **Critère 14, reproductibilité** : « Clear instructions exist to set up, run, test, and deploy the system
+  end to end ». La démo sans clé n'y est pas citée ; `DEMO_MODE` par défaut la fournit déjà.
+
+Réserve : c'est un **brouillon** (la page le dit : règles et notation peuvent changer). Relire la source
+avant le gel du 25 octobre.
+
+**À trancher :** la §2.6 annonce un maximum de **32 points**. La somme des maxima du texte du brouillon est
+**30** (2 + 2 + 2 + 3 + 2 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 2). La §2.6 n'est pas modifiée ici.
 
 ---
 

@@ -1,5 +1,20 @@
 # AI workflow log
 
+## Session 2026-10-09 — Docs — Official draft grading criteria added to the repo, criteria 8, 9, 14 resolved
+
+**Loop**: prompt → web check of the source → write file → edit roadmap → link check (documentation only, no code written)
+**Tool/model**: Claude Code / Sonnet 5.5
+**Initial prompt**: (owner) create `docs/grading-criteria.md` with the pasted evaluation criteria text unmodified, with the source URL and retrieval date at the top; then resolve the "to confirm" item on criteria 8, 9 and 14 in roadmap section 2.8 from that text.
+**Notable iterations**:
+- The owner pasted the text but gave no URL. The agent did not invent one: it searched the web, found the course project page, followed its redirect, then checked https://github.com/DataTalksClub/ai-dev-tools-zoomcamp/tree/main/project, which carries the same opening note ("The 2026 project requirements are currently a draft...") and the same titles and 0-2 point ranges for criteria 8, 9 and 14. The rest of the text was NOT compared line by line; the file says so. Retrieval date recorded: 2026-10-09 (date the owner pasted it).
+- Resolution: criteria 8 ("full system runs via Docker or Docker Compose with clear instructions"), 9 ("clearly separated, cover key workflows, documented") and 14 ("clear instructions to set up, run, test, deploy end to end") name no LLM service, so the 2-point ceiling is judged without the LLM layer, contrary to the archived plan section 16, which tied them to litellm/ollama. The texts of criteria 12 and 13 also confirm what section 2.8 assumed: the plugin is not in the criterion 12 list, and the five artifacts reach the criterion 13 ceiling. Caveat recorded: it is a draft that may change; re-read the source before the 25 October freeze.
+- Finding: roadmap section 2.6 states a maximum of 32 points; the sum of the maxima in the pasted text is 30 (2+2+2+3+2+3+2+2+2+2+2+2+2+2). Left unmodified and listed as "to settle" in section 2.8. Also noticed, not acted on: the text lists expected repo contents (product-spec.md, backend/, security/, ops/, ...) that the repo does not all have.
+**Corrected by human review**: none in this session.
+**Role split**: written by the agent: the file header, the section 2.8 changes and this entry / supplied by the owner: the text and the decision.
+**Verification**: `tools.check_links` 0 dead links; the web check above.
+**Lesson**: when a source URL is not provided, find and check it instead of writing one from memory.
+**To capitalize in CLAUDE.md**: nothing.
+
 ## Session 2026-10-09 — Planning — "Minimum for the grid" vs "full version" for phases 6, 7 and 10 (roadmap section 2.8)
 
 **Loop**: prompt → read sources → repo check → draft → owner arbitration → edit → link check (documentation/planning only, no code written)
