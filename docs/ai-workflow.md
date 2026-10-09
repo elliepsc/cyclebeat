@@ -14,7 +14,7 @@
 **Left unchanged on purpose (outside the two files asked; the scope of a PR is not widened)**: `Makefile` comments on the shared `.venv` for `compose-*` (lines ~75-82) and on running `front` from one OS only; `README.md` lines 98-99 and 114 (Windows/WSL notes); `tools/spike/README.md` line 44 ("after `cyclebeat`"), now a dangling reference; the Windows-console mojibake entry in the CONTRIBUTING troubleshooting; the roadmap row mentioning "env. WSL". To be decided by the owner.
 **Corrected by human review**: none yet (the PR is not reviewed).
 **Role split**: written by the agent: the new "Development environment" section, the CLAUDE.md edits and this entry / supplied by the owner: the migration decision and the test figures, which the agent re-measured.
-**Verification**: `make test-unit` 301 passed, 15 skipped (above); `tools.check_links` and `make lint` are run before the PR is opened (result recorded in the PR description). Not verified: a fresh install of nvm and Docker Desktop on a clean WSL distribution (the steps describe the documented procedure; the owner's machine already had them).
+**Verification**: `make test-unit` 301 passed, 15 skipped (above); `make lint` green (ruff, `tools.check_links` 0 dead links). Not verified: a fresh install of nvm and Docker Desktop on a clean WSL distribution (the steps describe the documented procedure; the owner's machine already had them).
 **Lesson**: a prompt that names a file ("`.nvmrc`") can be right about the thing and wrong about its path; check the path before writing it into setup instructions.
 **To capitalize in CLAUDE.md**: nothing.
 
