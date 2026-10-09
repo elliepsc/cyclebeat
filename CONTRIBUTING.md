@@ -252,20 +252,6 @@ Another service is using port 8000 (for example the `weather-mlops` container), 
 Stop it, or run the API on another port and set `VITE_API_URL` to match when you start the
 frontend.
 
-### An API response looks double-encoded (mojibake such as "citÃ©")
-
-Symptom: accents come out as `Ã©` when you pipe a response through a script on Windows.
-
-Cause: usually not the API. The Windows console and pipes are cp1252 and re-decode UTF-8
-bytes. Before suspecting the code, look at the raw bytes:
-
-```bash
-curl -s -o /tmp/r.json ... && python -c "b=open('/tmp/r.json','rb').read(); print(b'\xc3\xa9' in b, b'\xc3\x83\xc2\xa9' in b)"
-```
-
-`True False` is correct UTF-8 (`c3 a9`). A `True` in second place means a real double encoding
-(`c3 83 c2 a9`).
-
 ### Experiments never write to the real `lake/` or `data/`
 
 When you try something out (a rebuild, a count, a spike), work in an export or a temporary

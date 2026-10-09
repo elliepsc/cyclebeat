@@ -72,13 +72,9 @@ confidence-report:
 # next free port rather than letting the whole `up` die on `port is already
 # allocated` -- and prints the URLs it settled on. Pin one by hand any time with
 # e.g. CYCLEBEAT_API_PORT=9000.
-# Deliberately NOT `$(RUN)`/`uv run`. This checkout is shared between Windows and
-# WSL, and the .venv on disk is whichever one built it last. `uv run` from WSL sees
-# a Windows venv (`.venv/Scripts`), tries to recreate it in POSIX layout, and dies
-# with `Input/output error (os error 5)` on the /mnt/c drvfs mount -- after having
-# already deleted `.venv/Lib`, so it breaks the Windows venv on its way out.
-# tools/compose_ports.py imports nothing outside the standard library, so a bare
-# interpreter runs it with no environment side effect at all.
+# Deliberately NOT `$(RUN)`/`uv run`: tools/compose_ports.py imports nothing outside the
+# standard library, so a bare interpreter runs it without needing the project environment
+# (it also works before `make setup`).
 PY ?= $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
 PORTS ?= $(PY) -m tools.compose_ports
 
@@ -113,8 +109,7 @@ compose-down:
 api:
 	$(RUN) uvicorn api.main:app --host 0.0.0.0 --port 8000
 
-# Frontend (phase 5): React/Vite in frontend/. Node is pinned in frontend/.nvmrc; run it from one OS
-# only (Windows OR WSL) -- node_modules holds native binaries specific to the OS that installed them.
+# Frontend (phase 5): React/Vite in frontend/. Node is pinned in frontend/.nvmrc.
 front:
 	npm --prefix frontend ci
 	npm --prefix frontend run dev
@@ -132,8 +127,8 @@ front-gen:
 # Physically separate from `test-unit` because §11 puts them in different buckets, and
 # because it makes the exit criterion one command instead of a grep over pytest output.
 #
-# Unlike `test-unit`, this suite imports only cyclebeat + hypothesis, never Airflow, so it
-# runs on Windows as well as WSL. The phase-6 coach/copilot evals join it here.
+# Unlike `test-unit`, this suite imports only cyclebeat + hypothesis, never Airflow.
+# The phase-6 coach/copilot evals join it here.
 eval:
 	$(RUN) pytest evals
 
