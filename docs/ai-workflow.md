@@ -1,5 +1,23 @@
 # AI workflow log
 
+## Session 2026-10-09 — Docs — Migration to a WSL-only checkout, workarounds removed
+
+**Loop**: prompt → read CLAUDE.md, roadmap and last entry → check the WSL clone → measure → edit docs → link check (documentation only, no code written)
+**Tool/model**: Claude Code / Sonnet 5.5
+**Initial prompt**: (owner) the project is now cloned and developed only in WSL (`~/projets/cyclebeat`), no longer under `/mnt/c`. Update `CONTRIBUTING.md` and `CLAUDE.md`: remove the workarounds tied to the shared Windows/WSL folder (the `cyclebeat` function, the `.venv` and `/mnt/c` warnings, the PowerShell commands, the missing `make`) and describe the WSL install (uv, nvm with `.nvmrc`, make, Docker Desktop WSL integration). Record the migration here: 301 passed, 15 skipped (Postgres cases without `TEST_DATABASE_URL`), the 6 Airflow tests now run. Branch and PR.
+**Notable iterations**:
+- Reference branch named before checking anything: the work branch `docs/wsl-only-setup` was cut from `origin/main` (d297b16, after a fetch) in the WSL clone. The Windows checkout was left untouched on `docs/grading-criteria`.
+- The numbers were re-measured, not copied from the prompt: on the WSL clone, with `DATABASE_URL` and `TEST_DATABASE_URL` unset, `make test-unit` gives 301 passed, 15 skipped in 16.7 s. All 15 skips carry the reason "TEST_DATABASE_URL not set" (`tests/unit/test_api_repositories.py`); `tests/test_dags.py` runs its 6 tests and passes.
+- `.nvmrc` is not at the repo root: it is `frontend/.nvmrc` (24.19.0, same as `engines.node` in `frontend/package.json`). The setup text therefore runs `nvm install` from `frontend/`.
+- `CLAUDE.md` held no `cyclebeat` function, `.venv` or `/mnt/c` text (that lived only in `CONTRIBUTING.md`). Its one Windows-specific line, the cp1252 console pitfall, was removed, and a short WSL environment line pointing to `CONTRIBUTING.md` was added under Conventions.
+- The external claims in the new setup section (uv installer, nvm install, Docker Desktop WSL integration page) were checked: the three official URLs answer 200 and the Docker page documents "WSL integration" per distribution.
+**Left unchanged on purpose (outside the two files asked; the scope of a PR is not widened)**: `Makefile` comments on the shared `.venv` for `compose-*` (lines ~75-82) and on running `front` from one OS only; `README.md` lines 98-99 and 114 (Windows/WSL notes); `tools/spike/README.md` line 44 ("after `cyclebeat`"), now a dangling reference; the Windows-console mojibake entry in the CONTRIBUTING troubleshooting; the roadmap row mentioning "env. WSL". To be decided by the owner.
+**Corrected by human review**: none yet (the PR is not reviewed).
+**Role split**: written by the agent: the new "Development environment" section, the CLAUDE.md edits and this entry / supplied by the owner: the migration decision and the test figures, which the agent re-measured.
+**Verification**: `make test-unit` 301 passed, 15 skipped (above); `tools.check_links` and `make lint` are run before the PR is opened (result recorded in the PR description). Not verified: a fresh install of nvm and Docker Desktop on a clean WSL distribution (the steps describe the documented procedure; the owner's machine already had them).
+**Lesson**: a prompt that names a file ("`.nvmrc`") can be right about the thing and wrong about its path; check the path before writing it into setup instructions.
+**To capitalize in CLAUDE.md**: nothing.
+
 ## Session 2026-10-09 — Docs — Official draft grading criteria added to the repo, criteria 8, 9, 14 resolved
 
 **Loop**: prompt → web check of the source → write file → edit roadmap → link check (documentation only, no code written)

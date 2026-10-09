@@ -6,106 +6,61 @@ How to set up the toolchain and how work reaches `main`. The project overview is
 
 ## Development environment
 
-> This section exists because the definition of done — `make lint && make test-unit` —
-> is not runnable out of the box on a Windows checkout shared with WSL.
+CycleBeat is developed on **WSL2 (Ubuntu)** only. Clone it on the Linux filesystem
+(`~/projets/cyclebeat`), never under `/mnt/c`: file access is much faster there, and `make`,
+`uv`, Node and Docker all see one consistent Linux toolchain. The definition of done is
+`make lint && make test-unit` (plus the other targets listed in [CLAUDE.md](CLAUDE.md)).
 
-The repo sits on a Windows path and is used from two shells: Windows (PowerShell) and
-WSL at `/mnt/c/...`. **They cannot share the same virtual environment.** Windows `uv`
-creates `.venv/` with a `Scripts/` layout; Linux `uv` expects `bin/`, considers the
-environment foreign, and tries to recreate it — which fails on the `drvfs` mount with
-`failed to remove directory .venv/Scripts: Input/output error (os error 5)`.
+### Prerequisites
 
-Each OS therefore gets its own environment. **Do not delete `.venv/`** to "fix" the
-error: it is the Windows environment and it is working. `.venv/` is gitignored, so none
-of this affects the repository.
+Run these in the Ubuntu shell.
 
-### WSL — recommended
+**make.** Usually present; otherwise `sudo apt install build-essential`. Check with
+`make --version`.
 
-`make` is already available; only `uv`'s environment path needs redirecting, to a
-location on the Linux filesystem (also much faster than `/mnt/c`).
-
-**What the helper does.** `uv` reads the environment variable `UV_PROJECT_ENVIRONMENT`
-to decide *where* to put the project's virtual environment. Unset, it defaults to
-`.venv/` in the repo — the Windows one. The helper points it at
-`~/.venvs/<repo-name>` instead, on the Linux side, so both operating systems keep their
-own environment and neither tries to overwrite the other's. It does nothing else: no
-install, no repo state change. It is a convenience wrapper around one `export`.
-
-**One-time setup.** Append it to `~/.bashrc`. The snippet below is copy-pasteable as-is
-by anyone, on any clone path — it derives both the repo root and the environment name
-from git, so there is nothing to edit:
+**uv** (Python toolchain). Install with Astral's script
+([installation docs](https://docs.astral.sh/uv/getting-started/installation/)):
 
 ```bash
-cat >> ~/.bashrc <<'EOF'
-
-# Give this repo a Linux-side uv environment (see CONTRIBUTING.md, "Development environment").
-cyclebeat() {
-  local root
-  root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
-    echo "cyclebeat: run this from inside the clone" >&2
-    return 1
-  }
-  cd "$root" || return 1
-  export UV_PROJECT_ENVIRONMENT="$HOME/.venvs/$(basename "$root")"
-}
-EOF
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-**Then reload the file, once:**
+It installs into `~/.local/bin`; reopen the shell so it is on `PATH`. `uv` provisions
+CPython 3.11 itself (`.python-version`) and resolves from `uv.lock`, so no system Python
+or global `pip` is involved.
+
+**Node via nvm.** Install nvm with the script from the
+[nvm README](https://github.com/nvm-sh/nvm#installing-and-updating), reopen the shell,
+then from the repo:
 
 ```bash
-source ~/.bashrc
+cd frontend
+nvm install   # reads frontend/.nvmrc (currently 24.19.0)
+nvm use
 ```
 
-`cat >>` appended text to a file on disk; it did not change the shell you are currently
-sitting in, which read `~/.bashrc` when it started. `source` re-reads the file into
-that running shell, which is what makes `cyclebeat` exist without opening a new
-terminal. You only ever need this on the terminal where you ran the `cat >>` — every
-terminal opened afterwards reads `~/.bashrc` on startup and gets the function for free.
+`frontend/package.json` also pins `engines.node` to the same version. `make front`,
+`make front-test` and `make front-gen` call `npm` and expect that Node on `PATH`.
 
-If `cyclebeat` returns `command not found`, that reload is what is missing.
+**Docker Desktop with WSL integration.** Install Docker Desktop on Windows, then enable
+**Settings > Resources > WSL integration** for your Ubuntu distribution
+([Docker docs](https://docs.docker.com/desktop/features/wsl/)). Check from Ubuntu with
+`docker --version` and `docker compose version`. It is needed for the `compose-*` targets;
+`make lint` and `make test-unit` do not use it.
 
-**Every new terminal.** The function is defined in every shell, but the `export` it
-performs only lives in the shell that ran it — so it has to be *called*, not merely
-defined. It is not something that "expires" and has to be recreated; it just has to be
-invoked once per terminal. `cd` into the clone, then:
+### First run
 
 ```bash
-cyclebeat
-```
-
-It moves you to the repo root and exports `UV_PROJECT_ENVIRONMENT`. Only then:
-
-```bash
+make setup                  # uv sync: creates .venv/ in the repo
 make lint && make test-unit
 ```
 
-Skipping `cyclebeat` is the single most common failure: `uv` falls back to the Windows
-`.venv/` and raises the `os error 5` above. The first run after setup builds the Linux
-environment (`uv` provisions CPython 3.11 itself); later runs reuse it.
-
-Why a function rather than a plain `export` in `~/.bashrc`: `UV_PROJECT_ENVIRONMENT` is
-not scoped to a project, so exporting it globally would make *every* uv project on the
-machine share this one environment.
-
-**Not on Windows+WSL?** On a plain Linux or macOS clone none of this applies — there is
-only one `uv`, `.venv/` is native, and `make lint && make test-unit` works directly
-after `make setup`.
-
-### Windows PowerShell
-
-Two prerequisites, both missing on a fresh setup:
-
-```powershell
-winget install --id ezwinports.make
-[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path","User") + ";$env:USERPROFILE\.local\bin", "User")
-```
-
-The first installs `make` (`ezwinports` 4.4.1 — prefer it over `GnuWin32.Make`, still on
-3.81). The second puts `uv` on `PATH`: the installer drops it in
-`%USERPROFILE%\.local\bin`, which is not on `PATH` by default, so every Makefile target
-would otherwise fail on `uv: command not found`. **Reopen the terminal**, then run
-`make lint && make test-unit` — no per-session step is needed on this side.
+`.venv/` is gitignored and lives in the repo as usual. On a clean clone without
+`DATABASE_URL` or `TEST_DATABASE_URL`, `make test-unit` reports **301 passed, 15 skipped**
+(measured 2026-10-09). The 15 skips are the Postgres cases of
+`tests/unit/test_api_repositories.py`, which need a real server and read
+`TEST_DATABASE_URL`; CI runs them against `postgres:16-alpine`. The 6 Airflow DAG tests
+(`tests/test_dags.py`) run here.
 
 ---
 
