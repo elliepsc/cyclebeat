@@ -127,7 +127,8 @@ Correspondance des fichiers hérités (aucun n'est supprimé ; ils sont désorma
 | Chore A1 — README V3 | 🟡 **EN PR** (`docs/readme-v3`) — README réécrit (v1 retiré), `CONTRIBUTING.md` (env. WSL + workflow PR), `tools/check_links.py` branché sur `make lint` / CI ; chiffres re-mesurés : 233 tests unitaires, 55 évals, 23 contrat, 51 dbt |
 | Phase 4b — Persistance Postgres (ADR-009) | 🟡 **EN PR** (`phase-4/postgres-persistence`) — sessions et feedback dans Postgres si `DATABASE_URL`, SQLite sinon ; chemin Postgres non encore testé en CI contre une vraie base ; sessions de démo éphémères (ADR-003) |
 | Phase 5 — Frontend | ✅ |
-| Phases 6 → 11 | ⬜ **TODO** — rien démarré |
+| Phase 9 — CI/CD & deploy | ✅ |
+| Phases 6, 7, 8, 10, 11 | ⬜ **TODO** — rien démarré |
 | Couche L1 (B1–B7) | 🔒 **GATÉE** |
 
 **Ce que la phase 1 a tranché.** Elle s'est close par **une décision, pas par une mesure supplémentaire**. **ADR-005** (supersede ADR-004) fixe le backbone BPM = **`librosa` sur le preview Deezer de 30 s** (vraie musique mainstream, source de métadonnées = source de lecture), le champ `bpm` de Deezer en **enrichissement** et le CSV en socle manuel ; Jamendo/CC est abandonné. Ce chemin était **déjà mesuré** : **82 % de pistes exploitables** (41/50), avec un biais haussier documenté. Le prix accepté, chiffré : **`single_source` 0.6 domine à 54 %**, `cross_validated` 0.9 plafonne à 26 % — car il dépend du champ `bpm` de Deezer, présent sur **23,3 %** des sorties récentes contre **65 %** des classiques. 12 % des pistes restent sans BPM (exclues du planner). Détail : `docs/spikes/phase1-source-coverage.md`.
@@ -153,7 +154,7 @@ Correspondance des fichiers hérités (aucun n'est supprimé ; ils sont désorma
 | **6. LLM & copilote** | LiteLLM + Ollama, CoachingGenerator, **Warehouse Copilot** + outils bornés + éval anti-injection, `fct_llm_calls`/`fct_agent_runs` | Évals coach + copilote vertes en CI (Ollama) ; coût/séance mesuré | ⬜ TODO |
 | **7. Extension pack** | skill `new-mart`, subagent `dbt-reviewer`, hooks, **serveur MCP** warehouse, packaging plugin | Chaque brique a servi ≥ 1 fois (preuve dans `ai-workflow.md`) | ⬜ TODO |
 | **8. Intégration & compose** | `tests/integration` contre compose complet (api+front+litellm+ollama) | `docker compose up` sur clone propre + suite intégration verte | ⬜ TODO |
-| **9. CI/CD & deploy** | Pipeline complet + deploy Render auto sur main vert *(action humaine : secrets Render)* | URL publique vivante ; un push déclenche test→deploy | ⬜ TODO |
+| **9. CI/CD & deploy** | Pipeline complet + deploy Render auto sur main vert *(action humaine : secrets Render)* | URL publique vivante ; un push déclenche test→deploy | ✅ — première exécution réelle verte du job `deploy` sur `a50a137` (tests puis hooks puis `live` puis 4 vérifications). La suite d'intégration reste de la phase 8 |
 | **10. Sécurité & audit** | PR-Agent, Semgrep/Snyk, `agent-security.md`, `ai-policy.md`, diagnostic ops | Les 5 artefacts du §13 committés | ⬜ TODO |
 | **11. README & démo** | README, GIF démo, finalisation `ai-workflow.md`, relecture externe | Testé depuis un clone propre par quelqu'un d'autre | ⬜ TODO |
 
