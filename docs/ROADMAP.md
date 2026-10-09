@@ -285,8 +285,9 @@ Dépendance : le diagnostic d'incident compose demande la phase 8 (`docker compo
 
 **Emplacement des artefacts.** Ils vont dans `security/` et `ops/` **à la racine**, comme l'attend la grille
 (contenu attendu du dépôt, `docs/grading-criteria.md`), et non dans `docs/security/` comme le prévoyait le plan.
-L'allocation entre les deux dossiers (audits, scans, notes et politique dans `security/`, diagnostic dans
-`ops/`) est à confirmer. À faire en phase 10 : mettre à jour `.claude/agents/security-auditor.md`, qui écrit
+Répartition confirmée par le propriétaire le 9 octobre 2026 : `security/` contient `agent-security.md`,
+`ai-policy.md`, les audits de PR dans `security/pr-audits/` et les rapports Semgrep dans `security/scans/` ;
+`ops/` contient le diagnostic d'incident. À faire en phase 10 : mettre à jour `.claude/agents/security-auditor.md`, qui écrit
 encore dans `docs/security/` et indique que PR-Agent produit les audits de PR.
 
 #### Efforts du reste du chemin `[rendu]` (relecture du propriétaire, pas des sources)
