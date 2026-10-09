@@ -38,7 +38,7 @@ présentable ; + `[production]` = prêt pour un vrai système.
 | API déployée sur Render, base de démo construite dans l'image | ✅ |
 | URL de l'API et documentation interactive (`/docs`) ajoutées au README | ✅ |
 | Frontend minimal (phase 5) : client généré, 2 écrans, vitest, CORS, job CI | ✅ (PR #27 mergée ; test navigateur du propriétaire, voir `docs/ai-workflow.md`) |
-| Frontend en ligne (https://cyclebeat-web.onrender.com) | ✅ — le déploiement est encore **manuel** tant que `ci/deploy-job` n'a pas tourné pour de vrai (GitHub Actions après CI verte, `autoDeployTrigger: off` + deploy hooks). Branche en PR ; la ligne « déploiement automatique » ne passera ✅ qu'après sa première exécution réelle verte sur `main` |
+| Frontend en ligne (https://cyclebeat-web.onrender.com) et déploiement automatique : GitHub Actions déploie sur `main` après CI verte (`autoDeployTrigger: off` + deploy hooks, `tools/deploy.py`) | ✅ — première exécution réelle verte sur `a50a137` (1 min 4 s) |
 | `docker compose` complet et tests d'intégration | ⬜ |
 | Critère 12 : un skill, un hook, un outil MCP, note sur les permissions | ⬜ |
 | Critère 13 : audit de PR, scan Semgrep ou Bandit en CI, notes de sécurité agent, diagnostic opérationnel, politique IA | ⬜ |
@@ -60,6 +60,7 @@ présentable ; + `[production]` = prêt pour un vrai système.
 | GIF de démo, test depuis un clone propre par une autre personne | ⬜ |
 | Récit d'entretien : décisions prises contre l'avis de l'agent | ⬜ |
 | Marquer ou exclure les séances de test avant de brancher une base persistante (le test après déploiement crée une séance par déploiement) | ⬜ |
+| Inclure `tools/` dans la vérification mypy (aujourd'hui limitée à `api/`) | ⬜ |
 
 ### `[production]` — sans date
 - « Idée 2 » : lecteur YouTube intégré, table d'observations de BPM, tap tempo, micro, puis
