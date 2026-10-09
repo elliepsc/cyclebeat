@@ -38,7 +38,7 @@ présentable ; + `[production]` = prêt pour un vrai système.
 | API déployée sur Render, base de démo construite dans l'image | ✅ |
 | URL de l'API et documentation interactive (`/docs`) ajoutées au README | ✅ |
 | Frontend minimal (phase 5) : client généré, 2 écrans, vitest, CORS, job CI | ✅ (PR #27 mergée ; test navigateur du propriétaire, voir `docs/ai-workflow.md`) |
-| Frontend en ligne (https://cyclebeat-web.onrender.com) | ✅ — le déploiement est encore **manuel** en attendant `ci/deploy-job` (GitHub Actions après CI verte, `autoDeployTrigger: off` + deploy hooks), qui reste ⬜ |
+| Frontend en ligne (https://cyclebeat-web.onrender.com) | ✅ — le déploiement est encore **manuel** tant que `ci/deploy-job` n'a pas tourné pour de vrai (GitHub Actions après CI verte, `autoDeployTrigger: off` + deploy hooks). Branche en PR ; la ligne « déploiement automatique » ne passera ✅ qu'après sa première exécution réelle verte sur `main` |
 | `docker compose` complet et tests d'intégration | ⬜ |
 | Critère 12 : un skill, un hook, un outil MCP, note sur les permissions | ⬜ |
 | Critère 13 : audit de PR, scan Semgrep ou Bandit en CI, notes de sécurité agent, diagnostic opérationnel, politique IA | ⬜ |
