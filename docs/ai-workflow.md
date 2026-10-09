@@ -1,5 +1,17 @@
 # AI workflow log
 
+## Session 2026-10-09 — Phase 5 — Frontend online on Render (manual deployment)
+
+**Loop**: the owner synchronised the Blueprint by hand → checked the live site → asked for the documentation of the facts
+**Tool/model**: Claude Code / Sonnet 5.5
+**Initial prompt**: (owner) add the site URL to the README next to the API's, set "Frontend en ligne" to done in the roadmap while saying the deployment is still manual until `ci/deploy-job`, and record these facts, including the confusion between a service's "Manual Deploy" and the Blueprint's "Manual sync".
+**Notable iterations**: facts reported by the owner, not re-measured by the agent: `https://cyclebeat-web.onrender.com` is online; generating a session from it works end to end (`POST /v1/sessions/generate` answers 200 in the API logs, CORS correct, so the `CORS_ALLOW_ORIGINS` value written in `render.yaml` matched the real site URL). The Blueprint was synchronised manually ("Manual sync") to create `cyclebeat-web`. Confusion to remember: "Manual Deploy" on a single service redeploys that service from its stored settings and does not re-read `render.yaml`, whereas the Blueprint's "Manual sync" does, and is what creates a new service or applies a changed `render.yaml` value (this is the owner's observation; with `autoDeployTrigger: off`, neither happens on a push). Also carried over from the closed phase-5 documentation PR: two commits made after PR #28 was merged (feedback and keyboard browser results, roadmap ADR wording) had not reached `main`, and were cherry-picked into this branch.
+**Corrected by human review**: no correction in this session.
+**Role split**: written by the agent: README, roadmap and this entry / done by the human: the Blueprint sync, the check of the live site.
+**Verification**: not re-run by the agent: the live site and the API logs are the owner's observation. `tools.check_links` is run before the commit. The deploy-hook test and `ci/deploy-job` have not started.
+**Lesson**: a service-level "Manual Deploy" does not apply a changed `render.yaml`; use the Blueprint's "Manual sync" for that (and `render.yaml` stays the single source of its values).
+**To capitalize in CLAUDE.md**: nothing yet; candidate: the Manual Deploy / Manual sync distinction.
+
 ## Session 2026-10-02 — Phase 5 — Minimal React frontend, generated client, CORS, frontend CI job, Render static site
 
 **Loop**: plan (shown and validated by the owner before any code) → 5 owner decisions → name the reference branch → CORS + tests → generate the client from `openapi.yaml` → screens + vitest → make targets, CI job, `render.yaml` → local end-to-end → README and roadmap
