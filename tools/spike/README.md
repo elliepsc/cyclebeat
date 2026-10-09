@@ -41,7 +41,7 @@ uv run --script tools/spike/source_coverage.py --fetch --getsongbpm-base "https:
 
 ## 3. Run the measurement
 
-From WSL, after `cyclebeat` (see the README's "Development environment"):
+From the repo root, after `make setup` (see CONTRIBUTING.md, "Development environment"):
 
 ```bash
 uv run --script tools/spike/source_coverage.py --fetch --set all
