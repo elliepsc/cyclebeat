@@ -38,10 +38,11 @@ présentable ; + `[production]` = prêt pour un vrai système.
 | API déployée sur Render, base de démo construite dans l'image | ✅ |
 | URL de l'API et documentation interactive (`/docs`) ajoutées au README | ✅ |
 | Frontend minimal (phase 5) : client généré, 2 écrans, vitest, CORS, job CI | ✅ (PR #27 mergée ; test navigateur du propriétaire, voir `docs/ai-workflow.md`) |
-| Frontend en ligne (https://cyclebeat-web.onrender.com) | ✅ — le déploiement est encore **manuel** tant que `ci/deploy-job` n'a pas tourné pour de vrai (GitHub Actions après CI verte, `autoDeployTrigger: off` + deploy hooks). Branche en PR ; la ligne « déploiement automatique » ne passera ✅ qu'après sa première exécution réelle verte sur `main` |
+| Frontend en ligne (https://cyclebeat-web.onrender.com) et déploiement automatique : GitHub Actions déploie sur `main` après CI verte (`autoDeployTrigger: off` + deploy hooks, `tools/deploy.py`) | ✅ — première exécution réelle verte sur `a50a137` (1 min 4 s) |
 | `docker compose` complet et tests d'intégration | ⬜ |
-| Critère 12 : un skill, un hook, un outil MCP, note sur les permissions | ⬜ |
-| Critère 13 : audit de PR, scan Semgrep ou Bandit en CI, notes de sécurité agent, diagnostic opérationnel, politique IA | ⬜ |
+| Outils en lecture seule sur les marts (`query_marts`, rapport qualité, file de revue), garde-fous E.4 sans LLM, tests d'injection au niveau SQL (§2.8) | ⬜ |
+| Critère 12 : serveur MCP réutilisant ces outils, skill `new-mart`, hook de pré-commit (tests et détection de secrets), notes de permissions (§2.8) | ⬜ |
+| Critère 13 : audits de PR par le sous-agent `security-auditor`, Semgrep en CI, notes de sécurité agent, diagnostic opérationnel, politique IA (§2.8) | ⬜ |
 | Carte des critères de la grille vers les chemins du repo, pour les reviewers | ⬜ |
 | Test depuis un clone propre, gel, tag | ⬜ |
 
@@ -54,12 +55,14 @@ présentable ; + `[production]` = prêt pour un vrai système.
 | Aucun stockage durable d'audio : extrait analysé depuis un fichier temporaire supprimé (`fix/no-audio-cache`, ADR-010) | ✅ |
 | Documentation à source unique (plans archivés, index des ADR) | ⬜ |
 | Mesure de la justesse du BPM sur des pistes de référence (zone correcte, erreurs d'octave, calibration de la confiance). Cas observés en production le 2 octobre 2026 : « Ain't No Sunshine » à 161,5 BPM avec une confiance de 0,9 (erreur d'octave probable, recoupement validé à tort) ; « Blinding Lights » à 86,1 BPM (mi-tempo probable). Aucune correction dans le code à ce stade | ⬜ |
-| Warehouse Copilot borné : lecture seule sur les marts, tests d'injection, évaluations en CI | ⬜ |
+| Couche LLM du Warehouse Copilot : LiteLLM + Ollama, CoachingGenerator, évaluations du copilote, `fct_llm_calls` / `fct_agent_runs`, `trigger_resolve` avec ses 2 tests, boucle d'agent et caps de run (§2.8) | ⬜ |
+| Packaging du pack d'extension en plugin + `docs/agent-pack.md` ; Snyk et K8sGPT en phase 10 (§2.8) | ⬜ |
 | Écran de KPI qualité branché sur `/v1/quality/*` | ⬜ |
 | Image en deux étapes (l'image de démo pèse 911 Mo : `build-essential` et le cache de build restent dans l'image finale), utilisateur non root (l'image tourne en root ; droits en écriture limités au dossier de la base SQLite) | ⬜ |
 | GIF de démo, test depuis un clone propre par une autre personne | ⬜ |
 | Récit d'entretien : décisions prises contre l'avis de l'agent | ⬜ |
 | Marquer ou exclure les séances de test avant de brancher une base persistante (le test après déploiement crée une séance par déploiement) | ⬜ |
+| Inclure `tools/` dans la vérification mypy (aujourd'hui limitée à `api/`) | ⬜ |
 
 ### `[production]` — sans date
 - « Idée 2 » : lecteur YouTube intégré, table d'observations de BPM, tap tempo, micro, puis
@@ -126,7 +129,8 @@ Correspondance des fichiers hérités (aucun n'est supprimé ; ils sont désorma
 | Chore A1 — README V3 | 🟡 **EN PR** (`docs/readme-v3`) — README réécrit (v1 retiré), `CONTRIBUTING.md` (env. WSL + workflow PR), `tools/check_links.py` branché sur `make lint` / CI ; chiffres re-mesurés : 233 tests unitaires, 55 évals, 23 contrat, 51 dbt |
 | Phase 4b — Persistance Postgres (ADR-009) | 🟡 **EN PR** (`phase-4/postgres-persistence`) — sessions et feedback dans Postgres si `DATABASE_URL`, SQLite sinon ; chemin Postgres non encore testé en CI contre une vraie base ; sessions de démo éphémères (ADR-003) |
 | Phase 5 — Frontend | ✅ |
-| Phases 6 → 11 | ⬜ **TODO** — rien démarré |
+| Phase 9 — CI/CD & deploy | ✅ |
+| Phases 6, 7, 8, 10, 11 | ⬜ **TODO** — rien démarré |
 | Couche L1 (B1–B7) | 🔒 **GATÉE** |
 
 **Ce que la phase 1 a tranché.** Elle s'est close par **une décision, pas par une mesure supplémentaire**. **ADR-005** (supersede ADR-004) fixe le backbone BPM = **`librosa` sur le preview Deezer de 30 s** (vraie musique mainstream, source de métadonnées = source de lecture), le champ `bpm` de Deezer en **enrichissement** et le CSV en socle manuel ; Jamendo/CC est abandonné. Ce chemin était **déjà mesuré** : **82 % de pistes exploitables** (41/50), avec un biais haussier documenté. Le prix accepté, chiffré : **`single_source` 0.6 domine à 54 %**, `cross_validated` 0.9 plafonne à 26 % — car il dépend du champ `bpm` de Deezer, présent sur **23,3 %** des sorties récentes contre **65 %** des classiques. 12 % des pistes restent sans BPM (exclues du planner). Détail : `docs/spikes/phase1-source-coverage.md`.
@@ -148,12 +152,12 @@ Correspondance des fichiers hérités (aucun n'est supprimé ; ils sont désorma
 | **2. Cœur DE** | Resolver + cross-validation, 3 DAGs Airflow (`dag_ingest` = `extract_deezer` + `extract_csv`, cf. E.5), lake, DuckDB, dbt (recyclé) | `make ingest && make dbt` à froid **et** 3 DAGs verts ; dbt tests verts ; distribution confidence mesurée | ✅ DONE |
 | **3. Moteur** | Planner + evaluator + property-based + adversarial + **mutation check** ; règles de construction actées en **ADR-007** | Mutation check vert | ✅ DONE — `make eval` vert (55 tests) |
 | **4. Contrat + backend** | `openapi.yaml` écrit à la main AVANT le backend, FastAPI en couches (routers→services→repositories), unit + schemathesis ; **ADR-008** (persistance) et `mart_bpm_coverage` | Contrat validé en CI ; tests verts | ✅ DONE — `make contract` vert (23 tests) |
-| **5. Frontend** | React/Vite/TS, client généré, 4 écrans, vitest | `npm test` vert ; parcours complet local contre l'API | ⬜ TODO |
-| **6. LLM & copilote** | LiteLLM + Ollama, CoachingGenerator, **Warehouse Copilot** + outils bornés + éval anti-injection, `fct_llm_calls`/`fct_agent_runs` | Évals coach + copilote vertes en CI (Ollama) ; coût/séance mesuré | ⬜ TODO |
-| **7. Extension pack** | skill `new-mart`, subagent `dbt-reviewer`, hooks, **serveur MCP** warehouse, packaging plugin | Chaque brique a servi ≥ 1 fois (preuve dans `ai-workflow.md`) | ⬜ TODO |
+| **5. Frontend** | React/Vite/TS, client généré, 2 écrans, vitest | `npm test` vert ; parcours complet local contre l'API | ✅ DONE — PR #27, test navigateur du propriétaire |
+| **6. LLM & copilote** | LiteLLM + Ollama, CoachingGenerator, **Warehouse Copilot** + outils bornés + éval anti-injection, `fct_llm_calls`/`fct_agent_runs` | Évals coach + copilote vertes en CI (Ollama) ; coût/séance mesuré | ⬜ TODO — découpage `[rendu]` / `[présentable]` : §2.8 |
+| **7. Extension pack** | skill `new-mart`, subagent `dbt-reviewer`, hooks, **serveur MCP** warehouse, packaging plugin | Chaque brique a servi ≥ 1 fois (preuve dans `ai-workflow.md`) | ⬜ TODO — découpage `[rendu]` / `[présentable]` : §2.8 |
 | **8. Intégration & compose** | `tests/integration` contre compose complet (api+front+litellm+ollama) | `docker compose up` sur clone propre + suite intégration verte | ⬜ TODO |
-| **9. CI/CD & deploy** | Pipeline complet + deploy Render auto sur main vert *(action humaine : secrets Render)* | URL publique vivante ; un push déclenche test→deploy | ⬜ TODO |
-| **10. Sécurité & audit** | PR-Agent, Semgrep/Snyk, `agent-security.md`, `ai-policy.md`, diagnostic ops | Les 5 artefacts du §13 committés | ⬜ TODO |
+| **9. CI/CD & deploy** | Pipeline complet + deploy Render auto sur main vert *(action humaine : secrets Render)* | URL publique vivante ; un push déclenche test→deploy | ✅ — première exécution réelle verte du job `deploy` sur `a50a137` (tests puis hooks puis `live` puis 4 vérifications). La suite d'intégration reste de la phase 8 |
+| **10. Sécurité & audit** | PR-Agent, Semgrep/Snyk, `agent-security.md`, `ai-policy.md`, diagnostic ops | Les 5 artefacts du §13 committés | ⬜ TODO — découpage `[rendu]` / `[présentable]` : §2.8 |
 | **11. README & démo** | README, GIF démo, finalisation `ai-workflow.md`, relecture externe | Testé depuis un clone propre par quelqu'un d'autre | ⬜ TODO |
 
 > **Correction de numérotation** (souvent confondue) : le **Warehouse Copilot** — l'agent analytics borné (`query_marts`, garde-fous, tests d'injection) — est construit en **phase 6**. La « §9 » du plan désigne la *section 9* qui le décrit, pas la phase 9. **Phase 9 = déploiement.** Actions humaines : **phase 1** (comptes API du spike) et **phase 9** (secrets Render).
@@ -183,7 +187,7 @@ Le détail exécutable (modèle de données, formules de confidence, signatures 
 ### 2.5 Conditions minimales avant soumission (§18)
 
 1. Spike phase 1 documenté avec des **chiffres réels** (seule hypothèse non observée).
-2. Mutation check **et** tests d'injection du copilote verts en CI.
+2. Mutation check **et** tests d'injection des outils en lecture seule, partagés par le serveur MCP et le futur copilote, verts en CI.
 3. `docker compose up` + suite d'intégration testés depuis un clone propre **par quelqu'un d'autre**.
 4. URL déployée vivante depuis **au moins une semaine** (pas un deploy de dernière minute).
 5. `docs/ai-workflow.md` avec **≥ 3 sessions réelles** détaillées (pas une reconstitution).
@@ -224,6 +228,86 @@ Le Module 3 enseigne SQLite → **Postgres** (store transactionnel de l'app). Cy
 Coût : +1-2 j, 2 stores. **Zéro € préservé** (Postgres en conteneur compose + **free tier Neon** en prod — voir ADR-009 : le free tier Postgres de Render est limité dans le temps, ce qui casserait la condition §18 « URL déployée vivante depuis au moins une semaine » ; Render héberge l'API, Neon la base). Alternative minimale si le temps manque : DuckDB-only avec multi-env documenté — **passe** le crit 7 (libellé 2026 générique), mais raconte une histoire moins propre. Reco : la séparation, puisque tu es ouverte.
 
 > **Impact phases :** Postgres transactionnel s'ajoute en **phase 4** (backend/persistance) ; l'entrepôt DuckDB reste **phase 2**. **Formalisé par ADR-009** (2026-08-30), qui supersede ADR-008 — celui-ci avait placé sessions/feedback dans DuckDB, faute d'avoir lu cette section. Le durcissement « 2 fichiers DuckDB single-writer » (§2.3) ne concerne plus que l'analytique.
+
+### 2.8 Phases 6, 7 et 10 — minimum pour la grille ou version complète
+
+Chaque phase est découpée en un **minimum pour la grille** (`[rendu]`) et une **version complète**.
+Règle de la version complète : `[rendu]` si elle tient avant le gel du **25 octobre**, sinon
+`[présentable]`. **Arbitrage du 9 octobre 2026 (propriétaire)** : toutes les parties « version
+complète » ci-dessous sont classées `[présentable]`.
+
+**Sources.** Tableau des phases (§2.1), grille (§2.6), plan archivé (`docs/archive/CYCLEBEAT_PLAN_V3.md` :
+§9, §10, §12, §13, §15, §16, §18, E.4), lignes `[rendu]` de ce document, et les arbitrages du propriétaire
+du 9 octobre. Ce que ces sources ne disent pas est marqué **à définir**. Le plan ne chiffre que
+l'ensemble (« 32-40 jours effectifs », §15) : **les efforts ci-dessous viennent de la relecture du
+propriétaire, pas des sources.**
+
+**État du dépôt le 9 octobre 2026 (vérifié).**
+- Phase 6 : rien. Ni `litellm` ni `sqlglot` dans `pyproject.toml`, ni `test_copilot_guards.py`, ni
+  `fct_llm_calls` / `fct_agent_runs` dans dbt.
+- Phase 7 : `CLAUDE.md` et `AGENTS.md` existent, ainsi que 4 sous-agents (`dbt-reviewer`,
+  `ai-workflow-scribe`, `security-auditor`, `contract-guardian`). Il n'y a ni skill, ni hook, ni
+  serveur MCP, ni note de permissions, ni plugin.
+- Phase 10 : rien (`docs/security/` n'existe pas).
+
+#### Phase 6 — Outils en lecture seule (minimum) et couche LLM (complète)
+
+| | Minimum pour la grille — `[rendu]` | Version complète — `[présentable]` |
+|---|---|---|
+| **Éléments** | Une **bibliothèque d'outils en lecture seule sur les marts**, sans LLM :<br>• `query_marts`, rapport qualité, file de revue<br>• garde-fous E.4 qui ne dépendent pas d'un LLM : SELECT unique (sqlglot), liste de tables autorisées, `LIMIT 200`, délai de 5 s<br>• tests d'injection **au niveau SQL**, dans le même commit que les outils (E.4). Répartition des 9 tests de `test_copilot_guards.py` : voir « À confirmer », point 1 | La couche LLM :<br>• LiteLLM + Ollama<br>• CoachingGenerator (RAG sur 3 passages, garde-fous, éval de fidélité sur 10 cas de référence, §9)<br>• évaluations du copilote (10 questions de référence comparées à un SQL indépendant, §9)<br>• `fct_llm_calls` et `fct_agent_runs`, coût par séance mesuré (§10)<br>• boucle d'agent et caps de run (6 appels d'outils, question ≤ 500 caractères, délai de 60 s, budget LiteLLM, E.4)<br>• `explain_track` et `trigger_resolve` (plafond de 10, `confirm=true`, journalisé) avec ses 2 tests<br>• durcissements D (§2.3) : sandbox DuckDB, confirmation hors du canal LLM, injection indirecte |
+| **Effort estimé** (propriétaire) | Outils et serveur MCP ensemble : 2 à 3 jours (comptés avec la phase 7) | Couche LLM : 4 à 5 jours (hors rendu) |
+| **Points de grille** | Aucun critère dédié au copilote dans le §16. Les outils sont le code de l'outil MCP (critère 12) et la cible des tests d'injection de `agent-security.md` (critère 13) | À définir (aucun point supplémentaire documenté). Voir « À confirmer », point 3 |
+| **Valeur en entretien** | Outils bornés en lecture seule, garde-fous testés, **partagés** par le serveur MCP et le futur copilote (§12 : « une seule implémentation, deux consommateurs ») | « Agent borné en lecture, transposable en entreprise » (§9) ; « comment gouvernes-tu tes usages LLM ? » : coût LLM requêtable en SQL (§10) |
+
+#### Phase 7 — Pack d'extension d'agent (critère 12, 2 points)
+
+| | Minimum pour la grille — `[rendu]` | Version complète — `[présentable]` |
+|---|---|---|
+| **Éléments** | Chaque brique utilisée au moins une fois (preuve dans `ai-workflow.md`) :<br>• instructions de projet : fait (`CLAUDE.md`, `AGENTS.md`)<br>• sous-agent : fait (4 existent)<br>• **serveur MCP** réutilisant les outils de la phase 6 (version complète de la brique MCP)<br>• skill `new-mart` : un mart dbt de bout en bout (modèle, `schema.yml`, tests, doc, endpoint)<br>• hook de pré-commit : tests et détection de secrets<br>• notes de permissions | • packaging en **plugin** installable + `docs/agent-pack.md` (permissions, périmètre, sécurité) (§12) |
+| **Effort estimé** (propriétaire) | Serveur MCP : compté avec la phase 6. Skill, hook et permissions : 1 à 1,5 jour | À définir |
+| **Points de grille** | 2 (critère 12, §16) | 0 de plus d'après la liste de 6 briques du §2.6, qui atteint déjà le plafond de 2 points. À confirmer : le texte officiel de la grille n'est pas dans le dépôt |
+| **Valeur en entretien** | « La symétrie copilote produit / MCP de développement est l'idée forte du projet » (§12), ici avec les outils partagés et un copilote futur | À définir |
+
+Le hook du plan (§12) vérifiait aussi la divergence de `openapi.yaml` ; cette vérification n'est pas
+dans la liste retenue (elle tourne déjà en CI via `make contract`).
+
+#### Phase 10 — Sécurité, audit, DevOps (critère 13, 2 points)
+
+| | Minimum pour la grille — `[rendu]` | Version complète — `[présentable]` |
+|---|---|---|
+| **Éléments** | Les 5 artefacts du critère 13 :<br>• **audits de PR produits par le sous-agent `security-auditor`**. PR-Agent est écarté : d'après la relecture du propriétaire, il exige une clé LLM payante, contraire au coût zéro (E.8) ; non revérifié ici. Le nombre de rapports est à définir<br>• **Semgrep en CI**<br>• `docs/security/agent-security.md` : surface d'attaque du serveur MCP et des outils en lecture seule, tests d'injection<br>• diagnostic d'un incident compose réel<br>• `docs/security/ai-policy.md` | • scan Snyk en plus de Semgrep (§13)<br>• K8sGPT sur un cluster kind jetable (optionnel dans le plan)<br>• PR-Agent, tant qu'il reste incompatible avec le coût zéro : à définir<br>• hors périmètre : la pile OTel/Loki/Tempo/Grafana complète (« le minimum qui max le critère 13, pas une plateforme d'observabilité », §2.6) |
+| **Effort estimé** (propriétaire) | 1,5 à 2 jours | À définir |
+| **Points de grille** | 2 (critère 13, §16) | 0 de plus : les 5 artefacts atteignent déjà le plafond (§2.6) |
+| **Valeur en entretien** | À définir | À définir |
+
+Dépendance : le diagnostic d'incident compose demande la phase 8 (`docker compose` complet).
+
+#### Efforts du reste du chemin `[rendu]` (relecture du propriétaire, pas des sources)
+
+| Bloc | Effort |
+|---|---|
+| Compose et intégration (phase 8) | 2 à 3 jours |
+| Outils en lecture seule et serveur MCP (phases 6 et 7) | 2 à 3 jours |
+| Skill, hook et permissions (phase 7) | 1 à 1,5 jour |
+| Sécurité et audit (phase 10) | 1,5 à 2 jours |
+| README, démo, relecture (phase 11) | 1 jour |
+| **Total `[rendu]`** (somme des bornes ci-dessus) | **7,5 à 10,5 jours** |
+| Couche LLM (phase 6, complète) | 4 à 5 jours, hors rendu |
+
+#### À confirmer
+
+1. **Répartition des 9 tests de garde-fous (E.4 est normatif : à valider).** Proposition. Dans le
+   `[rendu]`, les 6 tests qui ne passent pas par un LLM : `rejects_multi_statement`,
+   `rejects_non_select`, `rejects_table_outside_allowlist`, `limit_injected_when_absent`,
+   `legit_question_with_delete_word_passes` (adapté en SQL : un SELECT contenant « delete » n'est pas
+   bloqué) et `rejects_prompt_injection_drop` (adapté en SQL : une instruction `DROP TABLE` est
+   rejetée). Dans le `[présentable]`, les 3 qui demandent la boucle d'agent ou `trigger_resolve` :
+   `max_tool_calls_cap`, `trigger_resolve_requires_confirm`, `trigger_resolve_caps_track_list`. Les
+   deux adaptations changent l'entrée de deux tests normatifs du plan.
+2. **Hook** : la vérification de divergence d'`openapi.yaml` du plan n'est pas reprise.
+3. **Critères 8, 9 et 14.** Le §16 les relie à `litellm` et `ollama` (compose complet, parcours
+   `copilot/ask`, démo sans clé). Avec la couche LLM en `[présentable]`, ces trois critères se jugent
+   sans elle. À confirmer sur le texte officiel de la grille, absent du dépôt.
 
 ---
 

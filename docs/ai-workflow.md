@@ -1,5 +1,17 @@
 # AI workflow log
 
+## Session 2026-10-09 — Phase 9 (early) — First real run of the `deploy` job on main
+
+**Loop**: owner merged PR #30 → observed the run → asked for the facts to be documented → roadmap and entry edit → link check
+**Tool/model**: Claude Code / Sonnet 5.5
+**Initial prompt**: (owner) record the first real `deploy` run, set the roadmap row to done, add a `[presentable]` line about mypy and `tools/`, and check whether the README still says "manual".
+**Notable iterations**: facts reported by the owner, not re-measured by the agent. PR #30 (`ci/deploy-job`) was merged as a50a137. The first real execution of the `deploy` job on main was green, in 1 min 4 s. The API and site deploy hooks were triggered for a50a137 (the merge commit); the deploy statuses went from build_in_progress / update_in_progress to live for both services. The four smoke checks passed (health, generate, cors, web). No secret appeared in the logs. This closes the open item of the previous entry: the trigger/wait path, tested only against fakes, is now confirmed against the real Render API for this run. NOT covered by this run: a failed deploy, the `workflow_dispatch` re-run, a queued run on main, a cold-start smoke test (the API was awake, not measured). Changes in this PR (docs only): roadmap row "Frontend en ligne et deploiement automatique" set to done with a50a137; new `[presentable]` roadmap line "include `tools/` in the mypy check" (mypy covers `api/` only, pyproject `files = ["api"]`); the README had no "still manual" wording to remove (only the roadmap did).
+**Corrected by human review**: no correction in this session.
+**Role split**: written by the agent: the docs / done by the human: ran and observed the deploy.
+**Verification**: `tools.check_links` 0 dead links; nothing else run.
+**Lesson**: none new.
+**To capitalize in CLAUDE.md**: nothing.
+
 ## Session 2026-10-09 — Phase 9 (early) — ci/deploy-job: GitHub Actions deploys to Render, then smoke-tests production
 
 **Loop**: plan shown before code → owner validated with 3 answers → hook tests by hand → edit → run → test → diff → review
