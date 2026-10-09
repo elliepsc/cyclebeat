@@ -226,6 +226,37 @@ while being the only named pointer to a tree whose files were later removed on `
 
 ---
 
+## Deployment
+
+Render deploys nothing by itself (`autoDeployTrigger: off` in `render.yaml`). The `deploy` job of
+`.github/workflows/ci.yml` runs on `main` only, after the `build` and `frontend` jobs are green,
+and does this through `tools/deploy.py`:
+
+1. triggers the deploy hook of the API and of the site for the exact commit (`ref=<sha>`);
+2. polls the Render API every 15 s, up to 20 min, until each deploy is `live` on that commit;
+3. smoke-tests production: `/health`, a real `POST /v1/sessions/generate` (demo source, one test
+   session per deploy), the CORS preflight from the site, and the site itself.
+
+A failed deploy job leaves the new version live: there is no automatic rollback. Re-run it from the
+Actions tab (**Run workflow** on `main`) once the cause is fixed. To run only the smoke test
+against production, from any checkout, with no secret:
+
+```bash
+API_URL=https://cyclebeat-api.onrender.com WEB_URL=https://cyclebeat-web.onrender.com   python -m tools.deploy --smoke-only
+```
+
+**GitHub environment `production`** (limited to `main`, no required reviewer):
+
+| Kind | Name | Content |
+|---|---|---|
+| Secret | `RENDER_API_KEY` | Render API key |
+| Secret | `RENDER_DEPLOY_HOOK_API`, `RENDER_DEPLOY_HOOK_WEB` | deploy hook URLs (they contain a key: regenerate a hook if one leaks) |
+| Variable | `RENDER_API_SERVICE_ID`, `RENDER_WEB_SERVICE_ID` | Render service ids (`srv-...`) |
+| Variable | `API_URL`, `WEB_URL` | public URLs of the API and the site |
+
+`render.yaml` owns the services' settings. A service's **Manual Deploy** does not re-read it; the
+Blueprint's **Manual sync** does, and is what applies a changed value or creates a service.
+
 ## Troubleshooting
 
 ### `make dbt` fails on a staging model the code does not explain

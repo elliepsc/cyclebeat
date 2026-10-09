@@ -1,21 +1,26 @@
 name: CI
 
-# lint + typecheck + unit tests + evals + contract + dbt build.
-# Integration tests and the deploy step are added by phases 8 and 9.
+# lint + typecheck + unit tests + evals + contract + dbt build, the frontend job, and the
+# deploy job (main only, after every test job is green). Integration tests are phase 8.
 
 on:
   push:
     branches: ["**"]
   pull_request:
     branches: [main]
+  # Re-run the deployment of main without a new commit (e.g. after a failed deploy job).
+  # The `deploy` job below still only runs on refs/heads/main.
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-# Zero cost (E.8): a new push cancels the superseded run instead of paying for it.
+# Zero cost (E.8): a new push cancels the superseded run instead of paying for it -- except on
+# main, where cancelling could cut a run that is waiting for Render to finish a deploy. There
+# the next run queues behind it (GitHub keeps only the newest queued run per group).
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   build:
@@ -133,3 +138,41 @@ jobs:
       # Type-checks (tsc strict) then bundles.
       - name: Build
         run: npm run build
+
+  # Deployment (ci/deploy-job). Render deploys nothing by itself (autoDeployTrigger: off in
+  # render.yaml): this job triggers the two deploy hooks for the commit that just passed,
+  # waits until Render reports each deploy live on that commit, then smoke-tests production.
+  # Push and manual runs only, and only on main: never a pull request, never another branch.
+  deploy:
+    needs: [build, frontend]
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # Secrets and variables live in the GitHub environment `production` (limited to main).
+    environment: production
+    # Two deploys never overlap, and a queued one is never cancelled mid-flight.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    # 20 min waiting for the slower deploy + 5 min of smoke test, with margin.
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      # tools/deploy.py uses the standard library only: no dependency to install. It reads
+      # GITHUB_SHA (set by the runner: the commit being deployed). The secrets and variables
+      # are passed to this step alone, and the script never prints a URL or a key.
+      - name: Deploy to Render and smoke-test
+        run: python -m tools.deploy
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_DEPLOY_HOOK_API: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
+          RENDER_DEPLOY_HOOK_WEB: ${{ secrets.RENDER_DEPLOY_HOOK_WEB }}
+          RENDER_API_SERVICE_ID: ${{ vars.RENDER_API_SERVICE_ID }}
+          RENDER_WEB_SERVICE_ID: ${{ vars.RENDER_WEB_SERVICE_ID }}
+          API_URL: ${{ vars.API_URL }}
+          WEB_URL: ${{ vars.WEB_URL }}

@@ -16,6 +16,8 @@ own evaluator, and a contract-first API.
 > (`GET /health`, `POST /v1/sessions/generate` with the demo source). It runs on Render's free
 > tier on a demo database baked into the image, which resets on every deploy ([ADR-003](docs/adr/adr-003-render-no-disk.md)); the free tier
 > also spins down when idle, so the first request after a pause can be slow.
+>
+> CI and deployment run in GitHub Actions; Render deploys only on the pipeline's order, after green tests.
 
 ---
 
