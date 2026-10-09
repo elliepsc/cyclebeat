@@ -38,7 +38,7 @@ présentable ; + `[production]` = prêt pour un vrai système.
 | API déployée sur Render, base de démo construite dans l'image | ✅ |
 | URL de l'API et documentation interactive (`/docs`) ajoutées au README | ✅ |
 | Frontend minimal (phase 5) : client généré, 2 écrans, vitest, CORS, job CI | ✅ (PR #27 mergée ; test navigateur du propriétaire, voir `docs/ai-workflow.md`) |
-| Frontend en ligne, déploiement piloté par GitHub Actions après CI verte (`autoDeployTrigger: off` + deploy hooks, branche `ci/deploy-job`) | ⬜ |
+| Frontend en ligne (https://cyclebeat-web.onrender.com) | ✅ — le déploiement est encore **manuel** en attendant `ci/deploy-job` (GitHub Actions après CI verte, `autoDeployTrigger: off` + deploy hooks), qui reste ⬜ |
 | `docker compose` complet et tests d'intégration | ⬜ |
 | Critère 12 : un skill, un hook, un outil MCP, note sur les permissions | ⬜ |
 | Critère 13 : audit de PR, scan Semgrep ou Bandit en CI, notes de sécurité agent, diagnostic opérationnel, politique IA | ⬜ |
@@ -59,11 +59,14 @@ présentable ; + `[production]` = prêt pour un vrai système.
 | Image en deux étapes (l'image de démo pèse 911 Mo : `build-essential` et le cache de build restent dans l'image finale), utilisateur non root (l'image tourne en root ; droits en écriture limités au dossier de la base SQLite) | ⬜ |
 | GIF de démo, test depuis un clone propre par une autre personne | ⬜ |
 | Récit d'entretien : décisions prises contre l'avis de l'agent | ⬜ |
+| Marquer ou exclure les séances de test avant de brancher une base persistante (le test après déploiement crée une séance par déploiement) | ⬜ |
 
 ### `[production]` — sans date
 - « Idée 2 » : lecteur YouTube intégré, table d'observations de BPM, tap tempo, micro, puis
-  Spotify « en cours de lecture ». ADR-011 de conception d'abord, après le tag `v1.0-submission`.
-  - Séquences dans la chanson (ADR-011 à écrire après le rendu). Décisions de produit, à valider :
+  Spotify « en cours de lecture ». ADR à écrire après le rendu (lecture, identité, observations de
+  BPM), après le tag `v1.0-submission`.
+  - Séquences dans la chanson (ADR à écrire après le rendu, distinct de celui de l'idée 2 : règles
+    de cadence et de résistance). Décisions de produit, à valider :
     - Chaque chanson est découpée en sections (intro, couplets, refrains, pont, fin). La première
       chanson de la séance est un échauffement calme.
     - Cadence de la section = BPM de la section × multiplicateur (1 ou ½), dans une plage de
