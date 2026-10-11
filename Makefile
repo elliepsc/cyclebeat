@@ -36,8 +36,38 @@ contract:
 test-unit:
 	$(RUN) pytest
 
+# Phase 8 (criterion 9): black-box HTTP tests against the full compose stack, run as its OWN
+# compose project so it can neither collide with nor wipe the developer's `cyclebeat` stack
+# (the final `down -v` removes this project's volumes only).
+#   1. build and start api + web + postgres, wait until all three are healthy (bounded);
+#   2. run tests/integration (addopts overridden: the default one ignores that directory);
+#   3. on failure, dump `ps` and the logs; ALWAYS tear down; exit with the tests' status.
+# Ports: 8000 / 4173 by default, override with CYCLEBEAT_API_PORT / CYCLEBEAT_WEB_PORT. They
+# are exported to the tests too, so the URLs they target match what compose published.
+# Passed per command, never `export`ed: a global export would also pin the ports of
+# `compose-up`, and tools/compose_ports.py never probes a variable that is already set.
+IT_PROJECT := cyclebeat-it
+IT_API_PORT ?= $(or $(CYCLEBEAT_API_PORT),8000)
+IT_WEB_PORT ?= $(or $(CYCLEBEAT_WEB_PORT),4173)
+IT_ENV = CYCLEBEAT_API_PORT=$(IT_API_PORT) CYCLEBEAT_WEB_PORT=$(IT_WEB_PORT)
+IT_COMPOSE = $(IT_ENV) docker compose -p $(IT_PROJECT)
+IT_WAIT_S ?= 300
+
 test-integration:
-	@echo "No integration test suite is defined yet." && exit 1
+	@rc=0; \
+	$(IT_COMPOSE) up --build --wait --wait-timeout $(IT_WAIT_S) || rc=$$?; \
+	if [ $$rc -eq 0 ]; then \
+		$(IT_ENV) \
+		CYCLEBEAT_IT_API_URL=http://localhost:$(IT_API_PORT) \
+		CYCLEBEAT_IT_WEB_URL=http://localhost:$(IT_WEB_PORT) \
+		$(RUN) pytest -o addopts="" -q -m integration tests/integration || rc=$$?; \
+	fi; \
+	if [ $$rc -ne 0 ]; then \
+		$(IT_COMPOSE) ps -a; \
+		$(IT_COMPOSE) logs --no-color --tail=200; \
+	fi; \
+	$(IT_COMPOSE) down -v --remove-orphans; \
+	exit $$rc
 
 dbt:
 	$(DBT) build --project-dir dbt --profiles-dir dbt

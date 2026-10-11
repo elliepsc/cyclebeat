@@ -93,7 +93,13 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+# tests/integration/ drives a running compose stack (phase 8) and is NOT part of
+# `make test-unit`: ignored at collection, so a unit run never even imports it. Run it with
+# `make test-integration`, which overrides addopts.
+addopts = "-q --ignore=tests/integration"
+markers = [
+    "integration: black-box HTTP test against the compose stack (make test-integration)",
+]
 # The repo is still a set of top-level modules (api/, db/, ingest/), not an
 # installed package, so the project root has to be importable from the tests.
 pythonpath = ["."]
