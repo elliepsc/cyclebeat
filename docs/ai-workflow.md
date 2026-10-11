@@ -16,6 +16,8 @@
 **Left open, not fixed**: `ghcr.io/astral-sh/uv:latest` unpinned at `Dockerfile:12` (separate PR); the `readable()` empty-DB fallback, recorded in ROADMAP `[présentable]`.
 **Lesson**: a persistence test that only restarts the container proves nothing about the database: the writable layer survives a restart, so a local-file fallback passes. Recreate the container. Also, a liveness `/health` stays green while the database is down; the business endpoints are what fail.
 **To capitalize in CLAUDE.md** (proposal, for the owner to apply): under "Known pitfalls": "A persistence test must recreate the container (`up -d --no-deps --force-recreate <svc>`), not restart it: a restart keeps the writable layer, so a local-file fallback (SQLite) passes it."
+**Note 2026-10-11 (after the review)**: the CLAUDE.md line above is no longer a proposal: it is applied under "Known pitfalls" in commit 248a9d1.
+**Note 2026-10-11 (owner, before merging PR #35)**: the browser test of the compose front was done by the owner on 2026-10-11: a session generated from http://localhost:4173, the request to `localhost:8000` answered 200, with no CORS error and no call to `onrender.com`.
 
 ## Session 2026-10-09 — Docs — Migration to a WSL-only checkout, workarounds removed
 

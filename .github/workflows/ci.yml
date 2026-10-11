@@ -53,6 +53,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
+          version: "0.13.0"
           enable-cache: true
           cache-dependency-glob: uv.lock
 
@@ -155,6 +156,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
+          version: "0.13.0"
           enable-cache: true
           cache-dependency-glob: uv.lock
 

@@ -104,3 +104,9 @@ URL must be live for at least a week before submission. §2.7 is corrected in th
   contract), E.3 (the session endpoints), E.8 (zero cost), §15 phases 4, 8 and 9.
 - `docs/adr/adr-008-session-persistence.md` (superseded).
 - `docs/adr/adr-003-render-no-disk.md` (no persistent disk in production).
+
+Note (2026-10-11): decision 4 ("Production = Neon free tier") is not what runs. The owner
+checked the Render dashboard on 2026-10-11: `DATABASE_URL` is absent on `cyclebeat-api`, so
+production stores sessions and feedback in SQLite inside the container, and they are lost on
+every redeploy, restart or free-tier spin-down (Render's filesystem is ephemeral:
+https://render.com/docs/free). Postgres is the store under compose and in CI only.
