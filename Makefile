@@ -18,7 +18,7 @@ lock:
 # `dags/` joined it in phase 2 — same reason.
 lint:
 	$(RUN) ruff check api cyclebeat dags db ingest evals tests tools catalogue_fixtures.py \
-		mcp-server
+		mcp-server agent-hooks
 	$(RUN) python -m tools.check_links
 
 # Gating since phase 4. It was red only on the v1 `api/main.py`, which the contract-first
