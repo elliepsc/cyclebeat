@@ -185,8 +185,8 @@ while being the only named pointer to a tree whose files were later removed on `
 ## Deployment
 
 Render deploys nothing by itself (`autoDeployTrigger: off` in `render.yaml`). The `deploy` job of
-`.github/workflows/ci.yml` runs on `main` only, after the `build` and `frontend` jobs are green,
-and does this through `tools/deploy.py`:
+`.github/workflows/ci.yml` runs on `main` only, after the `build`, `frontend` and `integration`
+jobs are green, and does this through `tools/deploy.py`:
 
 1. triggers the deploy hook of the API and of the site for the exact commit (`ref=<sha>`);
 2. polls the Render API every 15 s, up to 20 min, until each deploy is `live` on that commit;
