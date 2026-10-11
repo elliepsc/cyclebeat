@@ -1,6 +1,6 @@
 ---
 name: contract-guardian
-description: OPTIONAL — checks that a diff touching openapi.yaml or api/ respects contract-first (prohibited by E.0.5) — contract, backend and front client updated in the same PR, E.3 normative shapes respected. Invoke on PRs of phases 4-5. Mechanical divergence is already covered by schemathesis in CI; this agent does the pre-CI semantic check.
+description: Reviews every diff touching openapi.yaml or api/ — contract-first (prohibited by E.0.5) — contract, backend and front client updated in the same PR, E.3 normative shapes respected. Mechanical divergence is already covered by schemathesis in CI; this agent does the pre-CI semantic check.
 tools: Read, Grep, Glob, Bash
 ---
 
