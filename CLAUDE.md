@@ -123,3 +123,5 @@ first.
 - When a phase exit criterion is a `grep` for forbidden names, the assertion tests are the only place
   those names may appear.
 - Phases 1 and 9 contain human actions: prepare, document, stop — never simulate a result.
+- A persistence test must recreate the container (`up -d --no-deps --force-recreate <svc>`), not
+  restart it: a restart keeps the writable layer, so a local-file fallback (SQLite) passes it.

@@ -1,7 +1,8 @@
 name: CI
 
-# lint + typecheck + unit tests + evals + contract + dbt build, the frontend job, and the
-# deploy job (main only, after every test job is green). Integration tests are phase 8.
+# lint + typecheck + unit tests + evals + contract + dbt build, the frontend job, the
+# integration job (the compose stack, black-box HTTP), and the deploy job (main only, after
+# every test job is green).
 
 on:
   push:
@@ -139,12 +140,37 @@ jobs:
       - name: Build
         run: npm run build
 
+  # Integration (phase 8, criterion 9). Builds and starts the full compose stack (api, web,
+  # postgres) as its own project, runs tests/integration against it over HTTP, then tears it
+  # down -- the very command a reviewer runs locally: `make test-integration`. On failure the
+  # target prints `docker compose ps` and the service logs before the teardown.
+  # No image cache yet: the duration is measured first (phase-8 decision).
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      # pytest and requests, from the lock. The stack itself is built from the Dockerfiles.
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Integration tests against the compose stack
+        run: make test-integration
+
   # Deployment (ci/deploy-job). Render deploys nothing by itself (autoDeployTrigger: off in
   # render.yaml): this job triggers the two deploy hooks for the commit that just passed,
   # waits until Render reports each deploy live on that commit, then smoke-tests production.
   # Push and manual runs only, and only on main: never a pull request, never another branch.
   deploy:
-    needs: [build, frontend]
+    needs: [build, frontend, integration]
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     # Secrets and variables live in the GitHub environment `production` (limited to main).

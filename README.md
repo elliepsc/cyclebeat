@@ -78,14 +78,88 @@ Every check below runs in CI on every push. Counts are in each PR description, n
 | Check | Command | What it covers |
 |---|---|---|
 | Lint, strict typing, dead links | `make lint` · `make typecheck` | ruff, strict mypy, relative Markdown links |
-| Unit tests | `make test-unit` | everything under `tests/`, including the API contract suite |
+| Unit tests | `make test-unit` | everything under `tests/` except `tests/integration/`, including the API contract suite |
 | Evals | `make eval` | adversarial playlists and the planner **mutation check** |
 | dbt models and data tests | `make dbt` | staging → intermediate → marts, and the data tests |
 | API contract | `make contract` | `openapi.yaml` vs the schema FastAPI generates, plus schemathesis against the real app |
+| Integration (end to end) | `make test-integration` | the compose stack (api, web, postgres) driven over HTTP — see [End-to-end tests](#end-to-end-tests) |
 
 ## Run it locally
 
-Requires [uv](https://docs.astral.sh/uv/). Docker is only needed for the full stack below.
+### The full system, one command (Docker)
+
+Requires Docker with Compose v2 (on Windows: Docker Desktop with WSL integration, see
+[CONTRIBUTING.md](CONTRIBUTING.md)). No `.env` to fill in, no key, no network at run time.
+
+```bash
+git clone https://github.com/elliepsc/cyclebeat.git && cd cyclebeat
+docker compose up --build
+```
+
+| Service | URL | What it is |
+|---|---|---|
+| `web` | <http://localhost:4173> | the React app (nginx), built against the compose API |
+| `api` | <http://localhost:8000> — docs at `/docs` | FastAPI, serving the demo warehouse baked into its image |
+| `postgres` | not published (`docker compose exec postgres psql -U cyclebeat`) | sessions and feedback |
+
+Each service has a healthcheck, and starts only once the one it depends on is healthy
+(`postgres` → `api` → `web`); `docker compose ps` shows `(healthy)` on all three when ready.
+Open <http://localhost:4173>, pick a level, a goal and a duration, and generate a session.
+Stop with `Ctrl+C`, then `docker compose down -v` to drop the Postgres volume too.
+
+- **Observed on the maintainer's machine** (WSL2, Docker 27.5, base images already pulled):
+  building both images without cache took 70 s, and the three services were healthy about
+  22 s after `up`. A first run also downloads the base images (Python, Node, nginx,
+  Postgres), which depends on your connection.
+- **Ports.** 8000 and 4173 by default. If one is taken, pin another and rebuild — the web
+  bundle bakes the API URL in at build time, and the API's CORS list follows the same
+  variables: `CYCLEBEAT_API_PORT=9000 CYCLEBEAT_WEB_PORT=5000 docker compose up --build`.
+  `make compose-up` picks free ports for you and prints them.
+- **Open the app at `localhost` or `127.0.0.1`**: both origins are allowed by CORS.
+- **Values in `docker-compose.yml` are local defaults, not secrets** (the Postgres password
+  opens a container with no published port). Production uses none of them.
+
+**Deliberately outside the default stack.** The data pipeline (ingest → lake → DuckDB → dbt)
+and its Airflow orchestrator are not needed to run the app: the API image builds the demo
+warehouse itself, from versioned files only ([ADR-003](docs/adr/adr-003-render-no-disk.md)).
+They also **write to your working copy's `data/` and `lake/`** (bind mounts), which the default
+stack never does. They are opt-in compose profiles:
+
+```bash
+docker compose --profile pipeline up --build     # ingest + dbt, then Airflow on :8080
+docker compose --profile monitoring up --build   # Prometheus on :9090, Grafana on :3000
+```
+
+### End-to-end tests
+
+`tests/integration/` is a black-box suite: it only talks HTTP to a running compose stack, and
+is kept out of `make test-unit`. One command builds the stack, waits until all three services
+are healthy (bounded wait), runs the suite, prints the service logs on failure, and always
+tears everything down, volumes included:
+
+```bash
+make setup              # once: installs pytest from uv.lock
+make test-integration   # non-zero exit status if anything fails
+```
+
+- It runs as its own compose project, `cyclebeat-it`, so it neither collides with nor wipes a
+  stack you already have running (it does need ports 8000 and 4173 free, or
+  `make test-integration IT_API_PORT=… IT_WEB_PORT=…`).
+- Covered: health; generate a demo session, replay it, find it in the list, rate it (and a
+  404 on an unknown session); the two data-quality reads; the web bundle points at the compose
+  API; CORS lets the web origin in and keeps a foreign one out; and a session survives a
+  recreate of the API container, which only holds because it lives in Postgres.
+- **A missing stack fails, it never skips.** The suite only accepts `localhost`, `127.0.0.1`
+  or `::1` as a target and refuses any other URL before the first request, so it can never
+  run against the public deployment.
+- Observed from a fresh clone (images already built, so no compile): 13 tests passed, 35 s for
+  the whole command, 8.8 s of it in pytest. CI runs the same command in the `integration`
+  job, and the deployment waits for it; its first run, building both images from scratch,
+  took 1 min 11 s ([run 38151120398](https://github.com/elliepsc/cyclebeat/actions/runs/38151120398)).
+
+### Without Docker
+
+Requires [uv](https://docs.astral.sh/uv/).
 
 ```bash
 make setup      # installs the exact pinned environment (uv.lock)
@@ -109,7 +183,8 @@ make front-gen    # regenerate the TypeScript client from openapi.yaml
 - `frontend/src/api/schema.d.ts` is generated from `openapi.yaml`, never edited by hand: CI
   regenerates it and fails if the committed file differs.
 
-Full stack with Airflow and monitoring: `make compose-pipeline`.
+Docker variants: `make compose-up` (the full system, free ports picked for you),
+`make compose-pipeline` (plus ingest, dbt and Airflow), `make compose-monitoring`.
 WSL setup and the branch/PR workflow: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## API

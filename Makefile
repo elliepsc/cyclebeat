@@ -1,4 +1,4 @@
-.PHONY: setup lock lint typecheck contract test-unit test-integration dbt ingest ingest-live confidence-report airflow api front front-test front-gen eval audit compose-ports compose-up compose-pipeline compose-build compose-down
+.PHONY: setup lock lint typecheck contract test-unit test-integration dbt ingest ingest-live confidence-report airflow api front front-test front-gen eval audit compose-ports compose-up compose-monitoring compose-pipeline compose-build compose-down
 
 # Everything runs through uv: it provisions the Python 3.11 toolchain itself
 # (see .python-version) and resolves from uv.lock, so no global pip is involved.
@@ -36,8 +36,38 @@ contract:
 test-unit:
 	$(RUN) pytest
 
+# Phase 8 (criterion 9): black-box HTTP tests against the full compose stack, run as its OWN
+# compose project so it can neither collide with nor wipe the developer's `cyclebeat` stack
+# (the final `down -v` removes this project's volumes only).
+#   1. build and start api + web + postgres, wait until all three are healthy (bounded);
+#   2. run tests/integration (addopts overridden: the default one ignores that directory);
+#   3. on failure, dump `ps` and the logs; ALWAYS tear down; exit with the tests' status.
+# Ports: 8000 / 4173 by default, override with CYCLEBEAT_API_PORT / CYCLEBEAT_WEB_PORT. They
+# are exported to the tests too, so the URLs they target match what compose published.
+# Passed per command, never `export`ed: a global export would also pin the ports of
+# `compose-up`, and tools/compose_ports.py never probes a variable that is already set.
+IT_PROJECT := cyclebeat-it
+IT_API_PORT ?= $(or $(CYCLEBEAT_API_PORT),8000)
+IT_WEB_PORT ?= $(or $(CYCLEBEAT_WEB_PORT),4173)
+IT_ENV = CYCLEBEAT_API_PORT=$(IT_API_PORT) CYCLEBEAT_WEB_PORT=$(IT_WEB_PORT)
+IT_COMPOSE = $(IT_ENV) docker compose -p $(IT_PROJECT)
+IT_WAIT_S ?= 300
+
 test-integration:
-	@echo "No integration test suite is defined yet." && exit 1
+	@rc=0; \
+	$(IT_COMPOSE) up --build --wait --wait-timeout $(IT_WAIT_S) || rc=$$?; \
+	if [ $$rc -eq 0 ]; then \
+		$(IT_ENV) \
+		CYCLEBEAT_IT_API_URL=http://localhost:$(IT_API_PORT) \
+		CYCLEBEAT_IT_WEB_URL=http://localhost:$(IT_WEB_PORT) \
+		$(RUN) pytest -o addopts="" -q -m integration tests/integration || rc=$$?; \
+	fi; \
+	if [ $$rc -ne 0 ]; then \
+		$(IT_COMPOSE) ps -a; \
+		$(IT_COMPOSE) logs --no-color --tail=200; \
+	fi; \
+	$(IT_COMPOSE) down -v --remove-orphans; \
+	exit $$rc
 
 dbt:
 	$(DBT) build --project-dir dbt --profiles-dir dbt
@@ -67,7 +97,7 @@ confidence-report:
 	$(RUN) python -m cyclebeat.cli confidence-report
 
 # ── Docker Compose ───────────────────────────────────────────────────────────
-# Each service keeps its conventional host port (8000 / 8080 / 9090 / 3000). When
+# Each service keeps its conventional host port (8000 / 4173 / 8080 / 9090 / 3000). When
 # another local stack already holds one, tools/compose_ports.py steps up to the
 # next free port rather than letting the whole `up` die on `port is already
 # allocated` -- and prints the URLs it settled on. Pin one by hand any time with
@@ -82,11 +112,17 @@ PORTS ?= $(PY) -m tools.compose_ports
 compose-ports:
 	$(PORTS)
 
-# API stack only (ingest -> dbt -> api -> prometheus -> grafana).
+# The full system: postgres -> api -> web, each waited on through its healthcheck.
+# `--build` because the web bundle bakes in the API URL: a port change needs a rebuild.
 compose-up:
-	$(PORTS) docker compose up -d
+	$(PORTS) docker compose up -d --build
 
-# ... plus the Airflow orchestrator (E.5 check: the 3 DAGs green in the UI).
+# ... plus Prometheus + Grafana (profile `monitoring`).
+compose-monitoring:
+	$(PORTS) docker compose --profile monitoring up -d --build
+
+# ... plus ingest + dbt (one-shot) and the Airflow orchestrator (E.5 check: the 3 DAGs green
+# in the UI). Profile `pipeline`: these services WRITE the host's data/ and lake/.
 compose-pipeline:
 	$(PORTS) docker compose --profile pipeline up -d
 
@@ -104,7 +140,7 @@ compose-build:
 	$(PORTS) docker compose --profile pipeline up -d --build
 
 compose-down:
-	docker compose --profile pipeline down --remove-orphans
+	docker compose --profile pipeline --profile monitoring down --remove-orphans
 
 api:
 	$(RUN) uvicorn api.main:app --host 0.0.0.0 --port 8000

@@ -46,3 +46,13 @@ The decision stands; two details differ from what the ADR implied.
 - **Compose is unchanged and shadows the baked database.** `docker-compose.yml` bind-mounts
   `./data` over `/app/data`, so under compose the API reads the host's database, not the one in
   the image. The baked database is what Render serves.
+
+## Implementation note — 2026-10-11 (phase 8)
+
+The decision stands. The last bullet of the note above no longer holds: `docker-compose.yml` no
+longer bind-mounts `./data` on the `api` service, so **under compose the API serves the database
+baked into its image**, the same one Render serves. The services that write the host's `data/`
+and `lake/` (ingest, dbt, Airflow) moved to the opt-in `pipeline` profile; a plain
+`docker compose up` starts `postgres`, `api` and `web` only. The integration suite
+(`make test-integration`) generates a demo session against that baked database, which is the
+business check `/health` alone cannot make.
