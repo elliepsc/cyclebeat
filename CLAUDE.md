@@ -86,6 +86,9 @@ question ≤ 500 chars, 60 s timeout, LiteLLM budget per caller. The 9 tests of 
 
 ## Conventions
 
+Development is WSL2 (Ubuntu) only, with the clone on the Linux filesystem (`~/projets/cyclebeat`,
+never `/mnt/c`); setup (uv, nvm + `frontend/.nvmrc`, make, Docker Desktop WSL integration) is in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 Python 3.11+, uv + pyproject, ruff everywhere, mypy strict on `api/`. Front: pnpm/npm locked.
 Makefile targets: setup, ingest, dbt, api, front, test-unit, test-integration, eval, audit, lint,
 typecheck, contract. Pydantic v2 everywhere, no FastAPI import outside `api/`. Code, identifiers,
@@ -119,5 +122,4 @@ first.
   `make test-unit` — lint does not catch a break at package-import time.
 - When a phase exit criterion is a `grep` for forbidden names, the assertion tests are the only place
   those names may appear.
-- No non-ASCII in the stdout of anything a Makefile target runs: the Windows console is cp1252.
 - Phases 1 and 9 contain human actions: prepare, document, stop — never simulate a result.

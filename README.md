@@ -95,8 +95,7 @@ make api        # API on http://localhost:8000 — docs at /docs
 ```
 
 Frontend (React + Vite, in `frontend/`). It needs the Node version pinned in
-`frontend/.nvmrc`, and `make api` running in another terminal. Run it from one OS only
-(Windows or WSL): `node_modules` holds native binaries specific to the OS that installed it.
+`frontend/.nvmrc`, and `make api` running in another terminal.
 
 ```bash
 make front        # dev server on http://localhost:5173 (installs from the lockfile first)
@@ -111,7 +110,7 @@ make front-gen    # regenerate the TypeScript client from openapi.yaml
   regenerates it and fails if the committed file differs.
 
 Full stack with Airflow and monitoring: `make compose-pipeline`.
-Windows/WSL notes and the branch/PR workflow: [CONTRIBUTING.md](CONTRIBUTING.md).
+WSL setup and the branch/PR workflow: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## API
 
