@@ -46,7 +46,7 @@ the four subagents and the MCP server. It is **generated** by `make plugin`
   `${CLAUDE_PROJECT_DIR}` (exec form, https://code.claude.com/docs/en/hooks).
 - **MCP server**: `.mcp.json` has to be at the root; it points at `mcp-server/`. The guards it
   runs are in `api/` because CLAUDE.md only allows SQL in `api/repositories/` and `dbt/`, and
-  because the phase-6 copilot will reuse them ([ADR-012](adr/README.md)).
+  because the phase-6 copilot will reuse them ([ADR-012](adr/adr-012-deterministic-tools-llm-separation.md)).
 - **No `.agents/` folder**: the convention of a folder shared between several assistants, with
   symbolic links into `.claude/`, is not used, because only Claude Code works on this repo and
   symbolic links break on a Windows clone that does not enable them; `AGENTS.md` stays a plain

@@ -7,7 +7,11 @@ The permission notes of the [agent extension pack](agent-extension-pack.md) (cri
 The owner runs Claude Code in **auto mode**: a classifier model reviews actions instead of a
 human approving each prompt. That is a deliberate choice for speed on a solo project. It is only
 acceptable because the rules that matter most are **enforced by code checked into this repo**,
-not only by instructions the agent is asked to follow:
+not only by instructions the agent is asked to follow. The motivating case is public: Alexey
+Grigorev lost a production database, its VPC and its snapshots when an agent he had let run
+Terraform executed `terraform destroy` against a swapped state file, and his own lesson was that
+he "over-relied on the AI agent to run Terraform commands"
+([his post-mortem](https://aishippingblog.com/p/how-i-dropped-our-production-database)).
 
 | Layer | Where | Enforced by |
 |---|---|---|
