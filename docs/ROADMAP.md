@@ -63,6 +63,7 @@ présentable ; + `[production]` = prêt pour un vrai système.
 | Récit d'entretien : décisions prises contre l'avis de l'agent | ⬜ |
 | Marquer ou exclure les séances de test avant de brancher une base persistante (le test après déploiement crée une séance par déploiement) | ⬜ |
 | Inclure `tools/` dans la vérification mypy (aujourd'hui limitée à `api/`) | ⬜ |
+| Base analytique absente : `readable()` (`api/repositories/warehouse.py`) retombe sur une connexion en écriture qui crée une base DuckDB vide, et l'API répond alors 422 `empty_catalogue` à la génération au lieu d'être signalée en mauvaise santé. Relevé en phase 8, non corrigé | ⬜ |
 
 ### `[production]` — sans date
 - « Idée 2 » : lecteur YouTube intégré, table d'observations de BPM, tap tempo, micro, puis
@@ -155,10 +156,10 @@ Correspondance des fichiers hérités (aucun n'est supprimé ; ils sont désorma
 | **5. Frontend** | React/Vite/TS, client généré, 2 écrans, vitest | `npm test` vert ; parcours complet local contre l'API | ✅ DONE — PR #27, test navigateur du propriétaire |
 | **6. LLM & copilote** | LiteLLM + Ollama, CoachingGenerator, **Warehouse Copilot** + outils bornés + éval anti-injection, `fct_llm_calls`/`fct_agent_runs` | Évals coach + copilote vertes en CI (Ollama) ; coût/séance mesuré | ⬜ TODO — découpage `[rendu]` / `[présentable]` : §2.8 |
 | **7. Extension pack** | skill `new-mart`, subagent `dbt-reviewer`, hooks, **serveur MCP** warehouse, packaging plugin | Chaque brique a servi ≥ 1 fois (preuve dans `ai-workflow.md`) | ⬜ TODO — découpage `[rendu]` / `[présentable]` : §2.8 |
-| **8. Intégration & compose** | `tests/integration` contre compose complet (api+front+litellm+ollama) | `docker compose up` sur clone propre + suite intégration verte | ⬜ TODO |
+| **8. Intégration & compose** | `tests/integration` contre compose complet (api + web + postgres ; sans LLM, voir « Résolu le 9 octobre 2026 » en §2.8) | `docker compose up` sur clone propre + suite intégration verte | ⬜ TODO |
 | **9. CI/CD & deploy** | Pipeline complet + deploy Render auto sur main vert *(action humaine : secrets Render)* | URL publique vivante ; un push déclenche test→deploy | ✅ — première exécution réelle verte du job `deploy` sur `a50a137` (tests puis hooks puis `live` puis 4 vérifications). La suite d'intégration reste de la phase 8 |
 | **10. Sécurité & audit** | PR-Agent, Semgrep/Snyk, `agent-security.md`, `ai-policy.md`, diagnostic ops | Les 5 artefacts du §13 committés | ⬜ TODO — découpage `[rendu]` / `[présentable]` : §2.8 |
-| **11. README & démo** | README, GIF démo, finalisation `ai-workflow.md`, relecture externe | Testé depuis un clone propre par quelqu'un d'autre | ⬜ TODO |
+| **11. README & démo** | README, GIF démo, finalisation `ai-workflow.md`, relecture externe ; remise en cohérence de cette roadmap, relevée en phase 8 : §1 et la vue linéaire §5 sont des instantanés d'août périmés, et §2.2 (« phase 7 pendant Module 3 ») contredit le mapping §2.6 (P7 ↔ M5) | Testé depuis un clone propre par quelqu'un d'autre | ⬜ TODO |
 
 > **Correction de numérotation** (souvent confondue) : le **Warehouse Copilot** — l'agent analytics borné (`query_marts`, garde-fous, tests d'injection) — est construit en **phase 6**. La « §9 » du plan désigne la *section 9* qui le décrit, pas la phase 9. **Phase 9 = déploiement.** Actions humaines : **phase 1** (comptes API du spike) et **phase 9** (secrets Render).
 
