@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any
 
+import duckdb
+
 from api.repositories.warehouse import readable, table_exists
+
+Connect = Callable[[Path | None], AbstractContextManager[duckdb.DuckDBPyConnection]]
 
 
 class QualityRepository:
@@ -16,12 +22,15 @@ class QualityRepository:
     than recomputing confidence from `raw.resolutions`.
     """
 
-    def __init__(self, db_path: Path | None = None) -> None:
+    def __init__(self, db_path: Path | None = None, connect: Connect = readable) -> None:
+        # `connect` lets the agent tools reuse these reads through the locked read-only
+        # connection (`readonly_warehouse.locked`) instead of duplicating the SQL.
         self._db_path = db_path
+        self._connect = connect
 
     def coverage(self) -> list[dict[str, Any]]:
         """Rows of `mart_bpm_coverage`, one per BPM source (E.3)."""
-        with readable(self._db_path) as con:
+        with self._connect(self._db_path) as con:
             if not table_exists(con, "mart_bpm_coverage"):
                 return []
             rows = con.execute(
@@ -48,7 +57,7 @@ class QualityRepository:
         own grain here keeps the repository a reader and puts the shape decision in the layer
         that owns it.
         """
-        with readable(self._db_path) as con:
+        with self._connect(self._db_path) as con:
             if not table_exists(con, "mart_data_quality"):
                 return []
             rows = con.execute(
