@@ -10,6 +10,7 @@ CycleBeat is developed on **WSL2 (Ubuntu)** only. Clone it on the Linux filesyst
 (`~/projets/cyclebeat`), never under `/mnt/c`: file access is much faster there, and `make`,
 `uv`, Node and Docker all see one consistent Linux toolchain. The definition of done is
 `make lint && make test-unit` (plus the other targets listed in [CLAUDE.md](CLAUDE.md)).
+For the commands to run at the start of each session, see [docs/runbook-linux.md](docs/runbook-linux.md).
 
 ### Prerequisites
 
