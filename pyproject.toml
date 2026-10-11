@@ -34,7 +34,9 @@ dependencies = [
     # coexist in one environment because the same pytest run imports the DAGs and the API.
     # Range rather than a pin, so the Airflow resolution stays satisfiable.
     "fastapi>=0.115.0,<0.116",
-    "uvicorn==0.30.1",
+    # Bumped from 0.30.1 in phase 7: the MCP SDK (`mcp` group) requires uvicorn >= 0.31.1, and
+    # uv resolves one lock for every group. Smallest version that satisfies it, pinned exactly.
+    "uvicorn==0.31.1",
     "pydantic>=2.7,<3",
     # dbt
     "dbt-duckdb>=1.8.0",
