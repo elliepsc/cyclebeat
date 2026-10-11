@@ -1,7 +1,7 @@
 """Pick the first free host port for each Compose service, then run Compose.
 
-Every service keeps its conventional default (8000 API, 8080 Airflow, 9090
-Prometheus, 3000 Grafana) because that is the port a reader expects. When another
+Every service keeps its conventional default (8000 API, 4173 web, 8080 Airflow,
+9090 Prometheus, 3000 Grafana) because that is the port a reader expects. When another
 local stack already holds one, this steps up to the next free one (9090 -> 9091 ->
 9092 ...) instead of failing the whole `up` with `port is already allocated`.
 
@@ -24,6 +24,7 @@ import sys
 # env var -> (conventional default, human label). Order is the display order.
 SERVICES: dict[str, tuple[int, str]] = {
     "CYCLEBEAT_API_PORT": (8000, "API (FastAPI)"),
+    "CYCLEBEAT_WEB_PORT": (4173, "Web (React)"),
     "CYCLEBEAT_AIRFLOW_PORT": (8080, "Airflow"),
     "CYCLEBEAT_PROMETHEUS_PORT": (9090, "Prometheus"),
     "CYCLEBEAT_GRAFANA_PORT": (3000, "Grafana"),

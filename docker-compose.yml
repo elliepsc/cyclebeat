@@ -1,69 +1,44 @@
-# Host ports keep each service's conventional default (8000 API, 8080 Airflow,
-# 9090 Prometheus, 3000 Grafana) -- the port a reader expects, and the one every
-# tutorial and screenshot uses. They are only interpolated, never hard-coded, so a
-# port already taken by another local stack can be stepped past without editing
-# this file:
+# The full system, in one command and with no `.env` to fill in:
+#
+#     docker compose up --build
+#
+# starts three services, each with a healthcheck: `postgres` (transactional store), `api`
+# (FastAPI, serving the demo warehouse baked into its image) and `web` (the React app, built
+# against the compose API). Open http://localhost:4173.
+#
+# Every value below is a LOCAL default, not a secret: the Postgres password only opens a
+# container with no published port, and production uses none of it (E.0.5).
+#
+# Host ports keep each service's conventional default (8000 API, 4173 web, 8080 Airflow,
+# 9090 Prometheus, 3000 Grafana). They are only interpolated, never hard-coded, so a port
+# already taken by another local stack can be stepped past without editing this file:
 #
 #     make compose-up            # picks the first free port from each default
-#     CYCLEBEAT_API_PORT=9000 docker compose up -d api   # or pin one by hand
+#     CYCLEBEAT_API_PORT=9000 docker compose up --build   # or pin one by hand
 #
-# `make compose-up` shells through tools/compose_ports.py, which probes upwards
-# (9090 busy -> 9091 -> 9092 ...) and prints the URLs it settled on.
+# The web bundle has the API URL baked in at build time (VITE_API_URL), so after changing
+# CYCLEBEAT_API_PORT or CYCLEBEAT_WEB_PORT, rebuild (`--build`): the URL and the CORS origin
+# both follow the same variables, but only a rebuild puts the new URL into the bundle.
 #
-# Container-side ports never move, so `api:8000` in monitoring/prometheus.yml and
-# the Grafana datasource pointing at `prometheus:9090` are unaffected by any of this.
+# Opt-in profiles, never started by a plain `up`:
+#   pipeline    ingest + dbt (one-shot) and Airflow -- they WRITE the host's data/ and lake/
+#   monitoring  Prometheus + Grafana
+#
+# Container-side ports never move, so `api:8000` in monitoring/prometheus.yml and the
+# Grafana datasource pointing at `prometheus:9090` are unaffected by any of this. No service
+# has a fixed `container_name`: a second project (`docker compose -p cyclebeat-it`, used by
+# `make test-integration`) must be able to run beside the developer's own stack.
 services:
 
-  # ── Ingestion (one-shot) ─────────────────────────────────────────
-  ingest:
-    build: .
-    container_name: cyclebeat_ingest
-    command: python -m ingest.ingest_pipeline
-    # Same inherited-probe problem as the airflow service: this one-shot container
-    # never runs uvicorn, so the image HEALTHCHECK could only ever report sick.
-    # `depends_on` here keys off service_completed_successfully (the exit code),
-    # not health, so nothing depends on this probe.
-    healthcheck:
-      disable: true
-    environment:
-      - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
-    volumes:
-      - ./data:/app/data
-    restart: "no"
-
-  # ── dbt transforms (one-shot, runs after ingestion) ──────────────
-  dbt:
-    build: .
-    container_name: cyclebeat_dbt
-    command: >
-      bash -c "dbt run --project-dir dbt --profiles-dir dbt &&
-               dbt test --project-dir dbt --profiles-dir dbt"
-    # Same inherited-probe problem as the airflow service: this one-shot container
-    # never runs uvicorn, so the image HEALTHCHECK could only ever report sick.
-    # `depends_on` here keys off service_completed_successfully (the exit code),
-    # not health, so nothing depends on this probe.
-    healthcheck:
-      disable: true
-    environment:
-      - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
-    depends_on:
-      ingest:
-        condition: service_completed_successfully
-    volumes:
-      - ./data:/app/data
-    restart: "no"
-
-  # ── FastAPI REST API ─────────────────────────────────────────────
   # ── Postgres: the TRANSACTIONAL store (ADR-009) ──────────────────
   # Sessions and feedback. DuckDB stays the analytical warehouse -- two stores, two roles.
-  # Zero cost (E.8): a container locally, Neon's free tier in production.
+  # Zero cost (E.8): a container locally.
   #
   # No host port published on purpose: only the API talks to it, and publishing 5432 would
   # collide with any Postgres the developer already runs. Reach it for debugging with
   # `docker compose exec postgres psql -U cyclebeat`.
   postgres:
     image: postgres:16-alpine
-    container_name: cyclebeat_postgres
     environment:
       - POSTGRES_USER=cyclebeat
       - POSTGRES_PASSWORD=cyclebeat
@@ -71,35 +46,96 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cyclebeat"]
+      # Over TCP (-h 127.0.0.1), not the Unix socket: while the image runs its first-boot
+      # init, a temporary server answers on the socket only, and a socket probe would report
+      # healthy before the API can actually connect.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U cyclebeat -d cyclebeat"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
 
+  # ── FastAPI REST API ─────────────────────────────────────────────
+  # Serves the demo warehouse built INTO the image (ADR-003). Nothing is mounted over
+  # /app/data: a bind mount there would hide that database and read the host's instead.
   api:
     build: .
-    container_name: cyclebeat_api
     ports:
       - "${CYCLEBEAT_API_PORT:-8000}:8000"
     environment:
       - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
       # Set => Postgres. Unset => the SQLite fallback, which is what a bare clone gets.
       # The password here is a LOCAL dev credential for a container with no published port;
-      # the production DSN is a Neon secret and never appears in this file (E.0.5).
+      # the production DSN never appears in this file (E.0.5).
       - DATABASE_URL=postgresql://cyclebeat:cyclebeat@postgres:5432/cyclebeat
+      # The browser origins of the `web` service below. Both spellings of the local host,
+      # because the browser treats http://localhost and http://127.0.0.1 as two origins.
+      - CORS_ALLOW_ORIGINS=http://localhost:${CYCLEBEAT_WEB_PORT:-4173},http://127.0.0.1:${CYCLEBEAT_WEB_PORT:-4173}
     depends_on:
-      ingest:
-        condition: service_completed_successfully
       postgres:
         condition: service_healthy
-    volumes:
-      - ./data:/app/data
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 20
+
+  # ── React frontend (static, served by nginx) ─────────────────────
+  # Calls the API cross-origin, exactly like the Render deployment: the API URL is baked
+  # into the bundle at build time and the API's CORS list names this origin.
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:${CYCLEBEAT_API_PORT:-8000}
+    ports:
+      - "${CYCLEBEAT_WEB_PORT:-4173}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      # 127.0.0.1 rather than localhost: busybox wget may resolve localhost to ::1 first.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ── Ingestion (one-shot, profile `pipeline`) ─────────────────────
+  # Writes the HOST's data/ (bind mount). The compose API does not read it: it serves the
+  # warehouse baked into its image.
+  ingest:
+    build: .
+    profiles: ["pipeline"]
+    command: python -m ingest.ingest_pipeline
+    # This one-shot container never runs uvicorn, so the image HEALTHCHECK could only ever
+    # report sick. `depends_on` here keys off service_completed_successfully (the exit code),
+    # not health, so nothing depends on this probe.
+    healthcheck:
+      disable: true
+    environment:
+      - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
+    volumes:
+      - ./data:/app/data
+    restart: "no"
+
+  # ── dbt transforms (one-shot, profile `pipeline`, runs after ingestion) ──
+  dbt:
+    build: .
+    profiles: ["pipeline"]
+    command: >
+      bash -c "dbt run --project-dir dbt --profiles-dir dbt &&
+               dbt test --project-dir dbt --profiles-dir dbt"
+    # Same inherited-probe problem as `ingest`: no uvicorn here.
+    healthcheck:
+      disable: true
+    environment:
+      - RUNTIME_DB_PATH=/app/data/cyclebeat_runtime.duckdb
+    depends_on:
+      ingest:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/app/data
+    restart: "no"
 
   # ── Airflow 3, LocalExecutor (E.5) ───────────────────────────────
   # Profile `pipeline`: not started by a plain `docker compose up`, so the API stack stays
@@ -116,7 +152,6 @@ services:
         # apache-airflow is in the dev group; the default --no-dev would not install it,
         # which is why the first run of this service said `airflow: command not found`.
         UV_SYNC_ARGS: ""
-    container_name: cyclebeat_airflow
     profiles: ["pipeline"]
     ports:
       - "${CYCLEBEAT_AIRFLOW_PORT:-8080}:8080"
@@ -160,10 +195,10 @@ services:
     healthcheck:
       disable: true
 
-  # ── Prometheus ───────────────────────────────────────────────────
+  # ── Prometheus (profile `monitoring`) ────────────────────────────
   prometheus:
     image: prom/prometheus:v2.52.0
-    container_name: cyclebeat_prometheus
+    profiles: ["monitoring"]
     ports:
       - "${CYCLEBEAT_PROMETHEUS_PORT:-9090}:9090"
     volumes:
@@ -171,10 +206,10 @@ services:
     depends_on:
       - api
 
-  # ── Grafana ──────────────────────────────────────────────────────
+  # ── Grafana (profile `monitoring`) ───────────────────────────────
   grafana:
     image: grafana/grafana:10.4.2
-    container_name: cyclebeat_grafana
+    profiles: ["monitoring"]
     ports:
       - "${CYCLEBEAT_GRAFANA_PORT:-3000}:3000"
     environment:

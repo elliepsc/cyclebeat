@@ -1,0 +1,8 @@
+# Build context exclusions for frontend/Dockerfile. The image runs `npm ci` itself, so a
+# local node_modules/ (and any previous build) must not enter the context.
+node_modules/
+dist/
+coverage/
+*.log
+.env
+.env.*
