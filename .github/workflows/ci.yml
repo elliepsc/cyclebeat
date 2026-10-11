@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       RUNTIME_DB_PATH: ${{ github.workspace }}/data/cyclebeat_runtime.duckdb
 
@@ -109,7 +109,7 @@ jobs:
   # Frontend (phase 5). Its own job: the Python job above is untouched, and the two run in
   # parallel. Node is pinned by frontend/.nvmrc.
   frontend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: frontend
@@ -147,7 +147,7 @@ jobs:
   # target prints `docker compose ps` and the service logs before the teardown.
   # No image cache yet: the duration is measured first (phase-8 decision).
   integration:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
@@ -174,7 +174,7 @@ jobs:
   deploy:
     needs: [build, frontend, integration]
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Secrets and variables live in the GitHub environment `production` (limited to main).
     environment: production
     # Two deploys never overlap, and a queued one is never cancelled mid-flight.
