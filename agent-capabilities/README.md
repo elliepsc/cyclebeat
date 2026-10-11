@@ -12,7 +12,8 @@ the read endpoint contract-first with `contract-guardian`.
 **When it is used.** Any request for a new mart, KPI table or analytical aggregate; Claude picks it
 up from its description, or the user types `/new-mart`.
 **Source.** [`.claude/skills/new-mart/SKILL.md`](../.claude/skills/new-mart/SKILL.md) (loaded by Claude
-Code from `.claude/skills/`).
+Code from `.claude/skills/`; also generated into the plugin, where it is
+`/cyclebeat-agent-pack:new-mart`).
 **Proof of use.** Pending: step 2 of the owner's demo session, to be recorded in `docs/demo.md`.
 
 ## Project instructions — `CLAUDE.md` and `AGENTS.md`
@@ -32,4 +33,5 @@ of the owner's demo session will show it (to be recorded in `docs/demo.md`).
 | Subagents, including the API specialist `contract-guardian` | [`.claude/agents/`](../.claude/agents/) |
 | MCP server (read-only warehouse) | [`mcp-server/`](../mcp-server/README.md) |
 | Hook and deny rules | [`agent-hooks/`](../agent-hooks/README.md), [`.claude/settings.json`](../.claude/settings.json) |
+| Plugin packaging (generated) | [`plugins/cyclebeat-agent-pack/`](../plugins/cyclebeat-agent-pack/README.md) |
 | Permission notes | [docs/permissions.md](../docs/permissions.md) |
