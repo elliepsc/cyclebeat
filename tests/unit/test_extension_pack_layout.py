@@ -24,7 +24,7 @@ def test_agents_md_is_a_pointer_with_no_rule_of_its_own() -> None:
 
 
 # The grading layout (docs/grading-criteria.md:45-50). `plugins/` rather than `custom-agent/`
-# (owner decision). docs/demo.md joins this list with the owner's demo session.
+# (owner decision). docs/demo.md is the owner's demo session, the proof of use.
 GRADING_PATHS = [
     "agent-capabilities/README.md",
     "agent-hooks/pre_tool_use.py",
@@ -34,6 +34,7 @@ GRADING_PATHS = [
     "plugins/cyclebeat-agent-pack/.claude-plugin/plugin.json",
     "docs/agent-extension-pack.md",
     "docs/permissions.md",
+    "docs/demo.md",
 ]
 
 # Where Claude Code actually loads each element from.
