@@ -8,12 +8,12 @@ either hold the real code or point to it.
 | # | Element | Loaded by Claude Code from | Grading-layout path | Proof of use |
 |---|---|---|---|---|
 | 1 | Project instructions | [`CLAUDE.md`](../CLAUDE.md) (root); [`AGENTS.md`](../AGENTS.md) for other agents | — (root files) | read at the start of every session; [ai-workflow.md](ai-workflow.md) logs every session run under them |
-| 2 | Reusable workflow | [`.claude/skills/new-mart/SKILL.md`](../.claude/skills/new-mart/SKILL.md) | [`agent-capabilities/`](../agent-capabilities/README.md) (description + link) | pending: step 2 of the owner's demo session |
-| 3 | Subagent / specialist | [`.claude/agents/`](../.claude/agents/) — `contract-guardian`, `dbt-reviewer`, `security-auditor`, `ai-workflow-scribe` | — | `contract-guardian` reviewed the phase-5 contract change ([ai-workflow.md](ai-workflow.md), phase 5 entry: "contract-guardian suggestion") |
-| 4 | MCP server | [`.mcp.json`](../.mcp.json) → [`mcp-server/cyclebeat_warehouse.py`](../mcp-server/cyclebeat_warehouse.py) | [`mcp-server/`](../mcp-server/README.md) (the real code) | a real stdio session in [`tests/unit/test_mcp_server.py`](../tests/unit/test_mcp_server.py) (CI) |
-| 5 | Hook / guardrail | [`.claude/settings.json`](../.claude/settings.json) → [`agent-hooks/pre_tool_use.py`](../agent-hooks/pre_tool_use.py) | [`agent-hooks/`](../agent-hooks/README.md) (the real code) | blocked `gh pr merge 999999`, a write to `data/` and a read of `.env` in an auto-mode session on 2026-10-11 ([permissions.md](permissions.md#why-auto-mode-and-why-it-is-acceptable-here)) |
+| 2 | Reusable workflow | [`.claude/skills/new-mart/SKILL.md`](../.claude/skills/new-mart/SKILL.md) | [`agent-capabilities/`](../agent-capabilities/README.md) (description + link) | invoked as `/cyclebeat-agent-pack:new-mart` in the owner's demo; its equality test caught a real 0-vs-NULL difference ([demo.md](demo.md#step-2--a-reusable-workflow-is-invoked-the-plugins-new-mart-skill)) |
+| 3 | Subagent / specialist | [`.claude/agents/`](../.claude/agents/) — `contract-guardian`, `dbt-reviewer`, `security-auditor`, `ai-workflow-scribe` | — | `contract-guardian` reviewed the phase-5 contract change ([ai-workflow.md](ai-workflow.md), phase 5 entry) and the demo's API change, APPROVED with two design points; `dbt-reviewer` reviewed the demo mart ([demo.md](demo.md#step-3--a-specialist-subagent-reviews-an-api-change-the-plugins-contract-guardian)) |
+| 4 | MCP server | [`.mcp.json`](../.mcp.json) → [`mcp-server/cyclebeat_warehouse.py`](../mcp-server/cyclebeat_warehouse.py) | [`mcp-server/`](../mcp-server/README.md) (the real code) | a real stdio session in [`tests/unit/test_mcp_server.py`](../tests/unit/test_mcp_server.py) (CI); the plugin's server answered three prefixed calls in the owner's demo, one refused by the allowlist ([demo.md](demo.md#step-4--the-agent-calls-an-mcp-tool-the-plugins-server)) |
+| 5 | Hook / guardrail | [`.claude/settings.json`](../.claude/settings.json) → [`agent-hooks/pre_tool_use.py`](../agent-hooks/pre_tool_use.py) | [`agent-hooks/`](../agent-hooks/README.md) (the real code) | blocked `gh pr merge 999999`, a write to `data/` and a read of `.env` in an auto-mode session on 2026-10-11 ([permissions.md](permissions.md#why-auto-mode-and-why-it-is-acceptable-here)); in the demo, the deny rule refused a write to `data/` and the hook refused `gh pr create` ([demo.md](demo.md#step-5--a-hook-blocks-an-action)) |
 | 6 | Permission notes | — | [`docs/permissions.md`](permissions.md) | — |
-| + | Plugin packaging (module 5: "light plugin or custom agent") | `claude --plugin-dir plugins/cyclebeat-agent-pack` | [`plugins/cyclebeat-agent-pack/`](../plugins/cyclebeat-agent-pack/README.md) (generated) | pending: the owner's `--plugin-dir` session |
+| + | Plugin packaging (module 5: "light plugin or custom agent") | `claude --plugin-dir plugins/cyclebeat-agent-pack` | [`plugins/cyclebeat-agent-pack/`](../plugins/cyclebeat-agent-pack/README.md) (generated) | loaded with `--plugin-dir` in the owner's demo: prefixed skill, subagents and MCP tools all used ([demo.md](demo.md)) |
 
 ## The plugin
 
@@ -34,8 +34,11 @@ the four subagents and the MCP server. It is **generated** by `make plugin`
 - **The MCP server is in it** because Claude Code substitutes `${CLAUDE_PROJECT_DIR}` in a
   plugin's MCP configuration: the documentation lists it among the path variables *"substituted
   in ... MCP and LSP server configurations"* ("Reference plugin paths and store data",
-  https://code.claude.com/docs/en/plugins/components). The server still runs the code of the
-  CycleBeat checkout, so the plugin works inside a clone of this repo only.
+  https://code.claude.com/docs/en/plugins/components). The demo confirmed the expression is
+  expanded (the prefixed tools answered); because of the `:-.` fallback it does not by itself
+  tell `${CLAUDE_PROJECT_DIR}` apart from the default ([demo.md](demo.md#step-4--the-agent-calls-an-mcp-tool-the-plugins-server)).
+  The server still runs the code of the CycleBeat checkout, so the plugin works inside a clone of
+  this repo only.
 - `claude plugin validate plugins/cyclebeat-agent-pack` passes, with two warnings: no `version`
   and no `author` (both optional, left out rather than invented).
 

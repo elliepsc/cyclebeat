@@ -14,7 +14,9 @@ up from its description, or the user types `/new-mart`.
 **Source.** [`.claude/skills/new-mart/SKILL.md`](../.claude/skills/new-mart/SKILL.md) (loaded by Claude
 Code from `.claude/skills/`; also generated into the plugin, where it is
 `/cyclebeat-agent-pack:new-mart`).
-**Proof of use.** Pending: step 2 of the owner's demo session, to be recorded in `docs/demo.md`.
+**Proof of use.** Invoked as `/cyclebeat-agent-pack:new-mart` in the owner's demo; its equality
+test caught a real 0-vs-NULL difference and the agent restored the original expression
+([docs/demo.md](../docs/demo.md), step 2).
 
 ## Project instructions — `CLAUDE.md` and `AGENTS.md`
 
@@ -24,7 +26,7 @@ read that name, so there is one rule set.
 **When it is used.** Loaded at the start of every Claude Code session in this repo.
 **Source.** [`CLAUDE.md`](../CLAUDE.md), [`AGENTS.md`](../AGENTS.md).
 **Proof of use.** Every session in [docs/ai-workflow.md](../docs/ai-workflow.md) ran under it; step 1
-of the owner's demo session will show it (to be recorded in `docs/demo.md`).
+of the owner's demo ([docs/demo.md](../docs/demo.md)).
 
 ## The other elements
 
