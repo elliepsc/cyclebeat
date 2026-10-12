@@ -74,6 +74,14 @@ jobs:
       - name: Unit tests
         run: make test-unit
 
+      # Criterion 12: the plugin is generated from .claude/ and .mcp.json, never edited by hand.
+      # Same model as the generated front client below: regenerate, then fail on any difference.
+      - name: Generated plugin matches its sources
+        run: |
+          make plugin
+          git diff --exit-code -- plugins/
+          test -z "$(git status --porcelain -- plugins/)"
+
       # The Postgres path of the transactional store against a real server. `test-unit` already
       # collects these tests but skips them (no TEST_DATABASE_URL there). Here the variable is
       # set, so they run; an unreachable server errors in the fixture rather than skipping.

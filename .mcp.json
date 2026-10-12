@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "cyclebeat-warehouse": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--frozen",
+        "--directory",
+        "${CLAUDE_PROJECT_DIR:-.}",
+        "python",
+        "mcp-server/cyclebeat_warehouse.py"
+      ]
+    }
+  }
+}

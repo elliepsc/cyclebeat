@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(.ENV)",
+      "Read(.ENV.*)",
+      "Edit(.env)",
+      "Edit(.env.*)",
+      "Edit(.ENV)",
+      "Edit(.ENV.*)",
+      "Edit(/data/**)",
+      "Edit(/lake/**)",
+      "Edit(/agent-hooks/**)",
+      "Edit(/.claude/settings.json)",
+      "Edit(/.claude/settings.local.json)",
+      "Bash(git push *--force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * -f*)",
+      "Bash(gh pr create*)",
+      "Bash(gh pr merge*)",
+      "Bash(curl *render.com*)",
+      "WebFetch(domain:api.render.com)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob|WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["-I", "${CLAUDE_PROJECT_DIR}/agent-hooks/pre_tool_use.py"],
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  }
+}

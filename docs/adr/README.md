@@ -33,6 +33,7 @@ The status column below summarizes each ADR's own status line, which is the sour
 | [adr-008-session-persistence](adr-008-session-persistence.md) | `fct_session` materialized; `raw.feedback` rekeyed on `session_id`; DuckDB primary; SQL moved into `api/repositories/` | Superseded by adr-009 | 2026-08-29 |
 | [adr-009-postgres-transactional-duckdb-analytical](adr-009-postgres-transactional-duckdb-analytical.md) | Postgres (Neon) as the transactional store beside DuckDB analytical; the warehouse ingests from Postgres | Accepted | 2026-08-30 |
 | [adr-010-track-and-bpm-sources](adr-010-track-and-bpm-sources.md) | Three source roles (playback / identity / BPM); Spotify and YouTube identity-only, never BPM; no persistent audio storage | Accepted | 2026-10-02 |
+| [adr-012-deterministic-tools-llm-separation](adr-012-deterministic-tools-llm-separation.md) | Deterministic read-only warehouse tools (sqlglot guard + locked DuckDB) shared by the MCP server and the future copilot; the E.4 test split | Accepted | 2026-10-11 |
 
 ADR-011 (design of the BPM observation table, "Idea 2") is deferred until after the `v1.0-submission` tag.
 

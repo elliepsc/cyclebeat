@@ -34,12 +34,18 @@ dependencies = [
     # coexist in one environment because the same pytest run imports the DAGs and the API.
     # Range rather than a pin, so the Airflow resolution stays satisfiable.
     "fastapi>=0.115.0,<0.116",
-    "uvicorn==0.30.1",
+    # Bumped from 0.30.1 in phase 7: the MCP SDK (`mcp` group) requires uvicorn >= 0.31.1, and
+    # uv resolves one lock for every group. Smallest version that satisfies it, pinned exactly.
+    "uvicorn==0.31.1",
     "pydantic>=2.7,<3",
     # dbt
     "dbt-duckdb>=1.8.0",
     # Monitoring
     "prometheus-fastapi-instrumentator==6.1.0",
+    # Read-only warehouse tools (phase 7, E.4): parses caller SQL to enforce "one SELECT on the
+    # marts allowlist" before DuckDB sees it. Runtime rather than dev: the tool library lives in
+    # api/services and the phase-6 copilot will call it from the API. No transitive deps.
+    "sqlglot==30.18.0",
 ]
 
 [project.optional-dependencies]
@@ -76,6 +82,10 @@ dev = [
     # "Development environment"). The tests are not skipped there — the environment is the
     # requirement, per E.0.4's ban on bypassing a failing test.
     "apache-airflow>=3.0,<4",
+    # Official MCP Python SDK for mcp-server/ (criterion 12): exposes the read-only warehouse
+    # tools to coding agents over stdio. A developer tool, so it stays out of the API image
+    # (built with --no-dev). It is why uvicorn moved to 0.31.1.
+    "mcp==1.30.0",
 ]
 
 [tool.uv]

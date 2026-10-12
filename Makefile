@@ -1,4 +1,4 @@
-.PHONY: setup lock lint typecheck contract test-unit test-integration dbt ingest ingest-live confidence-report airflow api front front-test front-gen eval audit compose-ports compose-up compose-monitoring compose-pipeline compose-build compose-down
+.PHONY: setup lock lint typecheck contract test-unit test-integration dbt ingest ingest-live confidence-report airflow api front front-test front-gen eval audit compose-ports compose-up compose-monitoring compose-pipeline compose-build compose-down mcp-server plugin
 
 # Everything runs through uv: it provisions the Python 3.11 toolchain itself
 # (see .python-version) and resolves from uv.lock, so no global pip is involved.
@@ -17,7 +17,8 @@ lock:
 # it the spike code would escape the definition of done entirely. `cyclebeat/` and
 # `dags/` joined it in phase 2 — same reason.
 lint:
-	$(RUN) ruff check api cyclebeat dags db ingest evals tests tools catalogue_fixtures.py
+	$(RUN) ruff check api cyclebeat dags db ingest evals tests tools catalogue_fixtures.py \
+		mcp-server agent-hooks
 	$(RUN) python -m tools.check_links
 
 # Gating since phase 4. It was red only on the v1 `api/main.py`, which the contract-first
@@ -167,6 +168,17 @@ front-gen:
 # The phase-6 coach/copilot evals join it here.
 eval:
 	$(RUN) pytest evals
+
+# Criterion 12: the read-only warehouse tools over MCP (stdio). Claude Code starts it through
+# .mcp.json; run by hand, it waits for a client on stdin. Reads RUNTIME_DB_PATH, else
+# data/cyclebeat_runtime.duckdb, read-only and never created.
+mcp-server:
+	$(RUN) python mcp-server/cyclebeat_warehouse.py
+
+# Criterion 12: regenerate plugins/cyclebeat-agent-pack/ from .claude/skills, .claude/agents and
+# .mcp.json. Committed build output, like frontend/src/api/schema.d.ts: CI fails on drift.
+plugin:
+	$(RUN) python -m tools.build_plugin
 
 audit:
 	@echo "No audit target is defined yet." && exit 1

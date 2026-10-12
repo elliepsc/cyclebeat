@@ -1,0 +1,4 @@
+{
+  "name": "cyclebeat-agent-pack",
+  "description": "CycleBeat's agent extension pack: the new-mart workflow, the four review subagents and the read-only warehouse MCP server. Works inside a CycleBeat checkout."
+}
