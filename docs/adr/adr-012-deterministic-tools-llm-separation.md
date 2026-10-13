@@ -92,7 +92,24 @@ The function list is a denylist measured on DuckDB 0.10.2's built-ins. A macro d
 warehouse would run unchecked (the audit showed it with a probe macro); none exists today (no
 `CREATE MACRO` in `dbt/`, `cyclebeat/`, `api/`, `dags/`), and the tools cannot create one.
 
-Residual, engine side: on 0.10.2 the locked connection itself still lets `sniff_csv` read a
-file header (CVE-2024-41672); only the guard refuses it. Recorded as an `xfail(strict=True)`
-test and a `[présentable]` roadmap line (DuckDB upgrade). The two layers of point 1 are
-therefore not independent on this version: each covers a hole of the other.
+The second pre-merge pass of the same audit found a third bypass of the same family. sqlglot
+re-emits function names with Python's Unicode-aware `upper()`: `current_sett\u0131ng` (U+0131)
+was unknown to the guard, then emitted as `CURRENT_SETTING`, and returned the OS user's home
+through `query_marts` (reproduced end to end). The guard now refuses non-ASCII function names
+and guards its own output again: what runs must be what was checked.
+
+**Structural correction (owner decision, 13 October 2026).** Three bypasses in one phase had one
+cause: the guard inferred from SQL text which tables would be read. The tools therefore no
+longer run on the warehouse. `readonly_warehouse.exposed()` builds, per call, an in-memory
+database holding COPIES of the allowed marts only (ATTACH the warehouse `READ_ONLY`, `CREATE
+TABLE ... AS SELECT`, `DETACH`), sets the path settings to neutral values, caps memory, then
+locks the engine as point 1 describes. A table off the allowlist does not exist where the SQL
+runs, the catalogue functions find nothing to leak, and `current_setting` returns neutral
+values; the SQL guard becomes the second line. Measured on a copy of the warehouse: 31.8 ms per
+`query_marts` call, connection and copy included. `get_quality_report` runs on the same kind of
+database, holding the two quality marts only.
+
+Residual, engine side: on 0.10.2, `sniff_csv` still reads a file header on the locked
+connection and on the exposure database (CVE-2024-41672); only the guard refuses it, by shape
+(a table function). Recorded as two `xfail(strict=True)` tests and a `[présentable]` roadmap
+line (DuckDB upgrade).
