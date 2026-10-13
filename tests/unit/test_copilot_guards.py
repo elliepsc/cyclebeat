@@ -62,6 +62,8 @@ def warehouse(tmp_path: Path) -> Path:
         # staging views: only a table that exists can prove a refusal is not a no-op.
         con.execute(f"CREATE TABLE stg_secret AS SELECT '{SECRET_ROW}' AS v")
         con.execute("CREATE VIEW stg_secret_view AS SELECT v FROM stg_secret")
+        # A name with a `k`: U+212A KELVIN SIGN lowercases to ASCII `k` in Python, not in DuckDB.
+        con.execute(f"CREATE TABLE stg_tracks AS SELECT '{SECRET_ROW}' AS v")
     return path
 
 
@@ -229,6 +231,12 @@ def test_comment_and_case_variants_of_a_legit_select_pass(warehouse: Path, sql: 
         "WHERE EXISTS (WITH stg_secret AS (SELECT 1) SELECT 1 FROM stg_secret)",
         # a CTE body naming the real table it shadows
         "WITH stg_secret AS (SELECT v FROM stg_secret) SELECT * FROM stg_secret",
+        # Unicode folding (fix-branch audit, HIGH 1): Python's lower() maps U+212A KELVIN SIGN
+        # to `k`, DuckDB does not, so this CTE "matched" the real stg_tracks in the guard only
+        'WITH "stg_tracKs" AS (SELECT 1 AS x) SELECT * FROM stg_tracks',
+        "WITH stg_tracKs AS (SELECT 1 AS x) SELECT * FROM stg_tracks",
+        # a non-ASCII name that lowercases onto a mart is refused by the guard, not the engine
+        'SELECT * FROM "dim_tracK"',
     ],
 )
 def test_a_cte_out_of_scope_does_not_whitelist_a_real_table(warehouse: Path, sql: str) -> None:
@@ -277,6 +285,20 @@ def test_ctes_used_within_their_scope_still_pass(warehouse: Path, sql: str) -> N
         "SELECT current_setting('secret_directory') FROM dim_track",
         "SELECT current_setting('temp_directory') FROM dim_track",
         "WITH t AS (SELECT current_setting('home_directory') AS h) SELECT * FROM t",
+        # get_block_size: a macro over pragma_database_size() (fix-branch audit, LOW 2)
+        "SELECT get_block_size(current_database()) FROM dim_track",
+        # call shapes the locked engine EXECUTES (phase-10 probe): the name check must hold
+        "SELECT pg_catalog.pg_get_viewdef(1) FROM dim_track",
+        "SELECT system.pg_catalog.pg_get_viewdef(1) FROM dim_track",
+        "SELECT main.current_setting('secret_directory') FROM dim_track",
+        "SELECT system.main.current_setting('secret_directory') FROM dim_track",
+        'SELECT "pg_get_viewdef"(1) FROM dim_track',
+        "SELECT Current_Setting('secret_directory') FROM dim_track",
+        "SELECT ('secret_directory').current_setting() FROM dim_track",
+        "SELECT (1).pg_get_viewdef() FROM dim_track",
+        "SELECT list_transform([1], x -> current_setting('secret_directory')) FROM dim_track",
+        "SELECT CASE WHEN track_id = 1 THEN format_type(4, NULL) END FROM dim_track",
+        "SELECT track_id FROM dim_track ORDER BY pg_get_constraintdef(1, true)",
     ],
 )
 def test_catalogue_and_configuration_functions_are_refused(sql: str) -> None:
