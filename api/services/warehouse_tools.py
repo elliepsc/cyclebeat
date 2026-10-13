@@ -8,10 +8,19 @@ later. Everything here is deterministic -- no LLM decides what runs.
 1. parse with sqlglot (DuckDB dialect); a parse failure is a refusal, never a pass-through;
 2. exactly one statement, and it must be a query (SELECT, WITH ... SELECT, set operations);
 3. no `SELECT ... INTO`;
-4. every table referenced is a CTE of the same query or a mart on `MARTS_ALLOWLIST`, in the
-   default schema; table functions (`read_csv`, `glob`, ...) and file paths are refused;
-5. `LIMIT 200` injected when absent, and at most 200 rows fetched whatever the LIMIT says;
-6. 5 s timeout.
+4. every table referenced is a mart on `MARTS_ALLOWLIST`, in the default schema, or a CTE
+   VISIBLE IN THAT TABLE'S OWN SCOPE (its query or an enclosing one, resolved by sqlglot's
+   scope analysis): a CTE defined in some other subquery does not whitelist its name, and a
+   table no scope accounts for is refused (fail closed). Table functions (`read_csv`, `glob`,
+   `sniff_csv`, ...) and file paths are refused;
+5. no scalar call to a function that reads the catalogue or the configuration
+   (`_FORBIDDEN_FUNCTIONS`): on DuckDB 0.10.2 they run on the locked engine;
+6. `LIMIT 200` injected when absent, and at most 200 rows fetched whatever the LIMIT says;
+7. 5 s timeout.
+
+Guards 4 (scope) and 5 come from the phase-10 audit of PR #38: the first version collected
+CTE names from the whole statement, so `SELECT * FROM stg_x, (WITH stg_x AS (...) ...)`
+read the real `stg_x`.
 
 The engine side (read-only file, external access off, configuration locked) is in
 `api/repositories/readonly_warehouse.py`. Errors come back as `ToolError` with a code and a
@@ -28,6 +37,7 @@ import duckdb
 import sqlglot
 from sqlglot import exp
 from sqlglot.errors import SqlglotError
+from sqlglot.optimizer.scope import traverse_scope
 
 from api.repositories.quality import QualityRepository
 from api.repositories.readonly_warehouse import WarehouseUnavailable, locked, run_select
@@ -41,6 +51,14 @@ MARTS_ALLOWLIST: frozenset[str] = frozenset(
 MAX_ROWS = 200
 TIMEOUT_S = 5.0
 _DEFAULT_SCHEMA = "main"
+
+# Scalar calls the table-function check cannot see, measured on the locked DuckDB 0.10.2
+# engine (phase-10 probe): the three macros wrap duckdb_views() / duckdb_constraints() /
+# duckdb_types(), so `pg_get_viewdef(<oid>)` returns the SQL of a view off the allowlist;
+# `current_setting` returns absolute paths (`secret_directory` carries the OS user's home).
+_FORBIDDEN_FUNCTIONS: frozenset[str] = frozenset(
+    {"current_setting", "format_type", "pg_get_constraintdef", "pg_get_viewdef"}
+)
 
 
 @dataclass
@@ -73,26 +91,49 @@ def guard_select(sql: str) -> str:
     if statement.find(exp.Into):
         raise ToolError("not_a_select", "SELECT ... INTO writes a table and is refused")
 
-    cte_names = {cte.alias_or_name.lower() for cte in statement.find_all(exp.CTE)}
-    for table in statement.find_all(exp.Table):
-        if not isinstance(table.this, exp.Identifier):
+    for func in statement.find_all(exp.Func):
+        name = func.name if isinstance(func, exp.Anonymous) else func.sql_name()
+        if name.lower() in _FORBIDDEN_FUNCTIONS:
             raise ToolError(
-                "table_not_allowed",
-                f"table functions are refused: {table.this.sql(dialect='duckdb')[:80]}",
+                "function_not_allowed", f"{name.lower()} reads the catalogue or settings"
             )
-        name = table.name.lower()
-        schema = table.db.lower()
-        if table.catalog or schema not in ("", _DEFAULT_SCHEMA):
-            raise ToolError("table_not_allowed", f"{table.sql(dialect='duckdb')} is not a mart")
-        if schema == "" and name in cte_names:
-            continue
-        if name not in MARTS_ALLOWLIST:
-            allowed = ", ".join(sorted(MARTS_ALLOWLIST))
-            raise ToolError("table_not_allowed", f"{name} is not on the allowlist ({allowed})")
+
+    _check_tables(statement)
 
     if statement.args.get("limit") is None:
         statement = statement.limit(MAX_ROWS)
     return statement.sql(dialect="duckdb")
+
+
+def _check_tables(statement: exp.Expression) -> None:
+    """Guard 4: each table is a mart, or a CTE visible from the scope it appears in."""
+    checked: set[int] = set()
+    for scope in traverse_scope(statement):
+        visible_ctes = {name.lower() for name in scope.cte_sources}
+        for table in scope.tables:
+            checked.add(id(table))
+            _check_table(table, visible_ctes)
+    # Fail closed: a table sqlglot attached to no scope is never assumed to be harmless.
+    for table in statement.find_all(exp.Table):
+        if id(table) not in checked:
+            _check_table(table, visible_ctes=set())
+
+
+def _check_table(table: exp.Table, visible_ctes: set[str]) -> None:
+    if not isinstance(table.this, exp.Identifier):
+        raise ToolError(
+            "table_not_allowed",
+            f"table functions are refused: {table.this.sql(dialect='duckdb')[:80]}",
+        )
+    name = table.name.lower()
+    schema = table.db.lower()
+    if table.catalog or schema not in ("", _DEFAULT_SCHEMA):
+        raise ToolError("table_not_allowed", f"{table.sql(dialect='duckdb')} is not a mart")
+    if schema == "" and name in visible_ctes:
+        return
+    if name not in MARTS_ALLOWLIST:
+        allowed = ", ".join(sorted(MARTS_ALLOWLIST))
+        raise ToolError("table_not_allowed", f"{name} is not on the allowlist ({allowed})")
 
 
 def query_marts(
