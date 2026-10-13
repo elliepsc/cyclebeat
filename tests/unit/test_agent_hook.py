@@ -57,6 +57,16 @@ ALLOWED: list[tuple[str, dict[str, Any], str]] = [
     ("grep in data", bash("grep -c track data/spike/raw_output.json"), "feature"),
     ("copy the warehouse out", bash("cp data/cyclebeat_runtime.duckdb /tmp/w.duckdb"), "f"),
     ("stage the hook", bash("git add agent-hooks/README.md"), "feature"),
+    ("stage the settings", bash("git add .claude/settings.json"), "feature"),
+    ("commit the settings", bash("git commit -m msg .claude/settings.json"), "feature"),
+    ("diff the settings", bash("git diff .claude/settings.json"), "feature"),
+    ("show the settings at HEAD", bash("git show HEAD:.claude/settings.json"), "feature"),
+    ("log the hook folder", bash("git log --oneline -- agent-hooks/"), "feature"),
+    # globs that cannot reach a secret (bash `*` skips dotfiles)
+    ("a bare * glob", bash("ls dbt/models/*"), "feature"),
+    ("a *.md glob", bash("cat docs/*.md"), "feature"),
+    ("a ? glob", bash("ls tests/unit/test_?.py"), "feature"),
+    ("a glob under data/", bash("ls -la data/*"), "feature"),
     # pipeline commands pointed away from data/
     ("dbt on a scratch warehouse", bash("RUNTIME_DB_PATH=/tmp/x.duckdb make dbt"), "feature"),
     ("compose without the pipeline", bash("docker compose up -d --build"), "feature"),
@@ -135,6 +145,15 @@ DENIED: list[tuple[str, dict[str, Any], str]] = [
     ("tools.deploy", bash("uv run python -m tools.deploy --smoke-only"), "feature"),
     # the guardrails themselves
     ("Edit the hook", tool("Edit", file_path=str(SCRIPT)), "feature"),
+    ("sed -i the settings", bash("sed -i 's/a/b/' .claude/settings.json"), "feature"),
+    ("redirect into the settings", bash("echo {} > .claude/settings.json"), "feature"),
+    ("checkout over the settings", bash("git checkout -- .claude/settings.json"), "feature"),
+    ("restore the hook", bash("git restore agent-hooks/pre_tool_use.py"), "feature"),
+    # globs that can reach a secret
+    ("a dot glob", bash("cat .e*"), "feature"),
+    ("an ssh key glob", bash("cat ~/.ssh/id_*"), "feature"),
+    ("a pem glob", bash("ls certs/*.pem"), "feature"),
+    ("a key glob", bash("cat *.key"), "feature"),
 ]
 
 
