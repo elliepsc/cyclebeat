@@ -12,14 +12,29 @@ Every test builds its own temp warehouse -- never the real `data/` one.
 from __future__ import annotations
 
 import hashlib
+import logging
+import subprocess
+import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import duckdb
 import pytest
 
-from api.repositories.readonly_warehouse import WarehouseUnavailable, exposed, run_select
+from api.repositories.readonly_warehouse import (
+    UNAVAILABLE_MESSAGE,
+    WarehouseUnavailable,
+    exposed,
+    locked,
+    run_select,
+)
 from api.services import warehouse_tools
-from api.services.warehouse_tools import MARTS_ALLOWLIST, ToolError, query_marts
+from api.services.warehouse_tools import (
+    MARTS_ALLOWLIST,
+    ToolError,
+    get_quality_report,
+    query_marts,
+)
 
 SECRET_ROW = "SECRET_ROW_not_exposed"
 
@@ -164,3 +179,74 @@ def test_the_exposure_database_refuses_sniff_csv(warehouse: Path, tmp_path: Path
         except duckdb.Error:
             return
     raise AssertionError(f"the exposure database read the file header: {rows}")
+
+
+def test_a_view_in_the_warehouse_is_never_copied(tmp_path: Path) -> None:
+    """Only BASE TABLEs are copied: a view's SQL would run while external access is still on."""
+    path = tmp_path / "warehouse.duckdb"
+    with duckdb.connect(str(path)) as con:
+        con.execute("CREATE TABLE dim_track AS SELECT 1 AS track_id")
+        con.execute("CREATE VIEW mart_data_quality AS SELECT 1 AS n_tracks")
+    with exposed(path, MARTS_ALLOWLIST) as con:
+        tables = {r[0] for r in _run(con, "SELECT table_name FROM duckdb_tables()")}
+    assert tables == {"dim_track"}
+
+
+# ── What a caller learns when the warehouse is unavailable (fix-branch audit, pass 3, M1) ─
+# DuckDB's lock error names the file, the executable holding the lock and its PID (measured:
+# /home/<user>/.local/share/uv/python/.../python3.11 (PID ...)). The caller gets a fixed
+# message; the detail goes to the server log (stderr) only.
+
+
+@pytest.fixture()
+def write_locked(warehouse: Path) -> Iterator[Path]:
+    """Another PROCESS holds the write lock, as during `make dbt` (same-process opens share)."""
+    holder = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import duckdb, sys, time; c = duckdb.connect(sys.argv[1]); "
+            "print('held', flush=True); time.sleep(60)",
+            str(warehouse),
+        ],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert holder.stdout is not None
+        assert holder.stdout.readline().strip() == "held"
+        yield warehouse
+    finally:
+        holder.kill()
+        holder.wait()
+
+
+def _assert_no_machine_detail(message: str, warehouse: Path) -> None:
+    assert message.endswith(UNAVAILABLE_MESSAGE)
+    for leak in (str(warehouse.parent), warehouse.name, str(Path.home()), "PID", sys.executable):
+        assert leak not in message, leak
+
+
+def test_a_write_lock_yields_a_fixed_message(
+    write_locked: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.WARNING)
+    for call in (
+        lambda: query_marts("SELECT * FROM dim_track", db_path=write_locked),
+        lambda: get_quality_report(db_path=write_locked),
+    ):
+        with pytest.raises(ToolError) as info:
+            call()
+        assert info.value.code == "warehouse_unavailable"
+        _assert_no_machine_detail(info.value.message, write_locked)
+    with pytest.raises(WarehouseUnavailable) as raw, locked(write_locked):
+        pass
+    _assert_no_machine_detail(str(raw.value), write_locked)
+    assert "lock" in caplog.text.lower(), "the detail must still reach the server log"
+
+
+def test_an_absent_warehouse_yields_the_same_fixed_message(tmp_path: Path) -> None:
+    missing = tmp_path / "absent.duckdb"
+    with pytest.raises(ToolError) as info:
+        query_marts("SELECT * FROM dim_track", db_path=missing)
+    _assert_no_machine_detail(info.value.message, missing)
