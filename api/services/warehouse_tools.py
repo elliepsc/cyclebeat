@@ -11,8 +11,9 @@ later. Everything here is deterministic -- no LLM decides what runs.
 4. every table referenced is a mart on `MARTS_ALLOWLIST`, in the default schema, or a CTE
    VISIBLE IN THAT TABLE'S OWN SCOPE (its query or an enclosing one, resolved by sqlglot's
    scope analysis): a CTE defined in some other subquery does not whitelist its name, and a
-   table no scope accounts for is refused (fail closed). Table functions (`read_csv`, `glob`,
-   `sniff_csv`, ...) and file paths are refused;
+   table no scope accounts for is refused (fail closed). Identifiers are folded like DuckDB
+   folds them, ASCII only; a non-ASCII table or CTE name is refused. Table functions
+   (`read_csv`, `glob`, `sniff_csv`, ...) and file paths are refused;
 5. no scalar call to a function that reads the catalogue or the configuration
    (`_FORBIDDEN_FUNCTIONS`): on DuckDB 0.10.2 they run on the locked engine;
 6. `LIMIT 200` injected when absent, and at most 200 rows fetched whatever the LIMIT says;
@@ -56,8 +57,9 @@ _DEFAULT_SCHEMA = "main"
 # engine (phase-10 probe): the three macros wrap duckdb_views() / duckdb_constraints() /
 # duckdb_types(), so `pg_get_viewdef(<oid>)` returns the SQL of a view off the allowlist;
 # `current_setting` returns absolute paths (`secret_directory` carries the OS user's home).
+# `get_block_size` wraps pragma_database_size() (audit of the fix branch, LOW 2).
 _FORBIDDEN_FUNCTIONS: frozenset[str] = frozenset(
-    {"current_setting", "format_type", "pg_get_constraintdef", "pg_get_viewdef"}
+    {"current_setting", "format_type", "get_block_size", "pg_get_constraintdef", "pg_get_viewdef"}
 )
 
 
@@ -109,7 +111,7 @@ def _check_tables(statement: exp.Expression) -> None:
     """Guard 4: each table is a mart, or a CTE visible from the scope it appears in."""
     checked: set[int] = set()
     for scope in traverse_scope(statement):
-        visible_ctes = {name.lower() for name in scope.cte_sources}
+        visible_ctes = {_fold(name) for name in scope.cte_sources}
         for table in scope.tables:
             checked.add(id(table))
             _check_table(table, visible_ctes)
@@ -125,8 +127,8 @@ def _check_table(table: exp.Table, visible_ctes: set[str]) -> None:
             "table_not_allowed",
             f"table functions are refused: {table.this.sql(dialect='duckdb')[:80]}",
         )
-    name = table.name.lower()
-    schema = table.db.lower()
+    name = _fold(table.name)
+    schema = _fold(table.db)
     if table.catalog or schema not in ("", _DEFAULT_SCHEMA):
         raise ToolError("table_not_allowed", f"{table.sql(dialect='duckdb')} is not a mart")
     if schema == "" and name in visible_ctes:
@@ -134,6 +136,18 @@ def _check_table(table: exp.Table, visible_ctes: set[str]) -> None:
     if name not in MARTS_ALLOWLIST:
         allowed = ", ".join(sorted(MARTS_ALLOWLIST))
         raise ToolError("table_not_allowed", f"{name} is not on the allowlist ({allowed})")
+
+
+def _fold(identifier: str) -> str:
+    """Fold an identifier the way DuckDB does: ASCII only, and refuse anything else.
+
+    Python's `str.lower()` is Unicode-aware: it maps U+212A KELVIN SIGN to ASCII `k`, which
+    DuckDB does not. A CTE named with it "matched" a real table in the guard while DuckDB read
+    the table (audit of the fix branch, HIGH 1). No mart or CTE needs a non-ASCII name.
+    """
+    if not identifier.isascii():
+        raise ToolError("table_not_allowed", f"non-ASCII identifiers are refused: {identifier!r}")
+    return identifier.lower()
 
 
 def query_marts(
