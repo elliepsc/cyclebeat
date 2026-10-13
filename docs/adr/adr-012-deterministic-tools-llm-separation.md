@@ -61,3 +61,25 @@ out of the submission scope.
   archived plan is not edited, this ADR is the record.
 - `sqlglot` becomes a runtime dependency (`api/`), and the MCP SDK a dev one (`mcp-server/` is a
   developer tool, kept out of the API image).
+
+## Note, 13 October 2026 — what the phase-10 audit found in the guard
+
+Decision point 1 said "every table a CTE of the query or a mart on the allowlist". As built in
+PR #38, that was not enforced: CTE names were collected from the whole statement, so a CTE
+defined in any subquery whitelisted its name everywhere, and an outer `FROM` of that name read
+the real table. The phase-10 audit of PR #38 found it (finding H1) and it was reproduced in five
+shapes on a temporary warehouse (derived table, scalar subquery, set-operation branch, sibling
+CTE, `EXISTS`): a table off the allowlist was returned. The locked connection was never the
+issue (still read-only, no disk); the allowlist was.
+
+Fixed on `fix/query-marts-cte-scope`: tables are checked per sqlglot scope, against the CTEs
+visible from that scope only, and a table no scope accounts for is refused. The same probe
+found scalar calls the table-function check cannot see, which DuckDB 0.10.2 runs on the locked
+engine: `pg_get_viewdef` (returned the SQL of a view off the allowlist), `pg_get_constraintdef`,
+`format_type` (macros over the `duckdb_*` catalogue functions) and `current_setting` (absolute
+paths, the OS user's home). They are refused by name (`function_not_allowed`).
+
+Residual, engine side: on 0.10.2 the locked connection itself still lets `sniff_csv` read a
+file header (CVE-2024-41672); only the guard refuses it. Recorded as an `xfail(strict=True)`
+test and a `[présentable]` roadmap line (DuckDB upgrade). The two layers of point 1 are
+therefore not independent on this version: each covers a hole of the other.

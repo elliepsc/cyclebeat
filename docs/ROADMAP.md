@@ -64,6 +64,7 @@ présentable ; + `[production]` = prêt pour un vrai système.
 | Marquer ou exclure les séances de test avant de brancher une base persistante (le test après déploiement crée une séance par déploiement) | ⬜ |
 | Inclure `tools/` dans la vérification mypy (aujourd'hui limitée à `api/`) | ⬜ |
 | `ruff format` n'est pas vérifié par `make lint` : `ruff format --check` signale 15 fichiers sur `api tests` (vu pendant la démo de la phase 7) et 28 sur tout le périmètre de `make lint` (mesuré le 12 octobre 2026) | ⬜ |
+| Montée de version de DuckDB (CVE-2024-41672), après le rendu. Sur la 0.10.2 verrouillée, `sniff_csv` lit encore la ligne d'en-tête de n'importe quel fichier malgré `enable_external_access=false` (mesuré le 13 octobre 2026) ; la garde SQL de `query_marts` la refuse. Le test `test_the_locked_connection_refuses_sniff_csv` (`xfail(strict=True)`) passera au rouge après la montée : retirer alors le marqueur. Revoir aussi la liste des fonctions refusées par nom (`_FORBIDDEN_FUNCTIONS`, `api/services/warehouse_tools.py`), mesurée sur la 0.10.2 | ⬜ |
 | Base analytique absente : `readable()` (`api/repositories/warehouse.py`) retombe sur une connexion en écriture qui crée une base DuckDB vide, et l'API répond alors 422 `empty_catalogue` à la génération au lieu d'être signalée en mauvaise santé. Relevé en phase 8, non corrigé | ⬜ |
 
 ### `[production]` — sans date

@@ -5,7 +5,7 @@ marts. It is the "MCP tool/server" element of the agent extension pack (`docs/ag
 
 | Tool | What it returns | Guards |
 |---|---|---|
-| `query_marts(sql)` | columns and rows of ONE SELECT | one statement, SELECT/WITH/set operation only, tables limited to `dim_track`, `fct_session`, `mart_bpm_coverage`, `mart_data_quality` (E.4, restricted to the marts that exist), no table functions or file paths, `LIMIT 200` injected and at most 200 rows fetched, 5 s timeout |
+| `query_marts(sql)` | columns and rows of ONE SELECT | one statement, SELECT/WITH/set operation only, tables limited to `dim_track`, `fct_session`, `mart_bpm_coverage`, `mart_data_quality` (E.4, restricted to the marts that exist), a CTE name valid only in its own scope, no table functions or file paths, no catalogue or configuration functions (`pg_get_viewdef`, `current_setting`, ...), `LIMIT 200` injected and at most 200 rows fetched, 5 s timeout |
 | `get_quality_report()` | the quality summary and BPM coverage, the same numbers as `/v1/quality/*` | read through the same locked connection |
 
 Both tools are annotated `readOnlyHint: true`. Errors come back as
@@ -17,7 +17,8 @@ This folder is the adapter only ([`cyclebeat_warehouse.py`](cyclebeat_warehouse.
 are shared with the future phase-6 copilot, and the SQL stays where CLAUDE.md allows it:
 
 - [`api/services/warehouse_tools.py`](../api/services/warehouse_tools.py): the sqlglot guard,
-  allowlist, LIMIT, timeout, structured errors;
+  allowlist (checked per scope since the phase-10 audit, ADR-012 note of 13 October 2026),
+  LIMIT, timeout, structured errors;
 - [`api/repositories/readonly_warehouse.py`](../api/repositories/readonly_warehouse.py): the
   connection, `read_only=True`, external access off, extensions off, configuration locked. It
   never opens a writable handle and never creates the file.
