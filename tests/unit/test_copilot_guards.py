@@ -200,11 +200,27 @@ def test_injection_is_refused(sql: str, code: str) -> None:
         "SELECT * FROM main.dim_track LIMIT 5",
         "SELECT source FROM mart_bpm_coverage "
         "UNION SELECT confidence_method FROM mart_data_quality",
+        # the ASCII rule is for table and CTE NAMES only: strings and aliases stay free
+        "SELECT count(*) AS n FROM dim_track WHERE title <> 'Caf\u00e9'",
+        'SELECT title AS "titre_\u00e9" FROM dim_track',
+        "SELECT upper('\u00e9t\u00e9') AS saison FROM dim_track",
     ],
 )
 def test_comment_and_case_variants_of_a_legit_select_pass(warehouse: Path, sql: str) -> None:
     """The guard refuses statements, not words: these must not be false positives."""
     assert query_marts(sql, db_path=warehouse)["row_count"] >= 1
+
+
+def test_the_guard_output_is_a_fixed_point_of_the_guard() -> None:
+    """What runs is what was checked: guarding the emitted SQL again changes nothing."""
+    for sql in (
+        "SELECT count(*) FROM dim_track WHERE title <> 'Caf\u00e9'",
+        "WITH t AS (SELECT * FROM dim_track) SELECT (SELECT count(*) FROM t) AS n",
+        "SELECT source FROM mart_bpm_coverage "
+        "UNION SELECT confidence_method FROM mart_data_quality",
+    ):
+        emitted = guard_select(sql)
+        assert guard_select(emitted) == emitted
 
 
 # ── A CTE name only counts inside its own scope (phase-10 audit of PR #38, finding H1) ───
@@ -299,6 +315,15 @@ def test_ctes_used_within_their_scope_still_pass(warehouse: Path, sql: str) -> N
         "SELECT list_transform([1], x -> current_setting('secret_directory')) FROM dim_track",
         "SELECT CASE WHEN track_id = 1 THEN format_type(4, NULL) END FROM dim_track",
         "SELECT track_id FROM dim_track ORDER BY pg_get_constraintdef(1, true)",
+        # sqlglot re-emits function names with Python's Unicode-aware upper(): a letter whose
+        # upper case is ASCII (U+0131 dotless i, U+017F long s, U+FB06 st ligature) turned an
+        # unknown name into a refused one AFTER the check (fix-branch audit, pass 2, NEW-H1)
+        "SELECT current_sett\u0131ng('secret_directory') FROM dim_track",
+        "SELECT current_\u017fetting('home_directory') FROM dim_track",
+        "SELECT pg_get_v\u0131ewdef(1) FROM dim_track",
+        "SELECT pg_get_con\ufb06raintdef(1, true) FROM dim_track",
+        "SELECT get_block_\u017fize(current_database()) FROM dim_track",
+        "SELECT \"current_sett\u0131ng\"('secret_directory') FROM dim_track",
     ],
 )
 def test_catalogue_and_configuration_functions_are_refused(sql: str) -> None:
