@@ -1,4 +1,4 @@
-"""A locked, read-only DuckDB connection for the agent tools (E.4, ADR-012).
+"""Locked DuckDB connections for the agent tools (E.4, ADR-012).
 
 `warehouse.readable()` is right for the API: it falls back to a writable connection so a fresh
 clone does not 500 before the first `make ingest`. A tool that runs SQL written by an agent
@@ -21,20 +21,34 @@ tables would be read -- so the tools no longer open the warehouse itself: an in-
 database receives COPIES of the allowed marts only, then path settings are neutralised and
 the engine is locked as above. A table off the allowlist does not exist where their SQL
 runs, and the guard becomes the second line. Known residual on DuckDB 0.10.2: `sniff_csv`
-still reads a file there (CVE-2024-41672); only the guard refuses it.
+still reads a file there (CVE-2024-41672); the guard refuses it, as a source of any shape
+(LATERAL included) and as a function name anywhere in the query.
+
+`locked()` has no production caller since then; it is kept because the engine-level tests of
+`test_copilot_guards.py` pin what a locked file connection refuses.
+
+Neither ever tells the caller WHY the warehouse is unavailable: DuckDB's error names the file,
+the executable holding the lock and its PID. The caller gets `UNAVAILABLE_MESSAGE`; the
+detail goes to this module's logger (stderr), for whoever runs the server.
 """
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
+from functools import cache
 from pathlib import Path
 from typing import Any
 
 import duckdb
 
 from api.repositories.warehouse import warehouse_path
+
+log = logging.getLogger(__name__)
+
+UNAVAILABLE_MESSAGE = "warehouse unavailable: absent or locked by a writer"
 
 LOCKED_CONFIG: dict[str, Any] = {
     "enable_external_access": False,
@@ -58,16 +72,22 @@ class WarehouseUnavailable(Exception):
     """The warehouse cannot be opened read-only: absent, locked by a writer, or corrupt."""
 
 
+def _unavailable(detail: str) -> WarehouseUnavailable:
+    """Log the machine-specific detail; hand the caller the fixed message only."""
+    log.warning("warehouse unavailable: %s", detail)
+    return WarehouseUnavailable(UNAVAILABLE_MESSAGE)
+
+
 @contextmanager
 def locked(db_path: Path | None = None) -> Iterator[duckdb.DuckDBPyConnection]:
     """A read-only, externally sealed connection. Never creates the database file."""
     path = db_path or warehouse_path()
     if not path.is_file():
-        raise WarehouseUnavailable(f"no warehouse at {path.name}; run `make dbt` first")
+        raise _unavailable(f"no warehouse file at {path}; run `make dbt` first")
     try:
         con = duckdb.connect(str(path), read_only=True, config=LOCKED_CONFIG)
     except duckdb.Error as exc:
-        raise WarehouseUnavailable(f"cannot open the warehouse read-only: {exc}") from exc
+        raise _unavailable(f"cannot open {path} read-only: {exc}") from exc
     try:
         yield con
     finally:
@@ -83,7 +103,7 @@ def exposed(db_path: Path | None, tables: Iterable[str]) -> Iterator[duckdb.Duck
     """
     path = db_path or warehouse_path()
     if not path.is_file():
-        raise WarehouseUnavailable(f"no warehouse at {path.name}; run `make dbt` first")
+        raise _unavailable(f"no warehouse file at {path}; run `make dbt` first")
     names = sorted(set(tables))
     if not all(name.isascii() and name.isidentifier() for name in names):
         raise ValueError(f"not a plain table name: {names}")
@@ -99,7 +119,9 @@ def exposed(db_path: Path | None, tables: Iterable[str]) -> Iterator[duckdb.Duck
                 row[0]
                 for row in con.execute(
                     "select table_name from information_schema.tables "
-                    "where table_catalog = 'source' and table_schema = 'main'"
+                    "where table_catalog = 'source' and table_schema = 'main' "
+                    # a view's SQL would run here, while external access is still on
+                    "and table_type = 'BASE TABLE'"
                 ).fetchall()
             }
             for name in names:
@@ -107,7 +129,7 @@ def exposed(db_path: Path | None, tables: Iterable[str]) -> Iterator[duckdb.Duck
                     con.execute(f'create table main."{name}" as select * from source.main."{name}"')
             con.execute("DETACH source")
         except duckdb.Error as exc:
-            raise WarehouseUnavailable(f"cannot expose the warehouse: {exc}") from exc
+            raise _unavailable(f"cannot expose {path}: {exc}") from exc
         for setting, value in NEUTRAL_SETTINGS.items():
             con.execute(f"SET {setting} = '{value}'")
         con.execute(f"SET memory_limit = '{EXPOSURE_MEMORY_LIMIT}'")
@@ -116,6 +138,32 @@ def exposed(db_path: Path | None, tables: Iterable[str]) -> Iterator[duckdb.Duck
         yield con
     finally:
         con.close()
+
+
+@cache
+def table_function_names() -> frozenset[str]:
+    """Names DuckDB knows ONLY as table functions (read_*, sniff_csv, glob, duckdb_*, ...).
+
+    Read from the installed engine, so the list follows a DuckDB upgrade. Names that are also
+    scalar, macro or aggregate functions (`range`, `generate_series`, `repeat`) are left out,
+    and so is `unnest`, everyday scalar syntax on a list column that reads no data. The guard
+    refuses every name returned here wherever it appears in a query.
+    """
+    con = duckdb.connect(
+        ":memory:",
+        config={"autoinstall_known_extensions": False, "autoload_known_extensions": False},
+    )
+    try:
+        rows = con.execute(
+            "select function_name from duckdb_functions() "
+            "where function_type in ('table', 'table_macro') "
+            "except "
+            "select function_name from duckdb_functions() "
+            "where function_type in ('scalar', 'macro', 'aggregate')"
+        ).fetchall()
+    finally:
+        con.close()
+    return frozenset(str(row[0]).lower() for row in rows) - {"unnest"}
 
 
 def run_select(

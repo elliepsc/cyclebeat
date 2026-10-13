@@ -32,6 +32,7 @@ one-line message -- no stack trace reaches the caller.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -44,7 +45,12 @@ from sqlglot.errors import SqlglotError
 from sqlglot.optimizer.scope import traverse_scope
 
 from api.repositories.quality import QualityRepository
-from api.repositories.readonly_warehouse import WarehouseUnavailable, exposed, run_select
+from api.repositories.readonly_warehouse import (
+    WarehouseUnavailable,
+    exposed,
+    run_select,
+    table_function_names,
+)
 from api.services.quality import QualityService
 
 # E.4's allowlist, restricted to the marts that exist: `fct_llm_calls` and `fct_agent_runs`
@@ -62,6 +68,8 @@ _DEFAULT_SCHEMA = "main"
 # duckdb_types(), so `pg_get_viewdef(<oid>)` returns the SQL of a view off the allowlist;
 # `current_setting` returns absolute paths (`secret_directory` carries the OS user's home).
 # `get_block_size` wraps pragma_database_size() (audit of the fix branch, LOW 2).
+log = logging.getLogger(__name__)
+
 _FORBIDDEN_FUNCTIONS: frozenset[str] = frozenset(
     {"current_setting", "format_type", "get_block_size", "pg_get_constraintdef", "pg_get_viewdef"}
 )
@@ -79,10 +87,20 @@ class ToolError(Exception):
 
 
 def guard_select(sql: str) -> str:
-    """Validate `sql` and return the statement to run, with `LIMIT 200` when absent."""
-    emitted = _guard_once(sql)
-    if _guard_once(emitted) != emitted:
-        raise ToolError("parse_error", "the query does not survive regeneration unchanged")
+    """Validate `sql` and return the statement to run, with `LIMIT 200` when absent.
+
+    Any failure is a `ToolError`: an unexpected exception inside the guard (sqlglot meeting a
+    shape it builds oddly, e.g. `ROWS FROM`) is a refusal too, never a stack trace.
+    """
+    try:
+        emitted = _guard_once(sql)
+        if _guard_once(emitted) != emitted:
+            raise ToolError("parse_error", "the query does not survive regeneration unchanged")
+    except ToolError:
+        raise
+    except Exception as exc:
+        log.warning("guard error on a query, refused: %r", exc)
+        raise ToolError("guard_error", "the query could not be checked and is refused") from exc
     return emitted
 
 
@@ -104,6 +122,9 @@ def _guard_once(sql: str) -> str:
     if statement.find(exp.Into):
         raise ToolError("not_a_select", "SELECT ... INTO writes a table and is refused")
 
+    _check_sources(statement)
+    _check_tables(statement)
+
     for func in statement.find_all(exp.Func):
         name = func.name if isinstance(func, exp.Anonymous) else func.sql_name()
         if not name.isascii():
@@ -114,12 +135,47 @@ def _guard_once(sql: str) -> str:
             raise ToolError(
                 "function_not_allowed", f"{name.lower()} reads the catalogue or settings"
             )
-
-    _check_tables(statement)
+        if name.lower() in table_function_names():
+            raise ToolError(
+                "function_not_allowed", f"{name.lower()} is a table function and is refused"
+            )
 
     if statement.args.get("limit") is None:
         statement = statement.limit(MAX_ROWS)
     return statement.sql(dialect="duckdb")
+
+
+def _check_sources(statement: exp.Expression) -> None:
+    """Guard 4a: every FROM / JOIN source is a named table, a subquery or VALUES. Nothing else.
+
+    `JOIN LATERAL sniff_csv(...)` is an `exp.Lateral`, not an `exp.Table`, so the table check
+    never saw it, and DuckDB 0.10.2 lets `sniff_csv` read a file on the locked engine
+    (CVE-2024-41672; fix-branch audit, pass 3, C1). `LATERAL (subquery)` stays a subquery.
+    """
+    sources = [node.this for node in statement.find_all(exp.From, exp.Join)]
+    sources += list(statement.find_all(exp.Lateral))
+    for source in sources:
+        if not _allowed_source(source):
+            shape = type(source).__name__ if source is not None else "nothing"
+            raise ToolError(
+                "table_not_allowed",
+                f"only a named table, a subquery or VALUES may be a source, got {shape}",
+            )
+
+
+def _allowed_source(node: exp.Expression | None) -> bool:
+    if isinstance(node, exp.Table):
+        return isinstance(node.this, exp.Identifier)
+    if isinstance(node, exp.Values):
+        return True
+    if isinstance(node, exp.Lateral):
+        return isinstance(node.this, exp.Subquery) and _allowed_source(node.this)
+    if isinstance(node, exp.Subquery):
+        inner = node.this
+        if isinstance(inner, exp.Subquery):
+            return _allowed_source(inner)
+        return isinstance(inner, exp.Select | exp.SetOperation | exp.Values)
+    return False
 
 
 def _check_tables(statement: exp.Expression) -> None:
@@ -138,10 +194,8 @@ def _check_tables(statement: exp.Expression) -> None:
 
 def _check_table(table: exp.Table, visible_ctes: set[str]) -> None:
     if not isinstance(table.this, exp.Identifier):
-        raise ToolError(
-            "table_not_allowed",
-            f"table functions are refused: {table.this.sql(dialect='duckdb')[:80]}",
-        )
+        shown = table.this.sql(dialect="duckdb")[:80] if table.this is not None else "nothing"
+        raise ToolError("table_not_allowed", f"table functions are refused: {shown}")
     name = _fold(table.name)
     schema = _fold(table.db)
     if table.catalog or schema not in ("", _DEFAULT_SCHEMA):
