@@ -30,6 +30,8 @@ from api.services.warehouse_tools import (
     query_marts,
 )
 
+SECRET_ROW = "SECRET_ROW_off_the_allowlist"
+
 
 @pytest.fixture()
 def warehouse(tmp_path: Path) -> Path:
@@ -56,6 +58,10 @@ def warehouse(tmp_path: Path) -> Path:
         )
         con.execute("CREATE SCHEMA raw")
         con.execute("CREATE TABLE raw.tracks (track_id VARCHAR)")
+        # A real table and a view in the DEFAULT schema, off the allowlist, like dbt's
+        # staging views: only a table that exists can prove a refusal is not a no-op.
+        con.execute(f"CREATE TABLE stg_secret AS SELECT '{SECRET_ROW}' AS v")
+        con.execute("CREATE VIEW stg_secret_view AS SELECT v FROM stg_secret")
     return path
 
 
@@ -151,6 +157,13 @@ def test_limit_injected_when_absent(warehouse: Path) -> None:
         ("SELECT * FROM '/etc/passwd'", "table_not_allowed"),
         ("SELECT * FROM 'data/cyclebeat_runtime.duckdb'", "table_not_allowed"),
         ("SELECT * FROM dim_track, read_csv('/etc/passwd')", "table_not_allowed"),
+        # sniff_csv reads a file even on the locked engine (CVE-2024-41672, DuckDB 0.10.2):
+        # the guard is the layer that holds, so its refusal is pinned here
+        ("SELECT * FROM sniff_csv('/etc/passwd')", "table_not_allowed"),
+        (
+            "SELECT (SELECT Columns FROM sniff_csv('/etc/passwd')) FROM dim_track",
+            "table_not_allowed",
+        ),
         (
             "SELECT (SELECT count(*) FROM read_text('/etc/hostname')) FROM dim_track",
             "table_not_allowed",
@@ -189,6 +202,107 @@ def test_injection_is_refused(sql: str, code: str) -> None:
 )
 def test_comment_and_case_variants_of_a_legit_select_pass(warehouse: Path, sql: str) -> None:
     """The guard refuses statements, not words: these must not be false positives."""
+    assert query_marts(sql, db_path=warehouse)["row_count"] >= 1
+
+
+# ── A CTE name only counts inside its own scope (phase-10 audit of PR #38, finding H1) ───
+# The allowlist once collected CTE names from the whole statement: a CTE defined in ANY
+# subquery whitelisted its name everywhere, so an outer FROM of that name read the real table.
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        # derived table
+        "SELECT * FROM stg_secret, (WITH stg_secret AS (SELECT 1 x) SELECT * FROM stg_secret) t",
+        # scalar subquery
+        "SELECT (SELECT v FROM stg_secret) AS v, "
+        "(WITH stg_secret AS (SELECT 1 x) SELECT x FROM stg_secret) AS y",
+        # one branch of a set operation
+        "SELECT v FROM stg_secret UNION ALL "
+        "(WITH stg_secret AS (SELECT 'a' v) SELECT v FROM stg_secret)",
+        # a CTE nested in a sibling CTE
+        "WITH a AS (WITH stg_secret AS (SELECT 1 x) SELECT x FROM stg_secret), "
+        "b AS (SELECT v FROM stg_secret) SELECT * FROM b",
+        # a predicate subquery
+        "SELECT * FROM stg_secret "
+        "WHERE EXISTS (WITH stg_secret AS (SELECT 1) SELECT 1 FROM stg_secret)",
+        # a CTE body naming the real table it shadows
+        "WITH stg_secret AS (SELECT v FROM stg_secret) SELECT * FROM stg_secret",
+    ],
+)
+def test_a_cte_out_of_scope_does_not_whitelist_a_real_table(warehouse: Path, sql: str) -> None:
+    with pytest.raises(ToolError) as info:
+        result = query_marts(sql, db_path=warehouse)
+        pytest.fail(f"ran and returned {result['rows']}")
+    assert info.value.code == "table_not_allowed", info.value
+    assert SECRET_ROW not in info.value.message
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "WITH t AS (SELECT * FROM dim_track) SELECT * FROM t",
+        "WITH t AS (SELECT * FROM dim_track) SELECT * FROM (SELECT * FROM t) s",
+        "WITH t AS (SELECT * FROM dim_track) SELECT (SELECT count(*) FROM t) AS n",
+        "WITH a AS (SELECT * FROM dim_track), b AS (SELECT * FROM a) SELECT * FROM b",
+        "SELECT * FROM (WITH t AS (SELECT * FROM dim_track) SELECT * FROM t) s",
+        "WITH dim_track AS (SELECT 1 AS track_id) SELECT * FROM dim_track",
+        "SELECT * FROM dim_track d LEFT JOIN fct_session f ON true",
+        "SELECT track_id::VARCHAR FROM dim_track UNION ALL SELECT session_id FROM fct_session",
+        "WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM r WHERE n < 3) "
+        "SELECT * FROM r",
+    ],
+)
+def test_ctes_used_within_their_scope_still_pass(warehouse: Path, sql: str) -> None:
+    """The scope fix must not refuse what the allowlist was always meant to allow."""
+    assert query_marts(sql, db_path=warehouse)["row_count"] >= 1
+
+
+# ── Scalar functions that read the catalogue or the configuration ────────────────────────
+# The guard refuses table functions by shape. These are scalar CALLS, so they passed it, yet
+# DuckDB 0.10.2 runs them on the locked engine: pg_get_viewdef / pg_get_constraintdef /
+# format_type are macros over duckdb_views() / duckdb_constraints() / duckdb_types(), and
+# current_setting returns absolute paths (secret_directory carries the OS user's home).
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT pg_get_viewdef(1) FROM dim_track",
+        "SELECT PG_GET_VIEWDEF(1) FROM dim_track",
+        "SELECT track_id FROM dim_track WHERE pg_get_viewdef(1) IS NULL",
+        "SELECT pg_get_constraintdef(1, true) FROM dim_track",
+        "SELECT format_type(1, 2) FROM dim_track",
+        "SELECT current_setting('secret_directory') FROM dim_track",
+        "SELECT current_setting('temp_directory') FROM dim_track",
+        "WITH t AS (SELECT current_setting('home_directory') AS h) SELECT * FROM t",
+    ],
+)
+def test_catalogue_and_configuration_functions_are_refused(sql: str) -> None:
+    _refused(sql, "function_not_allowed")
+
+
+def test_a_view_definition_off_the_allowlist_does_not_leak(warehouse: Path) -> None:
+    with duckdb.connect(str(warehouse), read_only=True) as con:
+        oid = con.execute(
+            "SELECT view_oid FROM duckdb_views() WHERE view_name = 'stg_secret_view'"
+        ).fetchone()
+    assert oid is not None
+    with pytest.raises(ToolError) as info:
+        query_marts(f"SELECT pg_get_viewdef({oid[0]}) AS d FROM dim_track", db_path=warehouse)
+    assert info.value.code == "function_not_allowed"
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT version() AS v FROM dim_track",
+        "SELECT current_database() AS d FROM dim_track",
+        "SELECT upper(title), round(bpm_effective) FROM dim_track",
+    ],
+)
+def test_harmless_scalar_functions_still_pass(warehouse: Path, sql: str) -> None:
     assert query_marts(sql, db_path=warehouse)["row_count"] >= 1
 
 
@@ -257,6 +371,25 @@ def test_the_locked_connection_cannot_read_the_disk(
                 run_select(con, sql, MAX_ROWS, 5.0)
     assert not out.exists()
     assert not (tmp_path / "other.duckdb").exists()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "CVE-2024-41672: on DuckDB <= 1.0.0, sniff_csv reads a file even with "
+        "enable_external_access=false. The SQL guard refuses it (test_injection_is_refused). "
+        "Ticket: ROADMAP, DuckDB upgrade line. When the upgrade lands this turns red: drop "
+        "the marker."
+    ),
+)
+def test_the_locked_connection_refuses_sniff_csv(warehouse: Path, secret_file: Path) -> None:
+    with locked(warehouse) as con:
+        try:
+            _, rows, _ = run_select(con, f"SELECT * FROM sniff_csv('{secret_file}')", 5, 5.0)
+        except duckdb.Error:
+            return
+    raise AssertionError(f"the locked engine read the file header: {rows[0][6]}")
 
 
 def test_the_warehouse_file_is_unchanged_by_the_tools(warehouse: Path) -> None:
