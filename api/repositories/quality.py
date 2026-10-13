@@ -23,8 +23,8 @@ class QualityRepository:
     """
 
     def __init__(self, db_path: Path | None = None, connect: Connect = readable) -> None:
-        # `connect` lets the agent tools reuse these reads through the locked read-only
-        # connection (`readonly_warehouse.locked`) instead of duplicating the SQL.
+        # `connect` lets the agent tools reuse these reads through their exposure database
+        # (`readonly_warehouse.exposed`) instead of duplicating the SQL.
         self._db_path = db_path
         self._connect = connect
 

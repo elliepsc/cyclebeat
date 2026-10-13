@@ -15,22 +15,25 @@ later. Everything here is deterministic -- no LLM decides what runs.
    folds them, ASCII only; a non-ASCII table or CTE name is refused. Table functions
    (`read_csv`, `glob`, `sniff_csv`, ...) and file paths are refused;
 5. no scalar call to a function that reads the catalogue or the configuration
-   (`_FORBIDDEN_FUNCTIONS`): on DuckDB 0.10.2 they run on the locked engine;
+   (`_FORBIDDEN_FUNCTIONS`), and ASCII function names only;
 6. `LIMIT 200` injected when absent, and at most 200 rows fetched whatever the LIMIT says;
-7. 5 s timeout.
+7. what runs is what was checked: the emitted SQL is guarded again and must come back
+   unchanged (sqlglot re-emits function names with Python's Unicode-aware `upper()`, which
+   once turned `current_sett\u0131ng` into `CURRENT_SETTING` after the check);
+8. 5 s timeout.
 
-Guards 4 (scope) and 5 come from the phase-10 audit of PR #38: the first version collected
-CTE names from the whole statement, so `SELECT * FROM stg_x, (WITH stg_x AS (...) ...)`
-read the real `stg_x`.
-
-The engine side (read-only file, external access off, configuration locked) is in
-`api/repositories/readonly_warehouse.py`. Errors come back as `ToolError` with a code and a
+Guards 4, 5 and 7 come from the phase-10 audits (PR #38, then the fix branch): CTE scope,
+catalogue functions, Unicode folding. The three bypasses had one cause -- the guard inferred
+from SQL text which tables would be read -- so the guard is now the SECOND line: the SQL runs
+on `exposed()` (`api/repositories/readonly_warehouse.py`), an in-memory, locked database that
+holds copies of the allowed marts only. Errors come back as `ToolError` with a code and a
 one-line message -- no stack trace reaches the caller.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +44,7 @@ from sqlglot.errors import SqlglotError
 from sqlglot.optimizer.scope import traverse_scope
 
 from api.repositories.quality import QualityRepository
-from api.repositories.readonly_warehouse import WarehouseUnavailable, locked, run_select
+from api.repositories.readonly_warehouse import WarehouseUnavailable, exposed, run_select
 from api.services.quality import QualityService
 
 # E.4's allowlist, restricted to the marts that exist: `fct_llm_calls` and `fct_agent_runs`
@@ -49,6 +52,7 @@ from api.services.quality import QualityService
 MARTS_ALLOWLIST: frozenset[str] = frozenset(
     {"dim_track", "fct_session", "mart_bpm_coverage", "mart_data_quality"}
 )
+_QUALITY_MARTS: frozenset[str] = frozenset({"mart_bpm_coverage", "mart_data_quality"})
 MAX_ROWS = 200
 TIMEOUT_S = 5.0
 _DEFAULT_SCHEMA = "main"
@@ -76,6 +80,13 @@ class ToolError(Exception):
 
 def guard_select(sql: str) -> str:
     """Validate `sql` and return the statement to run, with `LIMIT 200` when absent."""
+    emitted = _guard_once(sql)
+    if _guard_once(emitted) != emitted:
+        raise ToolError("parse_error", "the query does not survive regeneration unchanged")
+    return emitted
+
+
+def _guard_once(sql: str) -> str:
     if not sql or not sql.strip():
         raise ToolError("empty_query", "the query is empty")
     try:
@@ -95,6 +106,10 @@ def guard_select(sql: str) -> str:
 
     for func in statement.find_all(exp.Func):
         name = func.name if isinstance(func, exp.Anonymous) else func.sql_name()
+        if not name.isascii():
+            raise ToolError(
+                "function_not_allowed", f"non-ASCII function names are refused: {name!r}"
+            )
         if name.lower() in _FORBIDDEN_FUNCTIONS:
             raise ToolError(
                 "function_not_allowed", f"{name.lower()} reads the catalogue or settings"
@@ -156,7 +171,7 @@ def query_marts(
     """E.4 `query_marts`: one guarded SELECT on the marts, at most 200 rows."""
     safe_sql = guard_select(sql)
     try:
-        with locked(db_path) as con:
+        with exposed(db_path, MARTS_ALLOWLIST) as con:
             columns, rows, truncated = run_select(con, safe_sql, MAX_ROWS, timeout_s)
     except WarehouseUnavailable as exc:
         raise ToolError("warehouse_unavailable", str(exc)) from exc
@@ -176,10 +191,11 @@ def query_marts(
 def get_quality_report(db_path: Path | None = None) -> dict[str, Any]:
     """E.4 `get_quality_report`: the two quality marts, through the API's own service.
 
-    Same numbers as `/v1/quality/summary` and `/v1/quality/coverage`, read through the locked
-    connection instead of the API's fallback one.
+    Same numbers as `/v1/quality/summary` and `/v1/quality/coverage`, read through an exposure
+    database holding the two quality marts only, instead of the API's fallback connection.
     """
-    service = QualityService(QualityRepository(db_path, connect=locked))
+    connect = partial(exposed, tables=_QUALITY_MARTS)
+    service = QualityService(QualityRepository(db_path, connect=connect))
     try:
         summary = service.summary()
         coverage = service.coverage()
