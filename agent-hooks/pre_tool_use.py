@@ -42,8 +42,11 @@ ROOT = Path(__file__).resolve().parents[1]
 SECRET_NAMES = (".env", ".ENV", ".netrc", ".pgpass", "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa")
 SECRET_GLOBS = (".env.*", ".ENV.*", "*.pem", "*.key", "*.p12", "*.pfx")
 SECRET_ALLOWED = (".env.example",)
-# Names a glob in a shell token would have to match to reach a secret (`cat .env*`).
-SECRET_PROBES = (".env", ".env.local", "id_rsa", "x.pem", "x.key")
+# A shell glob reaches a secret only if it can: bash `*` skips dotfiles, so a glob has to start
+# with `.` to hit `.env` (it is then matched against these), or name key material itself
+# (`id_*`, `*.pem`, `*.key`, ...).
+DOT_PROBES = (".env", ".env.local", ".ENV", ".netrc", ".pgpass")
+KEY_SUFFIXES = (".pem", ".key", ".p12", ".pfx")
 
 OPERATORS = {";", "&&", "||", "|", "&", "|&", "(", ")", ";;"}
 REDIRECTS = {">", ">>", ">|", "&>", "&>>", "<", "<<", "<<<", "<>", ">&", "<&"}
@@ -60,6 +63,8 @@ GIT_READ = {
     "status", "diff", "log", "show", "ls-files", "ls-tree", "blame", "rev-parse",
     "check-ignore", "grep", "shortlog", "cat-file", "describe", "whatchanged",
 }
+# Git subcommands that only touch the index: staging a file does not write it.
+GIT_STAGE = {"add", "commit"}
 FIND_WRITES = {"-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0",
                "-fprintf", "-fls"}
 # Commands whose bare-word arguments (no slash) are paths: `rm -rf data`.
@@ -121,8 +126,14 @@ def is_secret(token: str) -> bool:
     if name in SECRET_NAMES or any(fnmatch.fnmatchcase(name, g) for g in SECRET_GLOBS):
         return True
     if any(ch in name for ch in "*?["):
-        return any(fnmatch.fnmatchcase(probe, name) for probe in SECRET_PROBES)
+        return _secret_glob(name)
     return False
+
+
+def _secret_glob(name: str) -> bool:
+    if name.startswith("."):
+        return any(fnmatch.fnmatchcase(probe, name) for probe in DOT_PROBES)
+    return name.startswith("id_") or name.lower().endswith(KEY_SUFFIXES)
 
 
 def _is_settings(path: Path) -> bool:
@@ -414,10 +425,12 @@ def _bash(command: str, cwd: Path, branch_of: BranchOf) -> str | None:
                     continue
                 # Staging the guardrail's files does not change them.
                 if head == "git" and _inside(path, SELF_ZONES):
-                    if _sub(cmd, {"-C", "-c"})[0] in ("add", "commit"):
+                    if _sub(cmd, {"-C", "-c"})[0] in GIT_STAGE:
                         continue
                 return _write_refusal(path) or "refused"
             if _is_settings(path) and not _read_only(cmd):
+                if head == "git" and _sub(cmd, {"-C", "-c"})[0] in GIT_STAGE:
+                    continue
                 return _write_refusal(path)
         if head == "cd" and len(cmd) > 1:
             cwd = _resolve(cmd[1], cwd)
