@@ -79,6 +79,19 @@ engine: `pg_get_viewdef` (returned the SQL of a view off the allowlist), `pg_get
 `format_type` (macros over the `duckdb_*` catalogue functions) and `current_setting` (absolute
 paths, the OS user's home). They are refused by name (`function_not_allowed`).
 
+The security audit of that fix branch, before merge, found the same class once more: the guard
+folded names with Python's Unicode-aware `str.lower()`, which maps U+212A KELVIN SIGN to ASCII
+`k`, while DuckDB folds ASCII only. A CTE named `stg_trac\u212as` was taken for `stg_tracks`
+by the guard and DuckDB read the real table (reproduced end to end). Identifiers are now
+folded ASCII-only and a non-ASCII table or CTE name is refused; `get_block_size` (a macro over
+`pragma_database_size()`) joined the refused functions. Call shapes the locked engine executes
+(schema-qualified, quoted, mixed case, method syntax, lambda, `CASE`, `ORDER BY`) are pinned as
+refusals in `test_copilot_guards.py`.
+
+The function list is a denylist measured on DuckDB 0.10.2's built-ins. A macro defined IN the
+warehouse would run unchecked (the audit showed it with a probe macro); none exists today (no
+`CREATE MACRO` in `dbt/`, `cyclebeat/`, `api/`, `dags/`), and the tools cannot create one.
+
 Residual, engine side: on 0.10.2 the locked connection itself still lets `sniff_csv` read a
 file header (CVE-2024-41672); only the guard refuses it. Recorded as an `xfail(strict=True)`
 test and a `[présentable]` roadmap line (DuckDB upgrade). The two layers of point 1 are

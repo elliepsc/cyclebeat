@@ -5,7 +5,7 @@ marts. It is the "MCP tool/server" element of the agent extension pack (`docs/ag
 
 | Tool | What it returns | Guards |
 |---|---|---|
-| `query_marts(sql)` | columns and rows of ONE SELECT | one statement, SELECT/WITH/set operation only, tables limited to `dim_track`, `fct_session`, `mart_bpm_coverage`, `mart_data_quality` (E.4, restricted to the marts that exist), a CTE name valid only in its own scope, no table functions or file paths, no catalogue or configuration functions (`pg_get_viewdef`, `current_setting`, ...), `LIMIT 200` injected and at most 200 rows fetched, 5 s timeout |
+| `query_marts(sql)` | columns and rows of ONE SELECT | one statement, SELECT/WITH/set operation only, tables limited to `dim_track`, `fct_session`, `mart_bpm_coverage`, `mart_data_quality` (E.4, restricted to the marts that exist), a CTE name valid only in its own scope, ASCII identifiers only, no table functions or file paths, no catalogue or configuration functions (`pg_get_viewdef`, `current_setting`, ...), `LIMIT 200` injected and at most 200 rows fetched, 5 s timeout |
 | `get_quality_report()` | the quality summary and BPM coverage, the same numbers as `/v1/quality/*` | read through the same locked connection |
 
 Both tools are annotated `readOnlyHint: true`. Errors come back as
