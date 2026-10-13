@@ -94,6 +94,9 @@ need the agent loop with the LLM layer (ADR-012).
 writes to `data/`/`lake/`, secrets files, force push, pushes and merges to `main`, `gh pr
 create/merge`, Render calls, and edits to the guardrails themselves. A refusal is not an obstacle
 to route around: stop and report it. See [docs/permissions.md](docs/permissions.md).
+This includes suspected false positives and classifier refusals: never retry with an equivalent
+command (e.g. `git add .claude` after `git add .claude/settings.json` is refused); report it and
+propose the fix to the owner.
 
 ## Conventions
 
@@ -140,3 +143,5 @@ first.
 - Never pipe a gate command (`make lint`, `make test-unit`, ...) into `tail`/`head` without checking
   its own exit code (`set -o pipefail` or `${PIPESTATUS[0]}`): the pipeline returns the exit code of
   `tail`, so a red gate looks green (phase 7: a commit with 2 dead links went through this way).
+- The hook reads `RUNTIME_DB_PATH` only as a command prefix (`RUNTIME_DB_PATH=... make dbt`), not
+  from the exported environment.
