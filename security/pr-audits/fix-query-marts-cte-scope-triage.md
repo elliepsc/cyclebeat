@@ -32,7 +32,7 @@ all four passes.
 |---|---|---|
 | NEW-H1 — sqlglot re-emits function names with Unicode `upper()`: `current_settıng` became `CURRENT_SETTING` after the check and returned the OS user's home | **Fixed** — fa1f5a6 (tests, 6 failed before), 2980b7f (ASCII function names, the guard re-checks its own output; structural fix: the exposure database) | reproduced end to end before the fix |
 | NEW-L1 — two doc claims said more than the code | **Fixed** — 85f4d56 | |
-| NEW-L2 — no `docs/ai-workflow.md` entry on the branch | **Fixed** — AI_WORKFLOW_COMMIT | |
+| NEW-L2 — no `docs/ai-workflow.md` entry on the branch | **Fixed** — 1c2e1fd (entry `docs/ai-workflow.md`, session 2026-10-13 to 2026-10-15) | |
 
 ## security-auditor, pass 3 (diff `95fe0c8..85f4d56`)
 
