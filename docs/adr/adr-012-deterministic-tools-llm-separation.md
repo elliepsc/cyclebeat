@@ -110,6 +110,32 @@ values; the SQL guard becomes the second line. Measured on a copy of the warehou
 database, holding the two quality marts only.
 
 Residual, engine side: on 0.10.2, `sniff_csv` still reads a file header on the locked
-connection and on the exposure database (CVE-2024-41672); only the guard refuses it, by shape
-(a table function). Recorded as two `xfail(strict=True)` tests and a `[présentable]` roadmap
-line (DuckDB upgrade).
+connection and on the exposure database (CVE-2024-41672); only the guard refuses it. Recorded
+as two `xfail(strict=True)` tests and the first `[présentable]` roadmap line (DuckDB upgrade).
+
+The third pre-merge pass showed how thin that line was (C1, reproduced, and present on
+`origin/main` too): `JOIN LATERAL sniff_csv('<file>') ON true` is an `exp.Lateral`, not an
+`exp.Table`, so the table check never saw it, and the first line of a file came back through
+`query_marts`. The guard now allows only three FROM / JOIN source shapes (a named table, a
+subquery, `VALUES`; `LATERAL` only over a subquery) and refuses everything else by default;
+the names DuckDB knows only as table functions are read from the installed engine and refused
+anywhere in the query. The same pass found that `warehouse_unavailable` carried DuckDB's lock
+error (the file path, the lock holder's executable under the home directory, its PID; M1) and
+that `ROWS FROM` crashed the guard (L1): the caller now gets one fixed message, the detail
+goes to the server log, and any internal guard error is a structured refusal.
+
+The fourth pass, limited to source shapes, table functions and M1, found no read. It found
+an unreadable parent directory turning `Path.is_file()` into a `PermissionError` that carried
+the absolute path out of both tools (NEW-L1), and scalar `range` / `generate_series` /
+`repeat` allocating past the exposure database's memory limit (NEW-M1, 1666 MB RSS measured;
+availability, not confidentiality). Both are fixed (fixed message and a last-resort
+`internal_error`; the three builders refused); the process-level memory limit is the real fix
+for NEW-M1 and is a `[présentable]` roadmap line. The audit loop stopped there by owner
+decision: the tests of the last two fixes are their proof.
+
+**The stop rule, as the owner applied it (15 October 2026).** A "read" outside the allowed
+marts is what an agent obtains through the CONTENT of its query: another table, a file, a
+setting of the machine. A failure that depends on the environment and reads no data (NEW-L1,
+like M1) is a disclosure to fix, not a read; it does not trigger the switch to fixed,
+parameterised tools that a further read would have triggered. The full triage of the four
+passes is in `security/pr-audits/fix-query-marts-cte-scope-triage.md`.
