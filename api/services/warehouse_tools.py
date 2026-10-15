@@ -70,6 +70,13 @@ _DEFAULT_SCHEMA = "main"
 # `get_block_size` wraps pragma_database_size() (audit of the fix branch, LOW 2).
 log = logging.getLogger(__name__)
 
+# Scalar builders that allocate their whole result outside DuckDB's buffer manager, so the
+# exposure database's memory_limit does not bound them: `len(range(100000000))` reached
+# 1666 MB RSS and a larger call got the process killed (pass-4 audit, NEW-M1). An
+# availability risk, not a confidentiality one; the real fix is a process-level memory limit
+# (ROADMAP [présentable]).
+_UNBOUNDED_BUILDERS: frozenset[str] = frozenset({"generate_series", "range", "repeat"})
+
 _FORBIDDEN_FUNCTIONS: frozenset[str] = frozenset(
     {"current_setting", "format_type", "get_block_size", "pg_get_constraintdef", "pg_get_viewdef"}
 )
@@ -134,6 +141,11 @@ def _guard_once(sql: str) -> str:
         if name.lower() in _FORBIDDEN_FUNCTIONS:
             raise ToolError(
                 "function_not_allowed", f"{name.lower()} reads the catalogue or settings"
+            )
+        if name.lower() in _UNBOUNDED_BUILDERS:
+            raise ToolError(
+                "function_not_allowed",
+                f"{name.lower()} builds an unbounded result and is refused",
             )
         if name.lower() in table_function_names():
             raise ToolError(
@@ -233,6 +245,8 @@ def query_marts(
         raise ToolError("timeout", f"the query exceeded {timeout_s:g} s") from exc
     except duckdb.Error as exc:
         raise ToolError("query_failed", _first_line(exc)) from exc
+    except Exception as exc:
+        raise _internal_error("query_marts", exc) from exc
     return {
         "sql": safe_sql,
         "columns": columns,
@@ -257,10 +271,22 @@ def get_quality_report(db_path: Path | None = None) -> dict[str, Any]:
         raise ToolError("warehouse_unavailable", str(exc)) from exc
     except duckdb.Error as exc:
         raise ToolError("query_failed", _first_line(exc)) from exc
+    except Exception as exc:
+        raise _internal_error("get_quality_report", exc) from exc
     return {
         "summary": summary.model_dump(),
         "coverage": [row.model_dump() for row in coverage],
     }
+
+
+def _internal_error(tool: str, exc: BaseException) -> ToolError:
+    """The last net: log the detail (stderr), hand the caller a code and a fixed message.
+
+    Whatever escapes the expected cases may carry a path or other machine detail, as the
+    PermissionError of NEW-L1 did (pass-4 audit).
+    """
+    log.warning("%s failed unexpectedly: %r", tool, exc)
+    return ToolError("internal_error", "the tool failed; the detail is in the server log")
 
 
 def _first_line(exc: BaseException) -> str:

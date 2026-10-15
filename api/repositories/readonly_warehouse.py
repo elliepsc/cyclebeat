@@ -78,11 +78,22 @@ def _unavailable(detail: str) -> WarehouseUnavailable:
     return WarehouseUnavailable(UNAVAILABLE_MESSAGE)
 
 
+def _is_file(path: Path) -> bool:
+    """`Path.is_file()`, minus the OSError it re-raises (EACCES on an unsearchable parent).
+
+    That PermissionError carried the absolute path out of both tools (pass-4 audit, NEW-L1).
+    """
+    try:
+        return path.is_file()
+    except OSError as exc:
+        raise _unavailable(f"cannot stat {path}: {exc}") from exc
+
+
 @contextmanager
 def locked(db_path: Path | None = None) -> Iterator[duckdb.DuckDBPyConnection]:
     """A read-only, externally sealed connection. Never creates the database file."""
     path = db_path or warehouse_path()
-    if not path.is_file():
+    if not _is_file(path):
         raise _unavailable(f"no warehouse file at {path}; run `make dbt` first")
     try:
         con = duckdb.connect(str(path), read_only=True, config=LOCKED_CONFIG)
@@ -102,7 +113,7 @@ def exposed(db_path: Path | None, tables: Iterable[str]) -> Iterator[duckdb.Duck
     Built per call (about 13 ms on the demo warehouse, measured): a write dies with the call.
     """
     path = db_path or warehouse_path()
-    if not path.is_file():
+    if not _is_file(path):
         raise _unavailable(f"no warehouse file at {path}; run `make dbt` first")
     names = sorted(set(tables))
     if not all(name.isascii() and name.isidentifier() for name in names):
