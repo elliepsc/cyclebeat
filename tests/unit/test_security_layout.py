@@ -64,3 +64,18 @@ def test_the_audit_never_reaches_the_working_tree_or_the_registry_login() -> Non
     assert "git archive HEAD" in audit, "Semgrep scans the committed tree only"
     assert '"$(CURDIR)/.git:/repo/.git:ro"' in audit, "gitleaks mounts .git alone, read-only"
     assert '"$(CURDIR):' not in audit, "the working tree (and .env) is never mounted"
+
+
+def test_no_semgrep_rule_is_excluded_globally() -> None:
+    assert "--exclude-rule" not in MAKEFILE, "accept a finding with a targeted nosemgrep instead"
+
+
+def test_the_only_semgrep_exception_is_targeted_and_justified() -> None:
+    """One accepted finding: the API image runs as root. Named rule, reason above it, one file."""
+    rule = "nosemgrep: dockerfile.security.missing-user.missing-user"
+    api = (ROOT / "Dockerfile").read_text().splitlines()
+    marks = [i for i, line in enumerate(api) if "nosemgrep" in line]
+    assert len(marks) == 1 and api[marks[0]].strip() == f"# {rule}"
+    assert api[marks[0] + 1].startswith("CMD "), "the exception sits right above the CMD it covers"
+    assert "root" in " ".join(api[marks[0] - 4 : marks[0]]), "the reason is written above it"
+    assert "nosemgrep" not in (ROOT / "frontend" / "Dockerfile").read_text()

@@ -188,12 +188,12 @@ plugin:
 #     run fails on severity ERROR only (owner decision, phase 10).
 #   - gitleaks scans the git HISTORY of every ref from a read-only mount of .git alone (the
 #     working tree, and so .env, is never mounted) and fails on any finding.
-# Each excluded rule is justified in security/scans/ (more than 5 = the packs are wrong).
+# No rule is excluded globally: an accepted finding gets a `nosemgrep: <rule>` comment on its
+# own line, with the reason, and is triaged in security/scans/.
 SEMGREP_IMAGE := semgrep/semgrep:1.178.0@sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b
 GITLEAKS_IMAGE := ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
 SEMGREP_PACKS := --config p/python --config p/typescript --config p/dockerfile --config p/github-actions
-SEMGREP_EXCLUDE := --exclude-rule dockerfile.security.missing-user.missing-user
-SEMGREP = docker run --rm -v "$$src:/src:ro" -w /src $(SEMGREP_IMAGE) semgrep scan --metrics=off $(SEMGREP_PACKS) $(SEMGREP_EXCLUDE)
+SEMGREP = docker run --rm -v "$$src:/src:ro" -w /src $(SEMGREP_IMAGE) semgrep scan --metrics=off $(SEMGREP_PACKS)
 
 audit:
 	@set -e; src=$$(mktemp -d); trap 'rm -rf "$$src"' EXIT; \

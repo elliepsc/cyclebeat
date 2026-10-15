@@ -53,4 +53,9 @@ HEALTHCHECK CMD curl --fail http://localhost:${PORT:-8000}/health || exit 1
 
 # `exec` makes uvicorn PID 1, so it receives the stop signal itself; without it the wrapping
 # `sh -c` stays PID 1 and swallows it. Everywhere but Render the API stays on 8000.
+# The API runs as root (Semgrep dockerfile missing-user): a non-root USER changes the image
+# Render deploys and the write rights the airflow/ingest/dbt services built from this image
+# need on /app/data. Accepted for the submission, scoped to this line only; the fix is the
+# ROADMAP [présentable] line "Image en deux étapes ... utilisateur non root".
+# nosemgrep: dockerfile.security.missing-user.missing-user
 CMD ["sh", "-c", "exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
