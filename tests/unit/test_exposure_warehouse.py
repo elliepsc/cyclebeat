@@ -250,3 +250,57 @@ def test_an_absent_warehouse_yields_the_same_fixed_message(tmp_path: Path) -> No
     with pytest.raises(ToolError) as info:
         query_marts("SELECT * FROM dim_track", db_path=missing)
     _assert_no_machine_detail(info.value.message, missing)
+
+
+# ── An unreadable directory, and any unexpected error (pass-4 audit, NEW-L1) ───────────
+# Path.is_file() re-raises EACCES: with a parent directory the server cannot search, the
+# PermissionError carried the absolute warehouse path out of both tools, uncaught.
+
+
+@pytest.fixture()
+def unsearchable(warehouse: Path) -> Iterator[Path]:
+    """The warehouse's parent directory without the search (x) permission."""
+    warehouse.parent.chmod(0o600)
+    try:
+        yield warehouse
+    finally:
+        warehouse.parent.chmod(0o700)
+
+
+def test_an_unsearchable_directory_yields_the_fixed_message(
+    unsearchable: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.WARNING)
+    for call in (
+        lambda: query_marts("SELECT * FROM dim_track", db_path=unsearchable),
+        lambda: get_quality_report(db_path=unsearchable),
+    ):
+        with pytest.raises(ToolError) as info:
+            call()
+        assert info.value.code == "warehouse_unavailable"
+        _assert_no_machine_detail(info.value.message, unsearchable)
+    with pytest.raises(WarehouseUnavailable) as raw, locked(unsearchable):
+        pass
+    _assert_no_machine_detail(str(raw.value), unsearchable)
+    assert "permission" in caplog.text.lower(), "the detail must still reach the server log"
+
+
+def test_any_unexpected_error_in_a_tool_is_a_fixed_refusal(
+    warehouse: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The last net: whatever escapes, the caller gets a code and a fixed message."""
+
+    def boom(*args: object, **kwargs: object) -> None:
+        raise RuntimeError(f"unexpected failure under {warehouse}")
+
+    monkeypatch.setattr(warehouse_tools, "exposed", boom)
+    caplog.set_level(logging.WARNING)
+    for call in (
+        lambda: query_marts("SELECT * FROM dim_track", db_path=warehouse),
+        lambda: get_quality_report(db_path=warehouse),
+    ):
+        with pytest.raises(ToolError) as info:
+            call()
+        assert info.value.code == "internal_error"
+        assert str(warehouse.parent) not in info.value.message
+    assert "unexpected failure" in caplog.text

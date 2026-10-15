@@ -395,6 +395,23 @@ def test_a_table_function_name_is_refused_anywhere(sql: str) -> None:
     _refused(sql, "function_not_allowed")
 
 
+# NEW-M1 (pass-4 audit): the scalar forms build their list outside DuckDB's buffer manager, so
+# the 512 MB memory_limit does not bound them; `len(range(100000000))` reached 1666 MB RSS and
+# a larger call got the process killed. An availability risk, not a confidentiality one.
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT len(range(100000000)) FROM dim_track",
+        "SELECT range(3) FROM dim_track",
+        "SELECT generate_series(1, 3) FROM dim_track",
+        "SELECT repeat('x', 1000000000) FROM dim_track",
+        "SELECT count(*) FROM (SELECT unnest(range(300000000)) AS x) s",
+    ],
+)
+def test_unbounded_list_and_string_builders_are_refused(sql: str) -> None:
+    _refused(sql, "function_not_allowed")
+
+
 def test_lateral_sniff_csv_reads_nothing_through_query_marts(
     warehouse: Path, secret_file: Path
 ) -> None:
