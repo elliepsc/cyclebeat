@@ -21,6 +21,7 @@ from api.repositories.readonly_warehouse import (
     locked,
     run_select,
 )
+from api.services import warehouse_tools
 from api.services.warehouse_tools import (
     MARTS_ALLOWLIST,
     MAX_ROWS,
@@ -29,6 +30,8 @@ from api.services.warehouse_tools import (
     guard_select,
     query_marts,
 )
+
+SECRET_ROW = "SECRET_ROW_off_the_allowlist"
 
 
 @pytest.fixture()
@@ -56,6 +59,12 @@ def warehouse(tmp_path: Path) -> Path:
         )
         con.execute("CREATE SCHEMA raw")
         con.execute("CREATE TABLE raw.tracks (track_id VARCHAR)")
+        # A real table and a view in the DEFAULT schema, off the allowlist, like dbt's
+        # staging views: only a table that exists can prove a refusal is not a no-op.
+        con.execute(f"CREATE TABLE stg_secret AS SELECT '{SECRET_ROW}' AS v")
+        con.execute("CREATE VIEW stg_secret_view AS SELECT v FROM stg_secret")
+        # A name with a `k`: U+212A KELVIN SIGN lowercases to ASCII `k` in Python, not in DuckDB.
+        con.execute(f"CREATE TABLE stg_tracks AS SELECT '{SECRET_ROW}' AS v")
     return path
 
 
@@ -151,6 +160,13 @@ def test_limit_injected_when_absent(warehouse: Path) -> None:
         ("SELECT * FROM '/etc/passwd'", "table_not_allowed"),
         ("SELECT * FROM 'data/cyclebeat_runtime.duckdb'", "table_not_allowed"),
         ("SELECT * FROM dim_track, read_csv('/etc/passwd')", "table_not_allowed"),
+        # sniff_csv reads a file even on the locked engine (CVE-2024-41672, DuckDB 0.10.2):
+        # the guard is the layer that holds, so its refusal is pinned here
+        ("SELECT * FROM sniff_csv('/etc/passwd')", "table_not_allowed"),
+        (
+            "SELECT (SELECT Columns FROM sniff_csv('/etc/passwd')) FROM dim_track",
+            "table_not_allowed",
+        ),
         (
             "SELECT (SELECT count(*) FROM read_text('/etc/hostname')) FROM dim_track",
             "table_not_allowed",
@@ -185,11 +201,338 @@ def test_injection_is_refused(sql: str, code: str) -> None:
         "SELECT * FROM main.dim_track LIMIT 5",
         "SELECT source FROM mart_bpm_coverage "
         "UNION SELECT confidence_method FROM mart_data_quality",
+        # the ASCII rule is for table and CTE NAMES only: strings and aliases stay free
+        "SELECT count(*) AS n FROM dim_track WHERE title <> 'Caf\u00e9'",
+        'SELECT title AS "titre_\u00e9" FROM dim_track',
+        "SELECT upper('\u00e9t\u00e9') AS saison FROM dim_track",
     ],
 )
 def test_comment_and_case_variants_of_a_legit_select_pass(warehouse: Path, sql: str) -> None:
     """The guard refuses statements, not words: these must not be false positives."""
     assert query_marts(sql, db_path=warehouse)["row_count"] >= 1
+
+
+def test_the_guard_output_is_a_fixed_point_of_the_guard() -> None:
+    """What runs is what was checked: guarding the emitted SQL again changes nothing."""
+    for sql in (
+        "SELECT count(*) FROM dim_track WHERE title <> 'Caf\u00e9'",
+        "WITH t AS (SELECT * FROM dim_track) SELECT (SELECT count(*) FROM t) AS n",
+        "SELECT source FROM mart_bpm_coverage "
+        "UNION SELECT confidence_method FROM mart_data_quality",
+    ):
+        emitted = guard_select(sql)
+        assert guard_select(emitted) == emitted
+
+
+# ── A CTE name only counts inside its own scope (phase-10 audit of PR #38, finding H1) ───
+# The allowlist once collected CTE names from the whole statement: a CTE defined in ANY
+# subquery whitelisted its name everywhere, so an outer FROM of that name read the real table.
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        # derived table
+        "SELECT * FROM stg_secret, (WITH stg_secret AS (SELECT 1 x) SELECT * FROM stg_secret) t",
+        # scalar subquery
+        "SELECT (SELECT v FROM stg_secret) AS v, "
+        "(WITH stg_secret AS (SELECT 1 x) SELECT x FROM stg_secret) AS y",
+        # one branch of a set operation
+        "SELECT v FROM stg_secret UNION ALL "
+        "(WITH stg_secret AS (SELECT 'a' v) SELECT v FROM stg_secret)",
+        # a CTE nested in a sibling CTE
+        "WITH a AS (WITH stg_secret AS (SELECT 1 x) SELECT x FROM stg_secret), "
+        "b AS (SELECT v FROM stg_secret) SELECT * FROM b",
+        # a predicate subquery
+        "SELECT * FROM stg_secret "
+        "WHERE EXISTS (WITH stg_secret AS (SELECT 1) SELECT 1 FROM stg_secret)",
+        # a CTE body naming the real table it shadows
+        "WITH stg_secret AS (SELECT v FROM stg_secret) SELECT * FROM stg_secret",
+        # Unicode folding (fix-branch audit, HIGH 1): Python's lower() maps U+212A KELVIN SIGN
+        # to `k`, DuckDB does not, so this CTE "matched" the real stg_tracks in the guard only
+        'WITH "stg_tracKs" AS (SELECT 1 AS x) SELECT * FROM stg_tracks',
+        "WITH stg_tracKs AS (SELECT 1 AS x) SELECT * FROM stg_tracks",
+        # a non-ASCII name that lowercases onto a mart is refused by the guard, not the engine
+        'SELECT * FROM "dim_tracK"',
+    ],
+)
+def test_a_cte_out_of_scope_does_not_whitelist_a_real_table(warehouse: Path, sql: str) -> None:
+    with pytest.raises(ToolError) as info:
+        result = query_marts(sql, db_path=warehouse)
+        pytest.fail(f"ran and returned {result['rows']}")
+    assert info.value.code == "table_not_allowed", info.value
+    assert SECRET_ROW not in info.value.message
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "WITH t AS (SELECT * FROM dim_track) SELECT * FROM t",
+        "WITH t AS (SELECT * FROM dim_track) SELECT * FROM (SELECT * FROM t) s",
+        "WITH t AS (SELECT * FROM dim_track) SELECT (SELECT count(*) FROM t) AS n",
+        "WITH a AS (SELECT * FROM dim_track), b AS (SELECT * FROM a) SELECT * FROM b",
+        "SELECT * FROM (WITH t AS (SELECT * FROM dim_track) SELECT * FROM t) s",
+        "WITH dim_track AS (SELECT 1 AS track_id) SELECT * FROM dim_track",
+        "SELECT * FROM dim_track d LEFT JOIN fct_session f ON true",
+        "SELECT track_id::VARCHAR FROM dim_track UNION ALL SELECT session_id FROM fct_session",
+        "WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM r WHERE n < 3) "
+        "SELECT * FROM r",
+    ],
+)
+def test_ctes_used_within_their_scope_still_pass(warehouse: Path, sql: str) -> None:
+    """The scope fix must not refuse what the allowlist was always meant to allow."""
+    assert query_marts(sql, db_path=warehouse)["row_count"] >= 1
+
+
+# ── Scalar functions that read the catalogue or the configuration ────────────────────────
+# The guard refuses table functions by shape. These are scalar CALLS, so they passed it, yet
+# DuckDB 0.10.2 runs them on the locked engine: pg_get_viewdef / pg_get_constraintdef /
+# format_type are macros over duckdb_views() / duckdb_constraints() / duckdb_types(), and
+# current_setting returns absolute paths (secret_directory carries the OS user's home).
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT pg_get_viewdef(1) FROM dim_track",
+        "SELECT PG_GET_VIEWDEF(1) FROM dim_track",
+        "SELECT track_id FROM dim_track WHERE pg_get_viewdef(1) IS NULL",
+        "SELECT pg_get_constraintdef(1, true) FROM dim_track",
+        "SELECT format_type(1, 2) FROM dim_track",
+        "SELECT current_setting('secret_directory') FROM dim_track",
+        "SELECT current_setting('temp_directory') FROM dim_track",
+        "WITH t AS (SELECT current_setting('home_directory') AS h) SELECT * FROM t",
+        # get_block_size: a macro over pragma_database_size() (fix-branch audit, LOW 2)
+        "SELECT get_block_size(current_database()) FROM dim_track",
+        # call shapes the locked engine EXECUTES (phase-10 probe): the name check must hold
+        "SELECT pg_catalog.pg_get_viewdef(1) FROM dim_track",
+        "SELECT system.pg_catalog.pg_get_viewdef(1) FROM dim_track",
+        "SELECT main.current_setting('secret_directory') FROM dim_track",
+        "SELECT system.main.current_setting('secret_directory') FROM dim_track",
+        'SELECT "pg_get_viewdef"(1) FROM dim_track',
+        "SELECT Current_Setting('secret_directory') FROM dim_track",
+        "SELECT ('secret_directory').current_setting() FROM dim_track",
+        "SELECT (1).pg_get_viewdef() FROM dim_track",
+        "SELECT list_transform([1], x -> current_setting('secret_directory')) FROM dim_track",
+        "SELECT CASE WHEN track_id = 1 THEN format_type(4, NULL) END FROM dim_track",
+        "SELECT track_id FROM dim_track ORDER BY pg_get_constraintdef(1, true)",
+        # sqlglot re-emits function names with Python's Unicode-aware upper(): a letter whose
+        # upper case is ASCII (U+0131 dotless i, U+017F long s, U+FB06 st ligature) turned an
+        # unknown name into a refused one AFTER the check (fix-branch audit, pass 2, NEW-H1)
+        "SELECT current_sett\u0131ng('secret_directory') FROM dim_track",
+        "SELECT current_\u017fetting('home_directory') FROM dim_track",
+        "SELECT pg_get_v\u0131ewdef(1) FROM dim_track",
+        "SELECT pg_get_con\ufb06raintdef(1, true) FROM dim_track",
+        "SELECT get_block_\u017fize(current_database()) FROM dim_track",
+        "SELECT \"current_sett\u0131ng\"('secret_directory') FROM dim_track",
+    ],
+)
+def test_catalogue_and_configuration_functions_are_refused(sql: str) -> None:
+    _refused(sql, "function_not_allowed")
+
+
+def test_a_view_definition_off_the_allowlist_does_not_leak(warehouse: Path) -> None:
+    with duckdb.connect(str(warehouse), read_only=True) as con:
+        oid = con.execute(
+            "SELECT view_oid FROM duckdb_views() WHERE view_name = 'stg_secret_view'"
+        ).fetchone()
+    assert oid is not None
+    with pytest.raises(ToolError) as info:
+        query_marts(f"SELECT pg_get_viewdef({oid[0]}) AS d FROM dim_track", db_path=warehouse)
+    assert info.value.code == "function_not_allowed"
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT version() AS v FROM dim_track",
+        "SELECT current_database() AS d FROM dim_track",
+        "SELECT upper(title), round(bpm_effective) FROM dim_track",
+    ],
+)
+def test_harmless_scalar_functions_still_pass(warehouse: Path, sql: str) -> None:
+    assert query_marts(sql, db_path=warehouse)["row_count"] >= 1
+
+
+# ── Sources: only a named table, a subquery or VALUES (fix-branch audit, pass 3, C1) ─────
+# `JOIN LATERAL sniff_csv(...)` is an exp.Lateral, not an exp.Table: it passed the table
+# check, and DuckDB 0.10.2 lets sniff_csv read a file even on the locked exposure database
+# (CVE-2024-41672). Every source of every FROM / JOIN must now be one of three shapes, and
+# the name of a table function is refused wherever it appears in the tree.
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT * FROM dim_track JOIN LATERAL sniff_csv('/etc/hostname') ON true",
+        "SELECT * FROM dim_track, LATERAL sniff_csv('/etc/hostname')",
+        "SELECT * FROM dim_track CROSS JOIN LATERAL sniff_csv('/etc/hostname')",
+        "SELECT * FROM dim_track JOIN LATERAL read_csv('/etc/passwd') ON true",
+        "SELECT * FROM dim_track, LATERAL duckdb_settings()",
+        "SELECT * FROM dim_track, LATERAL glob('/home/*')",
+        "SELECT * FROM ROWS FROM (sniff_csv('/etc/hostname'))",
+        "SELECT * FROM unnest([1, 2]) t(x)",
+        "SELECT * FROM range(3) t(i)",
+        "SELECT * FROM (SUMMARIZE dim_track)",
+        "SELECT * FROM (DESCRIBE dim_track)",
+    ],
+)
+def test_only_three_source_shapes_are_allowed(sql: str) -> None:
+    _refused(sql, "table_not_allowed")
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT sniff_csv('/etc/hostname') FROM dim_track",
+        "SELECT pragma_version() FROM dim_track",
+        "SELECT CASE WHEN true THEN duckdb_settings() END FROM dim_track",
+        "SELECT list_transform([1], x -> read_text('/etc/hostname')) FROM dim_track",
+        "SELECT track_id FROM dim_track ORDER BY glob('/home/*')",
+    ],
+)
+def test_a_table_function_name_is_refused_anywhere(sql: str) -> None:
+    _refused(sql, "function_not_allowed")
+
+
+# NEW-M1 (pass-4 audit): the scalar forms build their list outside DuckDB's buffer manager, so
+# the 512 MB memory_limit does not bound them; `len(range(100000000))` reached 1666 MB RSS and
+# a larger call got the process killed. An availability risk, not a confidentiality one.
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT len(range(100000000)) FROM dim_track",
+        "SELECT range(3) FROM dim_track",
+        "SELECT generate_series(1, 3) FROM dim_track",
+        "SELECT repeat('x', 1000000000) FROM dim_track",
+        "SELECT count(*) FROM (SELECT unnest(range(300000000)) AS x) s",
+    ],
+)
+def test_unbounded_list_and_string_builders_are_refused(sql: str) -> None:
+    _refused(sql, "function_not_allowed")
+
+
+def test_lateral_sniff_csv_reads_nothing_through_query_marts(
+    warehouse: Path, secret_file: Path
+) -> None:
+    for sql in (
+        f"SELECT * FROM dim_track JOIN LATERAL sniff_csv('{secret_file}') ON true",
+        f"SELECT * FROM dim_track, LATERAL sniff_csv('{secret_file}')",
+    ):
+        with pytest.raises(ToolError) as info:
+            query_marts(sql, db_path=warehouse)
+        assert info.value.code == "table_not_allowed"
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT * FROM dim_track, LATERAL (SELECT 1 AS x) l",
+        "SELECT * FROM (VALUES (1), (2)) v(x)",
+        "SELECT * FROM ((SELECT track_id FROM dim_track)) s",
+        "SELECT * FROM (FROM dim_track) s",
+    ],
+)
+def test_subqueries_and_values_remain_sources(warehouse: Path, sql: str) -> None:
+    assert query_marts(sql, db_path=warehouse)["row_count"] >= 1
+
+
+# The analyst queries of the third pre-merge audit (its probe, copied unchanged): the guard
+# must keep accepting them. Checked at the guard, since they use columns this fixture lacks.
+# 62 of its 63: the PIVOT *statement* was already refused before this change (measured), see
+# test_a_pivot_statement_is_not_a_select.
+ANALYST_QUERIES = [
+    "SELECT zone, count(*) AS n, avg(bpm_effective) AS avg_bpm FROM dim_track GROUP BY zone ORDER BY zone",  # noqa: E501
+    "SELECT zone, count(*) FROM dim_track GROUP BY ALL ORDER BY ALL",
+    "SELECT * EXCLUDE (tags, st) FROM dim_track WHERE title ILIKE 't1%' LIMIT 3",
+    "SELECT title, row_number() OVER (PARTITION BY zone ORDER BY bpm_effective DESC) AS rk FROM dim_track QUALIFY rk = 1",  # noqa: E501
+    "SELECT count(*) FILTER (WHERE planner_eligible) AS ok, count(*) AS total FROM dim_track",
+    "SELECT bpm_effective::INT AS b, TRY_CAST(title AS INT) AS t FROM dim_track LIMIT 2",
+    "SELECT date_trunc('month', created_at) AS m, count(*) FROM fct_session GROUP BY 1",
+    "SELECT strftime(created_at, '%Y-%m-%d') AS d FROM fct_session LIMIT 2",
+    "SELECT extract(hour FROM created_at) AS h FROM fct_session LIMIT 2",
+    "SELECT date_diff('day', DATE '2026-01-01', ingested_dt) AS d FROM dim_track LIMIT 2",
+    "SELECT ingested_dt + INTERVAL 1 DAY AS d FROM dim_track LIMIT 1",
+    "SELECT median(bpm_effective), quantile_cont(bpm_effective, 0.9), approx_count_distinct(artist) FROM dim_track",  # noqa: E501
+    "SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY bpm_effective) FROM dim_track",
+    "SELECT arg_max(title, bpm_effective), max_by(title, bpm_effective) FROM dim_track",
+    "SELECT string_agg(title, ', ' ORDER BY title) FROM dim_track",
+    "SELECT list(title ORDER BY bpm_effective) FROM dim_track",
+    "SELECT tags[1] AS first, st.k AS k, st['k'] AS k2, len(tags) FROM dim_track LIMIT 2",
+    "SELECT list_transform(tags, x -> x * 2) AS t2 FROM dim_track LIMIT 2",
+    "SELECT unnest(tags) AS tg FROM dim_track LIMIT 4",
+    "SELECT * FROM (SELECT zone, count(*) n FROM dim_track GROUP BY zone) s WHERE n > 1",
+    "SELECT a.title, s.goal FROM dim_track a JOIN fct_session s ON a.zone = s.goal LIMIT 3",
+    "SELECT a.title FROM dim_track a LEFT JOIN fct_session s ON a.zone=s.goal LIMIT 1",
+    "SELECT coalesce(confidence, 0) AS c, nullif(zone, 'Z1') AS z FROM dim_track LIMIT 3",
+    "SELECT CASE WHEN bpm_effective < 100 THEN 'slow' ELSE 'fast' END AS k FROM dim_track LIMIT 2",
+    "SELECT round(avg(bpm_effective), 1) AS r, stddev_samp(bpm_effective) FROM dim_track",
+    "SELECT title FROM dim_track ORDER BY bpm_effective DESC NULLS LAST LIMIT 5",
+    "SELECT title FROM dim_track ORDER BY confidence NULLS FIRST LIMIT 5",
+    "SELECT title FROM dim_track LIMIT 5 OFFSET 5",
+    "SELECT title FROM dim_track WHERE title IN (SELECT title FROM dim_track WHERE zone='Z1')",
+    "SELECT title FROM dim_track WHERE EXISTS (SELECT 1 FROM fct_session WHERE goal = dim_track.zone)",  # noqa: E501
+    "SELECT zone FROM dim_track UNION ALL SELECT goal FROM fct_session",
+    "SELECT zone FROM dim_track INTERSECT SELECT goal FROM fct_session",
+    "SELECT zone FROM dim_track EXCEPT SELECT goal FROM fct_session",
+    "WITH z AS (SELECT zone, count(*) n FROM dim_track GROUP BY zone) SELECT * FROM z ORDER BY n DESC",  # noqa: E501
+    "WITH RECURSIVE r(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM r WHERE i<3) SELECT * FROM r",
+    "FROM dim_track SELECT title LIMIT 2",
+    "FROM dim_track LIMIT 2",
+    "SELECT regexp_matches(title, '^T1'), regexp_replace(title, 'T', 'X'), lower(artist), upper(title) FROM dim_track LIMIT 2",  # noqa: E501
+    "SELECT title || ' - ' || artist AS label, concat_ws('/', title, artist) FROM dim_track LIMIT 2",  # noqa: E501
+    "SELECT bpm_effective / 2 AS h, bpm_effective // 2 AS hi, bpm_effective % 7 AS m FROM dim_track LIMIT 2",  # noqa: E501
+    "SELECT title IS DISTINCT FROM artist FROM dim_track LIMIT 1",
+    "SELECT count(DISTINCT artist) FROM dim_track",
+    "SELECT * FROM dim_track USING SAMPLE 5 ROWS",
+    "SELECT * FROM dim_track TABLESAMPLE 50%",
+    "SELECT COLUMNS('bpm.*') FROM dim_track LIMIT 1",
+    "SELECT lag(bpm_effective) OVER (ORDER BY track_id) AS prev FROM dim_track LIMIT 3",
+    "SELECT epoch(created_at) FROM fct_session LIMIT 1",
+    "SELECT now() > created_at FROM fct_session LIMIT 1",
+    "SELECT current_date FROM dim_track LIMIT 1",
+    "SELECT {'a': 1, 'b': title} AS s FROM dim_track LIMIT 1",
+    "SELECT [1,2,3] AS l, list_contains(tags, 1) FROM dim_track LIMIT 1",
+    "SELECT title FROM dim_track WHERE title LIKE 'T\\_%' ESCAPE '\\'",
+    "SELECT left(title, 1), right(title, 1), substr(title, 1, 2), length(title), contains(title,'1') FROM dim_track LIMIT 1",  # noqa: E501
+    "SELECT greatest(1, bpm_effective), least(1, 2), abs(-1), floor(1.5), ceil(1.5), sqrt(4.0) FROM dim_track LIMIT 1",  # noqa: E501
+    "SELECT hash(title), md5(title) FROM dim_track LIMIT 1",
+    "SELECT ifnull(confidence, 0), if(planner_eligible, 'y', 'n') FROM dim_track LIMIT 1",
+    "SELECT starts_with(title, 'T'), split_part(preview_url, '/', 3), string_split(title, '1') FROM dim_track LIMIT 1",  # noqa: E501
+    "SELECT * FROM mart_bpm_coverage",
+    "SELECT * FROM mart_data_quality",
+    "SELECT 'Café ' || title AS t FROM dim_track LIMIT 1",
+    "SELECT title FROM dim_track -- trailing comment",
+    "SELECT /* inline */ title FROM dim_track",
+]
+
+
+@pytest.mark.parametrize("sql", ANALYST_QUERIES)
+def test_analyst_queries_pass_the_guard(sql: str) -> None:
+    guard_select(sql)
+
+
+def test_a_pivot_statement_is_not_a_select() -> None:
+    """Unchanged behaviour, pinned: the audit counted it as accepted, the guard never did."""
+    _refused("PIVOT dim_track ON zone USING count(*) GROUP BY artist", "not_a_select")
+
+
+# ── The guard fails as a ToolError, never with a stack (fix-branch audit, pass 3, L1) ───
+
+
+def test_rows_from_is_a_structured_refusal() -> None:
+    _refused("SELECT * FROM ROWS FROM (sniff_csv('/etc/hostname'))", "table_not_allowed")
+
+
+def test_an_internal_guard_error_is_a_structured_refusal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def boom(statement: object) -> None:
+        raise AttributeError("'NoneType' object has no attribute 'sql'")
+
+    monkeypatch.setattr(warehouse_tools, "_check_sources", boom)
+    error = _refused("SELECT * FROM dim_track", "guard_error")
+    assert "NoneType" not in error.message
 
 
 def test_the_allowlist_is_e4_restricted_to_existing_marts() -> None:
@@ -257,6 +600,25 @@ def test_the_locked_connection_cannot_read_the_disk(
                 run_select(con, sql, MAX_ROWS, 5.0)
     assert not out.exists()
     assert not (tmp_path / "other.duckdb").exists()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "CVE-2024-41672: on DuckDB <= 1.0.0, sniff_csv reads a file even with "
+        "enable_external_access=false. The SQL guard refuses it (test_injection_is_refused). "
+        "Ticket: ROADMAP, DuckDB upgrade line. When the upgrade lands this turns red: drop "
+        "the marker."
+    ),
+)
+def test_the_locked_connection_refuses_sniff_csv(warehouse: Path, secret_file: Path) -> None:
+    with locked(warehouse) as con:
+        try:
+            _, rows, _ = run_select(con, f"SELECT * FROM sniff_csv('{secret_file}')", 5, 5.0)
+        except duckdb.Error:
+            return
+    raise AssertionError(f"the locked engine read the file header: {rows[0][6]}")
 
 
 def test_the_warehouse_file_is_unchanged_by_the_tools(warehouse: Path) -> None:

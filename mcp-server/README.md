@@ -5,22 +5,27 @@ marts. It is the "MCP tool/server" element of the agent extension pack (`docs/ag
 
 | Tool | What it returns | Guards |
 |---|---|---|
-| `query_marts(sql)` | columns and rows of ONE SELECT | one statement, SELECT/WITH/set operation only, tables limited to `dim_track`, `fct_session`, `mart_bpm_coverage`, `mart_data_quality` (E.4, restricted to the marts that exist), no table functions or file paths, `LIMIT 200` injected and at most 200 rows fetched, 5 s timeout |
-| `get_quality_report()` | the quality summary and BPM coverage, the same numbers as `/v1/quality/*` | read through the same locked connection |
+| `query_marts(sql)` | columns and rows of ONE SELECT | one statement, SELECT/WITH/set operation only, tables limited to `dim_track`, `fct_session`, `mart_bpm_coverage`, `mart_data_quality` (E.4, restricted to the marts that exist), a CTE name valid only in its own scope, ASCII table, schema, CTE and function names only, FROM / JOIN sources limited to named tables, subqueries and `VALUES`, no table function or file path anywhere, no catalogue or configuration functions (`pg_get_viewdef`, `current_setting`, ...) nor unbounded builders (`range`, `repeat`), `LIMIT 200` injected and at most 200 rows fetched, 5 s timeout |
+| `get_quality_report()` | the quality summary and BPM coverage, the same numbers as `/v1/quality/*` | read on an exposure database holding the two quality marts only |
 
 Both tools are annotated `readOnlyHint: true`. Errors come back as
-`{"error": {"code", "message"}}`, never a stack trace.
+`{"error": {"code", "message"}}`, never a stack trace, and never a path of the machine:
+an unavailable warehouse or an unexpected failure gives a fixed message, the detail goes to the
+server's log (stderr).
 
 ## Where the code is
 
 This folder is the adapter only ([`cyclebeat_warehouse.py`](cyclebeat_warehouse.py)). The guards
 are shared with the future phase-6 copilot, and the SQL stays where CLAUDE.md allows it:
 
+- [`api/repositories/readonly_warehouse.py`](../api/repositories/readonly_warehouse.py):
+  `exposed()`, where the tools' SQL runs since the phase-10 audit (ADR-012 note of 13 October
+  2026). An in-memory database receives copies of the allowed marts only, path settings are
+  neutralised, then external access goes off, extensions off, configuration locked. A table
+  off the allowlist does not exist there. It never creates the warehouse file;
 - [`api/services/warehouse_tools.py`](../api/services/warehouse_tools.py): the sqlglot guard,
-  allowlist, LIMIT, timeout, structured errors;
-- [`api/repositories/readonly_warehouse.py`](../api/repositories/readonly_warehouse.py): the
-  connection, `read_only=True`, external access off, extensions off, configuration locked. It
-  never opens a writable handle and never creates the file.
+  now the second line: allowlist checked per scope, LIMIT, timeout, structured errors, and the
+  emitted SQL guarded again.
 
 Tests: [`tests/unit/test_copilot_guards.py`](../tests/unit/test_copilot_guards.py) (guards and
 injection refusals) and [`tests/unit/test_mcp_server.py`](../tests/unit/test_mcp_server.py) (a real
