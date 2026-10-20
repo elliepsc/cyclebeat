@@ -79,3 +79,43 @@ def test_the_only_semgrep_exception_is_targeted_and_justified() -> None:
     assert api[marks[0] + 1].startswith("CMD "), "the exception sits right above the CMD it covers"
     assert "root" in " ".join(api[marks[0] - 4 : marks[0]]), "the reason is written above it"
     assert "nosemgrep" not in (ROOT / "frontend" / "Dockerfile").read_text()
+
+
+# Criterion 13: the five artifacts at the paths the grid expects (security/, ops/), reachable
+# from the README. A path the grid names must exist as a real file, not only as a promise.
+SECURITY_ARTIFACTS = [
+    "security/README.md",
+    "security/pr-audits/pr-38.md",
+    "security/pr-audits/pr-38-triage.md",
+    "security/scans/2026-10-20.md",
+    "security/agent-security.md",
+    "security/ai-policy.md",
+    "ops/README.md",
+    "ops/incident-2026-10-15-postgres-down.md",
+    "ops/evidence/2026-10-15-postgres-down.log",
+]
+
+
+def test_every_criterion_13_artifact_exists() -> None:
+    missing = [p for p in SECURITY_ARTIFACTS if not (ROOT / p).is_file()]
+    assert not missing, f"missing criterion-13 artifacts: {missing}"
+
+
+def test_the_security_index_names_every_artifact() -> None:
+    index = (ROOT / "security" / "README.md").read_text()
+    for path in SECURITY_ARTIFACTS[1:6] + ["ops/incident-2026-10-15-postgres-down.md"]:
+        name = path.removeprefix("security/")
+        assert name in index or f"../{path}" in index, f"security/README.md does not name {path}"
+
+
+def test_the_readme_points_to_security_and_ops() -> None:
+    readme = (ROOT / "README.md").read_text()
+    assert "## Security & ops" in readme
+    assert "(security/README.md)" in readme and "(ops/README.md)" in readme
+
+
+def test_the_exposure_window_leaves_the_decision_to_the_owner() -> None:
+    """The key-rotation decision is the owner's: the line stays until she fills it."""
+    notes = (ROOT / "security" / "agent-security.md").read_text()
+    assert "Exposure window, PR #38 to PR #41" in notes
+    assert "décision de la propriétaire" in notes
