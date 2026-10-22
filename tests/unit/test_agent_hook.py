@@ -100,6 +100,44 @@ ALLOWED: list[tuple[str, dict[str, Any], str]] = [
     ("read the hook", tool("Read", file_path=str(SCRIPT)), "feature"),
     ("fetch the docs", tool("WebFetch", url="https://code.claude.com/docs/en/hooks"), "f"),
     ("an MCP tool", {"tool_name": "mcp__cyclebeat-warehouse__query_marts"}, "feature"),
+    # ── PR #38 audit (H2, M2, M3): what the new rules must keep allowing ──────────────────
+    ("rm -rf a scratch folder", bash("rm -rf /tmp/scratch-x"), "feature"),
+    ("rm -rf a build folder", bash("rm -rf frontend/dist"), "feature"),
+    ("rm -r a named folder", bash("rm -r build"), "feature"),
+    ("a non-recursive rm on a glob", bash("rm -f api/*.pyc"), "feature"),
+    ("rm one file", bash("rm tests/unit/__pycache__/x.pyc"), "feature"),
+    ("find -exec under tests/", bash("find tests -name __pycache__ -exec rm -rf {} +"), "f"),
+    ("find without a write", bash("find . -name '*.md'"), "feature"),
+    ("find -delete in /tmp", bash("find /tmp/scratch-x -delete"), "feature"),
+    ("find -delete under api/", bash("find api -name '*.pyc' -delete"), "feature"),
+    ("bash -c a test run", bash("bash -c 'make test-unit'"), "feature"),
+    ("sh -c an echo", bash("sh -c 'echo hello'"), "feature"),
+    ("bash -lc pytest", bash("bash -lc 'uv run pytest -q'"), "feature"),
+    ("eval an echo", bash("eval echo ok"), "feature"),
+    ("bash -c read-only git", bash("bash -c 'git status && git log --oneline -3'"), "f"),
+    ("braces over docs", bash("cat docs/{ROADMAP,demo}.md"), "feature"),
+    ("braces in mkdir", bash("mkdir -p /tmp/scratch-x/{a,b}"), "feature"),
+    ("braces in an echo", bash("echo {1,2,3}"), "feature"),
+    ("grep -rn on subfolders", bash("grep -rn API_KEY api tests"), "feature"),
+    ("grep -rn on the root, .env excluded", bash("grep -rn KEY . --exclude='.env*'"), "f"),
+    ("grep without -r", bash("grep -n KEY README.md"), "feature"),
+    ("grep -R on docs/", bash("grep -R TODO docs/"), "feature"),
+    ("grep -r outside the repo", bash("grep -rn KEY /tmp/scratch-x"), "feature"),
+    ("rg, restricted by default", bash("rg KEY"), "feature"),
+    ("rg -uu with .env excluded", bash("rg -uu KEY -g '!.env*'"), "feature"),
+    ("rg --hidden on a subfolder", bash("rg --hidden KEY api"), "feature"),
+    ("tar a subfolder", bash("tar czf /tmp/docs.tgz docs"), "feature"),
+    ("tar the root, .env excluded", bash("tar czf /tmp/x.tgz --exclude='.env*' ."), "f"),
+    ("zip a subfolder", bash("zip -r /tmp/docs.zip docs"), "feature"),
+    ("gh api list PRs", bash("gh api repos/o/r/pulls"), "feature"),
+    ("gh api read a PR", bash("gh api repos/o/r/pulls/41"), "feature"),
+    ("gh api graphql query", bash("gh api graphql -f query='query{viewer{login}}'"), "f"),
+    ("gh api read a file", bash("gh api -X GET repos/o/r/contents/README.md"), "feature"),
+    (
+        "gh api write a file on a branch",
+        bash("gh api -X PUT repos/o/r/contents/x.md -f message=m -f content=x -f branch=f"),
+        "feature",
+    ),
 ]
 
 DENIED: list[tuple[str, dict[str, Any], str]] = [
@@ -154,6 +192,61 @@ DENIED: list[tuple[str, dict[str, Any], str]] = [
     ("an ssh key glob", bash("cat ~/.ssh/id_*"), "feature"),
     ("a pem glob", bash("ls certs/*.pem"), "feature"),
     ("a key glob", bash("cat *.key"), "feature"),
+    # ── PR #38 audit, H2: deletions that never name data/ or lake/ ───────────────────────
+    ("git clean -fdx", bash("git clean -fdx"), "feature"),
+    ("git clean -fdX", bash("git clean -fdX"), "feature"),
+    ("git clean, dry run too", bash("git clean -n"), "feature"),
+    ("git -C clean", bash("git -C . clean -ffd"), "feature"),
+    ("rm -rf *", bash("rm -rf *"), "feature"),
+    ("rm -rf da*", bash("rm -rf da*"), "feature"),
+    ("rm -rf ./lak?", bash("rm -rf ./lak?"), "feature"),
+    ("rm -rf {data,lake}", bash("rm -rf {data,lake}"), "feature"),
+    ("rm -r -- *.duckdb", bash("rm -r -- *.duckdb"), "feature"),
+    ("find . -delete", bash("find . -name '*.duckdb' -delete"), "feature"),
+    ("find . -exec rm", bash("find . -type f -exec rm {} +"), "feature"),
+    # nested shells and eval go through the same rules
+    ("bash -c make ingest", bash("bash -c 'make ingest'"), "feature"),
+    ("sh -c force push", bash('sh -c "git push --force"'), "feature"),
+    ("bash -lc rm -rf lake", bash("bash -lc 'rm -rf lake'"), "feature"),
+    ("eval make ingest", bash("eval make ingest"), "feature"),
+    ("bash -c inside bash -c", bash("bash -c \"bash -c 'cat .env'\""), "feature"),
+    # ── M2: brace patterns and recursive searches that reach .env ────────────────────────
+    ("braces naming .env", bash("cat {.env,README.md}"), "feature"),
+    ("braces spelling .env", bash("head -n 99 {.,}env"), "feature"),
+    ("braces inside the name", bash("cat .e{n,}v"), "feature"),
+    ("grep -rn on the root", bash("grep -rn API_KEY ."), "feature"),
+    ("grep -R with no path", bash("grep -R KEY"), "feature"),
+    ("grep -rn on home", bash("grep -rn KEY ~"), "feature"),
+    ("grep -rn on a parent", bash("grep -rn KEY .."), "feature"),
+    ("rg -uu", bash("rg -uu KEY"), "feature"),
+    ("rg --hidden --no-ignore", bash("rg --hidden --no-ignore KEY ."), "feature"),
+    ("tar the root", bash("tar czf /tmp/x.tgz ."), "feature"),
+    ("zip the root", bash("zip -r /tmp/x.zip ."), "feature"),
+    # ── M3: GitHub API routes to a merge or to main ─────────────────────────────────────
+    (
+        "graphql mergePullRequest",
+        bash(
+            'gh api graphql -f query=\'mutation{mergePullRequest(input:{pullRequestId:"x"})'
+            "{clientMutationId}}'"
+        ),
+        "feature",
+    ),
+    (
+        "POST /pulls",
+        bash("gh api -X POST repos/o/r/pulls -f title=t -f head=f -f base=main"),
+        "feature",
+    ),
+    ("implicit POST /pulls", bash("gh api repos/o/r/pulls -f title=t -f head=f"), "feature"),
+    (
+        "PUT /contents on main",
+        bash("gh api -X PUT repos/o/r/contents/x.md -f message=m -f content=x -f branch=main"),
+        "feature",
+    ),
+    (
+        "PUT /contents, default branch",
+        bash("gh api --method=PUT repos/o/r/contents/x.md -f message=m -f content=x"),
+        "feature",
+    ),
 ]
 
 

@@ -35,8 +35,11 @@ phase 10): `security/pr-audits/`, `security/scans/`, `security/agent-security.md
 - `make audit` runs gitleaks over the git HISTORY of every ref (`gitleaks git`
   with `--log-opts=--all`, from a read-only mount of `.git` only: the working
   tree, and so `.env`, is never mounted). Cite its summary line.
-- Check `.env` was never tracked (`git log --all -- .env` empty), `.env.example`
-  present, `.gitignore` covers `.env`.
+- Whether `.env` was ever tracked is an OWNER action: do not run `git log -- .env`
+  (the PreToolUse hook refuses it, since `git log -p` would print the content). Ask
+  the owner, and cite her latest result: "no line" (`git log --all --oneline -- .env`,
+  checked by the owner on 13 October 2026). Check yourself that `.env.example` is
+  present and that `.gitignore` covers `.env`.
 - A secret in history = STOP: rotation first (human action), filter-repo after.
 
 ### Pass 2 — Read-only tool guardrails (E.4 as amended by ADR-012)
@@ -56,8 +59,9 @@ phase 10): `security/pr-audits/`, `security/scans/`, `security/agent-security.md
   `p/typescript`, `p/dockerfile`, `p/github-actions`) and `--metrics=off`.
   Never `--config auto` (it logs in to the registry with the project URL).
   The gate blocks on severity ERROR; WARNING/INFO are reported and triaged.
-  Rule exclusions live in the Makefile (`SEMGREP_EXCLUDE`), each justified in
-  the scan report.
+  No rule is excluded globally: an accepted finding carries a targeted
+  `nosemgrep: <rule>` comment on its own line, with the reason, and is triaged
+  in the scan report under `security/scans/`.
 - Dependencies, one-off and non-blocking: `pip-audit` on the exported lock,
   `npm audit` in `frontend/`. A critical CVE with an exploitable path in
   CycleBeat = STOP and report; never a silent upgrade.

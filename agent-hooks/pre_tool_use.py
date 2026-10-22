@@ -20,6 +20,20 @@ What it refuses (owner decisions, 2026-10-11):
 * any write to this folder or to Claude Code settings files (the agent cannot loosen its own
   guardrails).
 
+Added after the phase-10 audit of PR #38 (owner decisions, 2026-10-20):
+
+* `git clean` in every form (it deletes ignored files: `lake/`, `data/*.duckdb`, `.env`);
+* a recursive `rm` on a glob or a brace pattern, and `find` with `-delete` / `-exec` whose start
+  path contains `data/` or `lake/` (`rm -rf *` and `find . -delete` from the repo root);
+* the script of `bash -c`, `sh -c` (and zsh, dash, ksh) and `eval`, checked by the same rules;
+* a brace pattern that expands to a secrets file (`cat .e{n,}v`);
+* a recursive search or archive (`grep -r`/`-R`, `rg -uu` or `--hidden --no-ignore`, `tar -c`,
+  `zip -r`) run on the repo root, one of its parents or `~`, unless the command excludes
+  `.env*` explicitly (`--exclude='.env*'`, `-g '!.env*'`, `-x '.env*'`). Purely textual: no
+  file is looked up, so the rule behaves the same in CI;
+* `gh api` routes to a merge or to `main`: GraphQL `mergePullRequest` (and `createPullRequest`,
+  `createCommitOnBranch`), `POST .../pulls`, and `PUT`/`DELETE .../contents/...` on `main`.
+
 It reads command TEXT. It stops mistakes, not an adversary: `python -c` with a computed path
 gets through. The deny rules of `.claude/settings.json` and the auto-mode classifier are the
 other layers. Standard library only, so it runs before any virtualenv exists.
@@ -79,6 +93,22 @@ DBT_WRITES = {"build", "run", "seed", "snapshot", "test"}
 CLI_WRITES_LAKE = {"ingest", "resolve", "extract-app"}
 CLI_WRITES_DB = {"load"}
 PIPELINE_SERVICES = {"pipeline", "ingest", "dbt", "airflow"}
+SHELLS = {"bash", "sh", "zsh", "dash", "ksh"}
+MAX_NESTING = 3
+GREP_HEADS = {"grep", "egrep", "fgrep"}
+# Options whose value is a pattern or a count, never a search target.
+GREP_VALUED = {"-e", "-f", "--regexp", "--file", "-m", "--max-count", "-A", "-B", "-C",
+               "--include", "--exclude", "--exclude-dir", "--exclude-from", "--label"}
+RG_VALUED = {"-e", "-f", "--regexp", "--file", "-g", "--glob", "--iglob", "-t", "--type",
+             "-T", "--type-not", "-m", "--max-count", "-A", "-B", "-C", "-M", "--max-columns"}
+# Options whose value excludes paths: a value there is never a read of a secret.
+EXCLUDE_OPTIONS = {"--exclude", "--exclude-dir", "-g", "--glob", "--iglob", "-x"}
+GH_API_VALUED = {"-X", "--method", "-f", "-F", "--field", "--raw-field", "-H", "--header",
+                 "--input", "-q", "--jq", "-t", "--template", "--hostname", "-p", "--preview",
+                 "--cache"}
+GH_GRAPHQL_WRITES = re.compile(
+    r"mergePullRequest|createPullRequest|createCommitOnBranch|enablePullRequestAutoMerge"
+)
 
 BranchOf = Callable[[Path], str | None]
 
@@ -134,6 +164,27 @@ def _secret_glob(name: str) -> bool:
     if name.startswith("."):
         return any(fnmatch.fnmatchcase(probe, name) for probe in DOT_PROBES)
     return name.startswith("id_") or name.lower().endswith(KEY_SUFFIXES)
+
+
+BRACE = re.compile(r"\{([^{}]*,[^{}]*)\}")
+
+
+def _brace_expand(word: str, limit: int = 256) -> list[str]:
+    """Bash brace expansion, enough to see `.e{n,}v` or `{.,}env` spell a secret."""
+    match = BRACE.search(word)
+    if not match:
+        return [word]
+    head, tail = word[: match.start()], word[match.end() :]
+    out: list[str] = []
+    for alternative in match.group(1).split(","):
+        out.extend(_brace_expand(head + alternative + tail, limit))
+        if len(out) >= limit:
+            break
+    return out[:limit]
+
+
+def _is_pattern(word: str) -> bool:
+    return any(ch in word for ch in "*?[") or bool(BRACE.search(word))
 
 
 def _is_settings(path: Path) -> bool:
@@ -270,6 +321,8 @@ def _git_rule(
     args: list[str], cwd: Path, branch_of: BranchOf, switched_to_main: bool
 ) -> str | None:
     sub, rest = _sub(["git", *args], {"-C", "-c", "--git-dir", "--work-tree"})
+    if sub == "clean":
+        return "git clean deletes ignored files (lake/, data/, .env): the owner's action"
     if sub == "merge":
         if switched_to_main or branch_of(cwd) == "main":
             return "merging into main is the owner's action"
@@ -316,9 +369,57 @@ def _gh_rule(words: list[str]) -> str | None:
         action, _ = _sub(["pr", *rest], {"-R", "--repo"})
         if action in ("create", "new", "merge"):
             return f"gh pr {action} is the owner's action"
-    if sub == "api" and any(re.search(r"/pulls/\d+/merge\b|/merges\b", w) for w in rest):
+    if sub != "api":
+        return None
+    if any(re.search(r"/pulls/\d+/merge\b|/merges\b", w) for w in rest):
         return "the GitHub merge API is the owner's action"
+    text = " ".join(rest)
+    if "graphql" in rest and GH_GRAPHQL_WRITES.search(text):
+        return "this GraphQL mutation merges, opens a PR or commits to a branch: the owner's action"
+    method, endpoint, fields = _gh_api_call(rest)
+    if method == "POST" and re.search(r"(^|/)repos/[^/]+/[^/]+/pulls/?$", endpoint):
+        return "opening a PR through the GitHub API is the owner's action"
+    if method in ("PUT", "DELETE") and "/contents/" in endpoint:
+        if fields.get("branch", "main") == "main":
+            return "writing a file on main through the GitHub API is refused: open a PR"
     return None
+
+
+def _gh_api_call(rest: list[str]) -> tuple[str, str, dict[str, str]]:
+    """(HTTP method, endpoint, fields) of `gh api ...`, as gh itself defaults them."""
+    method = ""
+    endpoint = ""
+    fields: dict[str, str] = {}
+    has_body = False
+    i = 0
+    while i < len(rest):
+        word = rest[i]
+        following = rest[i + 1] if i + 1 < len(rest) else ""
+        if word in ("-X", "--method"):
+            method, i = following.upper(), i + 2
+        elif word.startswith("--method="):
+            method, i = word.split("=", 1)[1].upper(), i + 1
+        elif word.startswith("-X") and len(word) > 2:
+            method, i = word[2:].upper(), i + 1
+        elif word in ("-f", "-F", "--field", "--raw-field", "--input"):
+            has_body = True
+            key, _, value = following.partition("=")
+            fields[key] = value
+            i += 2
+        elif word.startswith(("--field=", "--raw-field=")):
+            has_body = True
+            key, _, value = word.split("=", 1)[1].partition("=")
+            fields[key] = value
+            i += 1
+        elif word in GH_API_VALUED:
+            i += 2
+        else:
+            if not word.startswith("-") and not endpoint:
+                endpoint = word
+            i += 1
+    if not method:
+        method = "POST" if has_body else "GET"
+    return method, endpoint, fields
 
 
 def _render_rule(words: list[str], redirects: list[tuple[str, str]]) -> str | None:
@@ -363,6 +464,137 @@ def _pipeline_rule(env: dict[str, str], cmd: list[str], cwd: Path) -> str | None
     return None
 
 
+def _short_flags(cmd: list[str]) -> set[str]:
+    """Letters of the short options (`-rf` gives r and f)."""
+    return {ch for w in cmd[1:] if w.startswith("-") and not w.startswith("--") for ch in w[1:]}
+
+
+def _contains_zone(path: Path) -> bool:
+    return any(zone == path or zone.is_relative_to(path) for zone in DATA_ZONES + SELF_ZONES)
+
+
+def _destructive_rule(head: str, cmd: list[str], cwd: Path) -> str | None:
+    """Deletions that never name data/ or lake/ yet reach them (audit of PR #38, H2)."""
+    if head == "rm" and ({"r", "R"} & _short_flags(cmd) or "--recursive" in cmd):
+        patterns = [w for w in cmd[1:] if not w.startswith("-") and _is_pattern(w)]
+        if patterns:
+            return f"a recursive rm on a pattern ({patterns[0]}) can reach data/ and lake/"
+    if head == "find" and set(cmd) & FIND_WRITES:
+        starts: list[str] = []
+        for word in cmd[1:]:
+            if word.startswith("-") or word in ("(", "!", ")"):
+                break
+            starts.append(word)
+        for start in starts or ["."]:
+            if _contains_zone(_resolve(start, cwd)):
+                return f"find {start} with -delete or -exec reaches data/ and lake/"
+    return None
+
+
+def _is_top(path: Path) -> bool:
+    """The repo root, one of its parents, or the home folder: places that hold a `.env`."""
+    home = Path.home().resolve()
+    return any(path == root or root.is_relative_to(path) for root in ROOTS) or (
+        path == home or home.is_relative_to(path)
+    )
+
+
+def _excluded(cmd: list[str]) -> set[int]:
+    """Indexes of the words that are values of an exclusion option."""
+    skip: set[int] = set()
+    for i, word in enumerate(cmd):
+        if word in EXCLUDE_OPTIONS and i + 1 < len(cmd):
+            skip.add(i + 1)
+        elif any(word.startswith(f"{opt}=") for opt in EXCLUDE_OPTIONS if opt.startswith("--")):
+            skip.add(i)
+    return skip
+
+
+def _excludes_secrets(cmd: list[str]) -> bool:
+    """The command excludes `.env*` itself (`--exclude='.env*'`, `-g '!.env*'`, `-x '.env*'`)."""
+    for i in _excluded(cmd):
+        value = cmd[i].split("=", 1)[1] if cmd[i].startswith("--") else cmd[i]
+        value = value.lstrip("!")
+        if all(fnmatch.fnmatchcase(probe, value) for probe in (".env", ".env.local")):
+            return True
+    return False
+
+
+def _targets(cmd: list[str], valued: set[str], pattern_first: bool) -> list[str]:
+    words: list[str] = []
+    i = 1
+    while i < len(cmd):
+        word = cmd[i]
+        if word in valued:
+            i += 2
+            continue
+        if not word.startswith("-"):
+            words.append(word)
+        i += 1
+    explicit_pattern = any(w in cmd for w in ("-e", "-f", "--regexp", "--file"))
+    if pattern_first and not explicit_pattern:
+        words = words[1:]
+    return words
+
+
+def _search_rule(head: str, cmd: list[str], cwd: Path) -> str | None:
+    """A recursive search or archive of a place that holds `.env` (audit of PR #38, M2).
+
+    Purely textual, by owner decision: no file is looked up, so the rule is the same in CI.
+    """
+    flags = _short_flags(cmd)
+    if head in GREP_HEADS:
+        recursive = bool({"r", "R"} & flags) or bool(
+            {"--recursive", "--dereference-recursive"} & set(cmd)
+        )
+        targets = _targets(cmd, GREP_VALUED, pattern_first=True) if recursive else None
+    elif head == "rg":
+        unrestricted = any(re.fullmatch(r"-u{2,}", w) for w in cmd[1:]) or cmd.count("-u") >= 2
+        unrestricted = unrestricted or {"--hidden", "--no-ignore"} <= set(cmd)
+        targets = _targets(cmd, RG_VALUED, pattern_first=True) if unrestricted else None
+    elif head == "tar":
+        # `tar czf out.tgz .` (old-style mode word) or `tar -czf out.tgz .`; `-C dir` counts.
+        mode = cmd[1] if len(cmd) > 1 else ""
+        old_style = bool(mode) and not mode.startswith("-")
+        creates = "c" in flags or "--create" in cmd or (old_style and "c" in mode)
+        targets = None
+        if creates:
+            targets = _targets(cmd, {"-f", "--file", "-C", "--directory"}, pattern_first=old_style)
+            if old_style and "f" in mode and targets:
+                targets = targets[1:]  # the archive named after the mode word
+            if "-C" in cmd and cmd.index("-C") + 1 < len(cmd):
+                targets.append(cmd[cmd.index("-C") + 1])
+    elif head == "zip":
+        targets = _targets(cmd, {"-x"}, pattern_first=False) if "r" in flags else None
+    else:
+        return None
+    if targets is None or _excludes_secrets(cmd):
+        return None
+    for target in targets or ["."]:
+        if _is_top(_resolve(target, cwd)):
+            return (
+                f"{head} over {target} reaches .env: exclude it explicitly "
+                "(--exclude='.env*', -g '!.env*', -x '.env*') or search a subfolder"
+            )
+    return None
+
+
+def _nested_script(cmd: list[str]) -> str | None:
+    """The script of `bash -c '...'` (and sh, zsh, dash, ksh) or `eval ...`, else None."""
+    if not cmd:
+        return None
+    head = _base(cmd[0])
+    if head == "eval":
+        return " ".join(cmd[1:])
+    if head in SHELLS:
+        for i, word in enumerate(cmd[1:], 1):
+            if not word.startswith("-"):
+                return None
+            if not word.startswith("--") and "c" in word[1:]:
+                return cmd[i + 1] if i + 1 < len(cmd) else ""
+    return None
+
+
 def _read_only(cmd: list[str]) -> bool:
     if not cmd:
         return True
@@ -381,14 +613,26 @@ def _read_only(cmd: list[str]) -> bool:
     return True
 
 
-def _bash(command: str, cwd: Path, branch_of: BranchOf) -> str | None:
+def _bash(command: str, cwd: Path, branch_of: BranchOf, depth: int = 0) -> str | None:
     switched_to_main = False
     for words, redirects in _segments(_tokens(command)):
         env, cmd = _command(words)
-        for word in words + [t for _, t in redirects]:
+        skip = {len(words) - len(cmd) + i for i in _excluded(cmd)}
+        for index, word in enumerate(words + [t for _, t in redirects]):
+            if index in skip:
+                continue  # `--exclude='.env*'` keeps a secret out; it reads nothing
             for part in (word, word.split("=", 1)[-1]):
-                if is_secret(part):
-                    return f"secrets files are never read or written by the agent ({_base(part)})"
+                for variant in _brace_expand(part):
+                    if is_secret(variant):
+                        name = _base(variant)
+                        return f"secrets files are never read or written by the agent ({name})"
+        script = _nested_script(cmd)
+        if script is not None:
+            if depth >= MAX_NESTING:
+                return "shells nested this deep are refused"
+            refusal = _bash(script, cwd, branch_of, depth + 1)
+            if refusal:
+                return refusal
         for op, target in redirects:
             if ">" in op and target and not target.startswith("&"):
                 refusal = _write_refusal(_resolve(target, cwd))
@@ -409,6 +653,9 @@ def _bash(command: str, cwd: Path, branch_of: BranchOf) -> str | None:
             if sub in ("checkout", "switch") and "main" in rest:
                 switched_to_main = True
         head = _base(cmd[0]) if cmd else ""
+        for rule in (_destructive_rule(head, cmd, cwd), _search_rule(head, cmd, cwd)):
+            if rule:
+                return rule
         operands = [w for w in cmd[1:] if w and not w.startswith("-")]
         for word in cmd[1:]:
             value = word.split("=", 1)[-1] if word.startswith("--") else word

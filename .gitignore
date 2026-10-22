@@ -32,6 +32,9 @@ env/
 
 # Local outputs and logs
 *.log
+# Incident evidence is a committed artifact (criterion 13): the raw, timestamped output a
+# diagnosis in ops/ cites line by line. Reviewed for secrets and personal paths before commit.
+!ops/evidence/*.log
 logs/
 data/feedback.json
 data/*.duckdb

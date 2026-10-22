@@ -1,0 +1,618 @@
+## 0. Stack up (project cyclebeat-it, default profile)
+
+### 14:14:45.174 $ docker compose -p cyclebeat-it up --build --wait --wait-timeout 300 -d
+#0 building with "default" instance using docker driver
+
+#1 [api internal] load build definition from Dockerfile
+#1 transferring dockerfile: 2.90kB done
+#1 DONE 0.0s
+
+#2 [api internal] load metadata for docker.io/library/python:3.11-slim
+#2 DONE 0.0s
+
+#3 [api internal] load metadata for ghcr.io/astral-sh/uv:0.13.0
+#3 DONE 1.3s
+
+#4 [api internal] load .dockerignore
+#4 transferring context: 1.25kB done
+#4 DONE 0.0s
+
+#5 [api stage-0 1/8] FROM docker.io/library/python:3.11-slim
+#5 DONE 0.0s
+
+#6 [api] FROM ghcr.io/astral-sh/uv:0.13.0@sha256:cdc6093146eb3ff6a40107b38f008b789e050e77ad87865e381d9917da55a168
+#6 DONE 0.0s
+
+#7 [api internal] load build context
+#7 transferring context: 1.02MB 0.0s done
+#7 DONE 0.1s
+
+#8 [api stage-0 4/8] COPY --from=ghcr.io/astral-sh/uv:0.13.0 /uv /uvx /bin/
+#8 CACHED
+
+#9 [api stage-0 3/8] RUN apt-get update && apt-get install -y     build-essential     curl     && rm -rf /var/lib/apt/lists/*
+#9 CACHED
+
+#10 [api stage-0 5/8] COPY pyproject.toml uv.lock .python-version ./
+#10 CACHED
+
+#11 [api stage-0 2/8] WORKDIR /app
+#11 CACHED
+
+#12 [api stage-0 6/8] RUN uv sync --locked --no-dev
+#12 CACHED
+
+#13 [api stage-0 7/8] COPY . .
+#13 DONE 0.1s
+
+#14 [api stage-0 8/8] RUN rm -rf lake data/*.duckdb data/*.duckdb.wal data/*.db *.duckdb     && python -m ingest.ingest_pipeline     && python -m cyclebeat.cli ingest     && python -m cyclebeat.cli extract-app     && python -m cyclebeat.cli load     && dbt build --project-dir dbt --profiles-dir dbt
+#14 1.307 /usr/local/lib/python3.11/site-packages/dlt/helpers/dbt/__init__.py:3: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+#14 1.307   import pkg_resources
+#14 3.129 CycleBeat ingestion pipeline...
+#14 3.129    dlt: staging OK
+#14 3.129    duckdb: 40 patterns mirrored OK
+#14 3.129 Pipeline complete. Knowledge base ready.
+#14 3.462 lake dt=2026-07-29: 48 tracks, 88 resolutions
+#14 3.606 app store -> lake: sessions 0 rows
+#14 3.606 app store -> lake: feedback 0 rows
+#14 3.886 raw_tracks: 48 rows
+#14 3.886 raw_resolutions: 88 rows
+#14 3.886 sessions: 0 rows
+#14 3.886 feedback: 0 rows
+#14 3.886 raw_resolved: 48 rows
+#14 5.642 [0m14:14:52  Running with dbt=1.11.12
+#14 5.920 [0m14:14:53  Registered adapter: duckdb=1.8.1
+#14 5.972 [0m14:14:53  Unable to do partial parsing because saved manifest not found. Starting full parse.
+#14 7.203 [0m14:14:54  [[33mWARNING[0m][MissingArgumentsPropertyInGenericTestDeprecation]: Deprecated
+#14 7.203 functionality
+#14 7.203 Found top-level arguments to test `accepted_values` defined on 'stg_sessions' in
+#14 7.203 package 'cyclebeat' (models/staging/schema.yml). Arguments to generic tests
+#14 7.203 should be nested under the `arguments` property.
+#14 7.682 [0m14:14:55  Found 17 models, 48 data tests, 6 sources, 467 macros
+#14 7.687 [0m14:14:55  
+#14 7.687 [0m14:14:55  Concurrency: 4 threads (target='dev')
+#14 7.687 [0m14:14:55  
+#14 7.815 [0m14:14:55  1 of 65 START sql view model main.stg_feedback ................................. [RUN]
+#14 7.816 [0m14:14:55  2 of 65 START sql view model main.stg_patterns ................................. [RUN]
+#14 7.817 [0m14:14:55  3 of 65 START sql view model main.stg_resolutions .............................. [RUN]
+#14 7.818 [0m14:14:55  4 of 65 START sql view model main.stg_sessions ................................. [RUN]
+#14 7.991 [0m14:14:55  4 of 65 OK created sql view model main.stg_sessions ............................ [[32mOK[0m in 0.17s]
+#14 7.991 [0m14:14:55  3 of 65 OK created sql view model main.stg_resolutions ......................... [[32mOK[0m in 0.17s]
+#14 7.992 [0m14:14:55  2 of 65 OK created sql view model main.stg_patterns ............................ [[32mOK[0m in 0.17s]
+#14 8.004 [0m14:14:55  5 of 65 START sql view model main.stg_tracks ................................... [RUN]
+#14 8.004 [0m14:14:55  6 of 65 START test accepted_values_stg_sessions_goal__endurance__intervals__recovery  [RUN]
+#14 8.005 [0m14:14:55  7 of 65 START test accepted_values_stg_sessions_level__beginner__intermediate__advanced  [RUN]
+#14 8.005 [0m14:14:55  1 of 65 OK created sql view model main.stg_feedback ............................ [[32mOK[0m in 0.19s]
+#14 8.020 [0m14:14:55  8 of 65 START test accepted_values_stg_sessions_verdict__safe__review .......... [RUN]
+#14 8.078 [0m14:14:55  6 of 65 PASS accepted_values_stg_sessions_goal__endurance__intervals__recovery . [[32mPASS[0m in 0.07s]
+#14 8.080 [0m14:14:55  7 of 65 PASS accepted_values_stg_sessions_level__beginner__intermediate__advanced  [[32mPASS[0m in 0.07s]
+#14 8.083 [0m14:14:55  9 of 65 START test check_invalid_duration ...................................... [RUN]
+#14 8.085 [0m14:14:55  10 of 65 START test not_null_stg_sessions_duration_s ........................... [RUN]
+#14 8.086 [0m14:14:55  8 of 65 PASS accepted_values_stg_sessions_verdict__safe__review ................ [[32mPASS[0m in 0.06s]
+#14 8.100 [0m14:14:55  11 of 65 START test not_null_stg_sessions_goal ................................. [RUN]
+#14 8.119 [0m14:14:55  5 of 65 OK created sql view model main.stg_tracks .............................. [[32mOK[0m in 0.11s]
+#14 8.129 [0m14:14:55  12 of 65 START test not_null_stg_sessions_level ................................ [RUN]
+#14 8.148 [0m14:14:55  9 of 65 PASS check_invalid_duration ............................................ [[32mPASS[0m in 0.06s]
+#14 8.149 [0m14:14:55  10 of 65 PASS not_null_stg_sessions_duration_s ................................. [[32mPASS[0m in 0.06s]
+#14 8.154 [0m14:14:55  13 of 65 START test not_null_stg_sessions_session_id ........................... [RUN]
+#14 8.155 [0m14:14:55  14 of 65 START test not_null_stg_sessions_track_count .......................... [RUN]
+#14 8.159 [0m14:14:55  11 of 65 PASS not_null_stg_sessions_goal ....................................... [[32mPASS[0m in 0.06s]
+#14 8.176 [0m14:14:55  15 of 65 START test not_null_stg_sessions_verdict .............................. [RUN]
+#14 8.179 [0m14:14:55  12 of 65 PASS not_null_stg_sessions_level ...................................... [[32mPASS[0m in 0.05s]
+#14 8.193 [0m14:14:55  16 of 65 START test unique_stg_sessions_session_id ............................. [RUN]
+#14 8.228 [0m14:14:55  14 of 65 PASS not_null_stg_sessions_track_count ................................ [[32mPASS[0m in 0.07s]
+#14 8.230 [0m14:14:55  13 of 65 PASS not_null_stg_sessions_session_id ................................. [[32mPASS[0m in 0.07s]
+#14 8.233 [0m14:14:55  17 of 65 START test accepted_values_stg_patterns_effort_bucket__low__medium__high  [RUN]
+#14 8.236 [0m14:14:55  18 of 65 START test check_pattern_bpm_range .................................... [RUN]
+#14 8.237 [0m14:14:55  15 of 65 PASS not_null_stg_sessions_verdict .................................... [[32mPASS[0m in 0.05s]
+#14 8.248 [0m14:14:55  19 of 65 START test not_null_stg_patterns_id ................................... [RUN]
+#14 8.253 [0m14:14:55  16 of 65 PASS unique_stg_sessions_session_id ................................... [[32mPASS[0m in 0.05s]
+#14 8.262 [0m14:14:55  20 of 65 START test not_null_stg_patterns_phase ................................ [RUN]
+#14 8.291 [0m14:14:55  17 of 65 PASS accepted_values_stg_patterns_effort_bucket__low__medium__high .... [[32mPASS[0m in 0.06s]
+#14 8.292 [0m14:14:55  18 of 65 PASS check_pattern_bpm_range .......................................... [[32mPASS[0m in 0.05s]
+#14 8.296 [0m14:14:55  21 of 65 START test unique_stg_patterns_id ..................................... [RUN]
+#14 8.296 [0m14:14:55  22 of 65 START test accepted_values_stg_feedback_rating__up__down__Great__Okay__Hard__Unknown  [RUN]
+#14 8.298 [0m14:14:55  19 of 65 PASS not_null_stg_patterns_id ......................................... [[32mPASS[0m in 0.04s]
+#14 8.308 [0m14:14:55  23 of 65 START test accepted_values_stg_feedback_rating_scale__satisfaction__effort__unknown  [RUN]
+#14 8.318 [0m14:14:55  20 of 65 PASS not_null_stg_patterns_phase ...................................... [[32mPASS[0m in 0.05s]
+#14 8.324 [0m14:14:55  24 of 65 START test check_invalid_rating ....................................... [RUN]
+#14 8.347 [0m14:14:55  22 of 65 PASS accepted_values_stg_feedback_rating__up__down__Great__Okay__Hard__Unknown  [[32mPASS[0m in 0.05s]
+#14 8.352 [0m14:14:55  25 of 65 START test not_null_stg_feedback_rating ............................... [RUN]
+#14 8.353 [0m14:14:55  21 of 65 PASS unique_stg_patterns_id ........................................... [[32mPASS[0m in 0.06s]
+#14 8.354 [0m14:14:55  23 of 65 PASS accepted_values_stg_feedback_rating_scale__satisfaction__effort__unknown  [[32mPASS[0m in 0.04s]
+#14 8.362 [0m14:14:55  26 of 65 START test not_null_stg_feedback_rating_scale ......................... [RUN]
+#14 8.362 [0m14:14:55  27 of 65 START sql view model main.int_track_resolution ........................ [RUN]
+#14 8.370 [0m14:14:55  24 of 65 PASS check_invalid_rating ............................................. [[32mPASS[0m in 0.04s]
+#14 8.380 [0m14:14:55  28 of 65 START sql table model main.mart_bpm_coverage .......................... [RUN]
+#14 8.422 [0m14:14:55  25 of 65 PASS not_null_stg_feedback_rating ..................................... [[32mPASS[0m in 0.07s]
+#14 8.429 [0m14:14:55  29 of 65 START sql table model main.fct_session ................................ [RUN]
+#14 8.431 [0m14:14:55  26 of 65 PASS not_null_stg_feedback_rating_scale ............................... [[32mPASS[0m in 0.07s]
+#14 8.439 [0m14:14:55  30 of 65 START sql view model main.int_pattern_effort_profile .................. [RUN]
+#14 8.465 [0m14:14:55  27 of 65 OK created sql view model main.int_track_resolution ................... [[32mOK[0m in 0.10s]
+#14 8.467 [0m14:14:55  31 of 65 START sql view model main.int_feedback_enriched ....................... [RUN]
+#14 8.522 [0m14:14:55  28 of 65 OK created sql table model main.mart_bpm_coverage ..................... [[32mOK[0m in 0.13s]
+#14 8.524 [0m14:14:55  29 of 65 OK created sql table model main.fct_session ........................... [[32mOK[0m in 0.09s]
+#14 8.527 [0m14:14:55  30 of 65 OK created sql view model main.int_pattern_effort_profile ............. [[32mOK[0m in 0.08s]
+#14 8.527 [0m14:14:55  32 of 65 START sql view model main.int_session_summary ......................... [RUN]
+#14 8.530 [0m14:14:55  33 of 65 START sql table model main.mart_feedback_summary ...................... [RUN]
+#14 8.533 [0m14:14:55  34 of 65 START sql table model main.dim_track .................................. [RUN]
+#14 8.564 [0m14:14:55  31 of 65 OK created sql view model main.int_feedback_enriched .................. [[32mOK[0m in 0.09s]
+#14 8.568 [0m14:14:55  35 of 65 START sql table model main.mart_data_quality .......................... [RUN]
+#14 8.608 [0m14:14:55  32 of 65 OK created sql view model main.int_session_summary .................... [[32mOK[0m in 0.08s]
+#14 8.613 [0m14:14:55  33 of 65 OK created sql table model main.mart_feedback_summary ................. [[32mOK[0m in 0.08s]
+#14 8.614 [0m14:14:55  36 of 65 START test accepted_values_mart_bpm_coverage_source__deezer__librosa__getsongbpm__manual  [RUN]
+#14 8.617 [0m14:14:55  37 of 65 START test check_bpm_coverage_bounds .................................. [RUN]
+#14 8.696 [0m14:14:56  34 of 65 OK created sql table model main.dim_track ............................. [[32mOK[0m in 0.11s]
+#14 8.700 [0m14:14:56  38 of 65 START test not_null_mart_bpm_coverage_n_tracks ........................ [RUN]
+#14 8.714 [0m14:14:56  36 of 65 PASS accepted_values_mart_bpm_coverage_source__deezer__librosa__getsongbpm__manual  [[32mPASS[0m in 0.10s]
+#14 8.720 [0m14:14:56  39 of 65 START test not_null_mart_bpm_coverage_n_usable ........................ [RUN]
+#14 8.721 [0m14:14:56  37 of 65 PASS check_bpm_coverage_bounds ........................................ [[32mPASS[0m in 0.10s]
+#14 8.728 [0m14:14:56  40 of 65 START test not_null_mart_bpm_coverage_pct_of_catalogue ................ [RUN]
+#14 8.731 [0m14:14:56  35 of 65 OK created sql table model main.mart_data_quality ..................... [[32mOK[0m in 0.16s]
+#14 8.742 [0m14:14:56  41 of 65 START test not_null_mart_bpm_coverage_source .......................... [RUN]
+#14 8.768 [0m14:14:56  38 of 65 PASS not_null_mart_bpm_coverage_n_tracks .............................. [[32mPASS[0m in 0.07s]
+#14 8.785 [0m14:14:56  42 of 65 START test unique_mart_bpm_coverage_source ............................ [RUN]
+#14 8.803 [0m14:14:56  39 of 65 PASS not_null_mart_bpm_coverage_n_usable .............................. [[32mPASS[0m in 0.08s]
+#14 8.808 [0m14:14:56  43 of 65 START test accepted_values_fct_session_verdict__safe__review .......... [RUN]
+#14 8.809 [0m14:14:56  40 of 65 PASS not_null_mart_bpm_coverage_pct_of_catalogue ...................... [[32mPASS[0m in 0.08s]
+#14 8.818 [0m14:14:56  44 of 65 START test not_null_fct_session_duration_gap_s ........................ [RUN]
+#14 8.824 [0m14:14:56  41 of 65 PASS not_null_mart_bpm_coverage_source ................................ [[32mPASS[0m in 0.08s]
+#14 8.835 [0m14:14:56  45 of 65 START test not_null_fct_session_session_id ............................ [RUN]
+#14 8.838 [0m14:14:56  42 of 65 PASS unique_mart_bpm_coverage_source .................................. [[32mPASS[0m in 0.05s]
+#14 8.852 [0m14:14:56  46 of 65 START test not_null_fct_session_verdict ............................... [RUN]
+#14 8.869 [0m14:14:56  43 of 65 PASS accepted_values_fct_session_verdict__safe__review ................ [[32mPASS[0m in 0.06s]
+#14 8.874 [0m14:14:56  44 of 65 PASS not_null_fct_session_duration_gap_s .............................. [[32mPASS[0m in 0.05s]
+#14 8.874 [0m14:14:56  47 of 65 START test unique_fct_session_session_id .............................. [RUN]
+#14 8.878 [0m14:14:56  48 of 65 START sql table model main.mart_pattern_coverage ...................... [RUN]
+#14 8.897 [0m14:14:56  45 of 65 PASS not_null_fct_session_session_id .................................. [[32mPASS[0m in 0.06s]
+#14 8.905 [0m14:14:56  46 of 65 PASS not_null_fct_session_verdict ..................................... [[32mPASS[0m in 0.05s]
+#14 8.906 [0m14:14:56  49 of 65 START sql table model main.mart_recent_activity ....................... [RUN]
+#14 8.915 [0m14:14:56  50 of 65 START sql table model main.mart_session_kpis .......................... [RUN]
+#14 8.934 [0m14:14:56  47 of 65 PASS unique_fct_session_session_id .................................... [[32mPASS[0m in 0.06s]
+#14 8.941 [0m14:14:56  51 of 65 START test accepted_values_dim_track_confidence__False__0_9__0_6__0_3 . [RUN]
+#14 8.971 [0m14:14:56  48 of 65 OK created sql table model main.mart_pattern_coverage ................. [[32mOK[0m in 0.08s]
+#14 8.978 [0m14:14:56  52 of 65 START test accepted_values_dim_track_confidence_method__cross_validated__single_source__librosa_arbitrated__review__unknown  [RUN]
+#14 8.989 [0m14:14:56  49 of 65 OK created sql table model main.mart_recent_activity .................. [[32mOK[0m in 0.07s]
+#14 8.990 [0m14:14:56  50 of 65 OK created sql table model main.mart_session_kpis ..................... [[32mOK[0m in 0.07s]
+#14 9.004 [0m14:14:56  51 of 65 PASS accepted_values_dim_track_confidence__False__0_9__0_6__0_3 ....... [[32mPASS[0m in 0.06s]
+#14 9.009 [0m14:14:56  53 of 65 START test accepted_values_dim_track_zone__Z1__Z2__Z3__Z4__Z5 ......... [RUN]
+#14 9.010 [0m14:14:56  54 of 65 START test check_bpm_effective_range .................................. [RUN]
+#14 9.011 [0m14:14:56  55 of 65 START test check_confidence_matches_method ............................ [RUN]
+#14 9.048 [0m14:14:56  52 of 65 PASS accepted_values_dim_track_confidence_method__cross_validated__single_source__librosa_arbitrated__review__unknown  [[32mPASS[0m in 0.07s]
+#14 9.050 [0m14:14:56  56 of 65 START test not_null_dim_track_confidence_method ....................... [RUN]
+#14 9.062 [0m14:14:56  54 of 65 PASS check_bpm_effective_range ........................................ [[32mPASS[0m in 0.05s]
+#14 9.062 [0m14:14:56  55 of 65 PASS check_confidence_matches_method .................................. [[32mPASS[0m in 0.05s]
+#14 9.065 [0m14:14:56  53 of 65 PASS accepted_values_dim_track_zone__Z1__Z2__Z3__Z4__Z5 ............... [[32mPASS[0m in 0.05s]
+#14 9.070 [0m14:14:56  57 of 65 START test not_null_dim_track_n_sources_agree ......................... [RUN]
+#14 9.071 [0m14:14:56  58 of 65 START test not_null_dim_track_planner_eligible ........................ [RUN]
+#14 9.072 [0m14:14:56  59 of 65 START test not_null_dim_track_track_id ................................ [RUN]
+#14 9.110 [0m14:14:56  56 of 65 PASS not_null_dim_track_confidence_method ............................. [[32mPASS[0m in 0.06s]
+#14 9.114 [0m14:14:56  60 of 65 START test unique_dim_track_track_id .................................. [RUN]
+#14 9.127 [0m14:14:56  57 of 65 PASS not_null_dim_track_n_sources_agree ............................... [[32mPASS[0m in 0.05s]
+#14 9.129 [0m14:14:56  58 of 65 PASS not_null_dim_track_planner_eligible .............................. [[32mPASS[0m in 0.06s]
+#14 9.132 [0m14:14:56  59 of 65 PASS not_null_dim_track_track_id ...................................... [[32mPASS[0m in 0.06s]
+#14 9.136 [0m14:14:56  61 of 65 START test check_data_quality_shares .................................. [RUN]
+#14 9.138 [0m14:14:56  62 of 65 START test not_null_mart_data_quality_confidence_method ............... [RUN]
+#14 9.139 [0m14:14:56  63 of 65 START test not_null_mart_data_quality_n_tracks ........................ [RUN]
+#14 9.169 [0m14:14:56  60 of 65 PASS unique_dim_track_track_id ........................................ [[32mPASS[0m in 0.05s]
+#14 9.173 [0m14:14:56  64 of 65 START test not_null_mart_data_quality_pct_of_catalogue ................ [RUN]
+#14 9.190 [0m14:14:56  62 of 65 PASS not_null_mart_data_quality_confidence_method ..................... [[32mPASS[0m in 0.05s]
+#14 9.191 [0m14:14:56  61 of 65 PASS check_data_quality_shares ........................................ [[32mPASS[0m in 0.05s]
+#14 9.194 [0m14:14:56  63 of 65 PASS not_null_mart_data_quality_n_tracks .............................. [[32mPASS[0m in 0.05s]
+#14 9.196 [0m14:14:56  65 of 65 START test unique_mart_data_quality_confidence_method ................. [RUN]
+#14 9.216 [0m14:14:56  64 of 65 PASS not_null_mart_data_quality_pct_of_catalogue ...................... [[32mPASS[0m in 0.04s]
+#14 9.221 [0m14:14:56  65 of 65 PASS unique_mart_data_quality_confidence_method ....................... [[32mPASS[0m in 0.02s]
+#14 9.233 [0m14:14:56  
+#14 9.233 [0m14:14:56  Finished running 8 table models, 48 data tests, 9 view models in 0 hours 0 minutes and 1.54 seconds (1.54s).
+#14 9.282 [0m14:14:56  
+#14 9.282 [0m14:14:56  [32mCompleted successfully[0m
+#14 9.283 [0m14:14:56  
+#14 9.283 [0m14:14:56  Done. PASS=65 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=65
+#14 9.284 [0m14:14:56  [[33mWARNING[0m][DeprecationsSummary]: Deprecated functionality
+#14 9.284 Summary of encountered deprecations:
+#14 9.284 - MissingArgumentsPropertyInGenericTestDeprecation: 11 occurrences
+#14 9.284 To see all deprecation instances instead of just the first occurrence of each,
+#14 9.284 run command again with the `--show-all-deprecations` flag. You may also need to
+#14 9.284 run with `--no-partial-parse` as some deprecations are only encountered during
+#14 9.284 parsing.
+#14 DONE 10.1s
+
+#15 [api] exporting to image
+#15 exporting layers 0.0s done
+#15 writing image sha256:7099c7d1de672e5c3e8d1809e0e81cef94282691cabf6d2900d9065c2f78f461 done
+#15 naming to docker.io/library/cyclebeat-it-api done
+#15 DONE 0.1s
+
+#16 [api] resolving provenance for metadata file
+#16 DONE 0.0s
+
+#17 [web internal] load build definition from Dockerfile
+#17 transferring dockerfile: 1.17kB done
+#17 DONE 0.0s
+
+#18 [web internal] load metadata for docker.io/library/node:24.19.0-alpine
+#18 ...
+
+#19 [web internal] load metadata for docker.io/library/nginx:1.27.5-alpine
+#19 DONE 0.8s
+
+#18 [web internal] load metadata for docker.io/library/node:24.19.0-alpine
+#18 DONE 1.0s
+
+#20 [web internal] load .dockerignore
+#20 transferring context: 254B done
+#20 DONE 0.0s
+
+#21 [web build 1/6] FROM docker.io/library/node:24.19.0-alpine@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a570bd9e1ad43
+#21 DONE 0.0s
+
+#22 [web stage-1 1/2] FROM docker.io/library/nginx:1.27.5-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+#22 DONE 0.0s
+
+#23 [web internal] load build context
+#23 transferring context: 2.47kB done
+#23 DONE 0.0s
+
+#24 [web build 3/6] COPY package.json package-lock.json .npmrc ./
+#24 CACHED
+
+#25 [web build 2/6] WORKDIR /app
+#25 CACHED
+
+#26 [web build 4/6] RUN npm ci
+#26 CACHED
+
+#27 [web build 5/6] COPY . .
+#27 CACHED
+
+#28 [web build 6/6] RUN npm run build
+#28 0.516 
+#28 0.516 > cyclebeat-frontend@0.0.0 build
+#28 0.516 > tsc --noEmit && vite build
+#28 0.516 
+#28 2.724 vite v8.3.2 building client environment for production...
+#28 2.736 transforming...
+#28 2.800 ✓ 24 modules transformed.
+#28 2.855 rendering chunks...
+#28 2.898 computing gzip size...
+#28 2.902 dist/index.html                   0.39 kB │ gzip:  0.26 kB
+#28 2.902 dist/assets/index-CidDii99.css    1.69 kB │ gzip:  0.74 kB
+#28 2.902 dist/assets/index-CBtqwVeh.js   233.54 kB │ gzip: 73.23 kB
+#28 2.902 
+#28 2.903 ✓ built in 178ms
+#28 DONE 2.9s
+
+#22 [web stage-1 1/2] FROM docker.io/library/nginx:1.27.5-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+#22 CACHED
+
+#29 [web stage-1 2/2] COPY --from=build /app/dist /usr/share/nginx/html
+#29 DONE 0.0s
+
+#30 [web] exporting to image
+#30 exporting layers 0.0s done
+#30 writing image sha256:eee641cbe1e963f86fb3a82187cb4c171163e5ea7c4d4a2d822a8594c4147fe0 done
+#30 naming to docker.io/library/cyclebeat-it-web done
+#30 DONE 0.0s
+
+#31 [web] resolving provenance for metadata file
+#31 DONE 0.0s
+ api  Built
+ web  Built
+ Network cyclebeat-it_default  Creating
+ Network cyclebeat-it_default  Created
+ Volume "cyclebeat-it_postgres_data"  Creating
+ Volume "cyclebeat-it_postgres_data"  Created
+ Container cyclebeat-it-postgres-1  Creating
+ Container cyclebeat-it-postgres-1  Created
+ Container cyclebeat-it-api-1  Creating
+ Container cyclebeat-it-api-1  Created
+ Container cyclebeat-it-web-1  Creating
+ Container cyclebeat-it-web-1  Created
+ Container cyclebeat-it-postgres-1  Starting
+ Container cyclebeat-it-postgres-1  Started
+ Container cyclebeat-it-postgres-1  Waiting
+ Container cyclebeat-it-postgres-1  Healthy
+ Container cyclebeat-it-api-1  Starting
+ Container cyclebeat-it-api-1  Started
+ Container cyclebeat-it-api-1  Waiting
+ Container cyclebeat-it-api-1  Healthy
+ Container cyclebeat-it-web-1  Starting
+ Container cyclebeat-it-web-1  Started
+ Container cyclebeat-it-web-1  Waiting
+ Container cyclebeat-it-postgres-1  Waiting
+ Container cyclebeat-it-api-1  Waiting
+ Container cyclebeat-it-api-1  Healthy
+ Container cyclebeat-it-postgres-1  Healthy
+ Container cyclebeat-it-web-1  Healthy
+### exit=0
+
+### 14:15:21.258 $ docker compose -p cyclebeat-it ps
+NAME                      IMAGE                COMMAND                  SERVICE    CREATED          STATUS                    PORTS
+cyclebeat-it-api-1        cyclebeat-it-api     "uvicorn api.main:ap…"   api        22 seconds ago   Up 12 seconds (healthy)   0.0.0.0:18000->8000/tcp
+cyclebeat-it-postgres-1   postgres:16-alpine   "docker-entrypoint.s…"   postgres   22 seconds ago   Up 18 seconds (healthy)   5432/tcp
+cyclebeat-it-web-1        cyclebeat-it-web     "/docker-entrypoint.…"   web        22 seconds ago   Up 7 seconds (healthy)    0.0.0.0:14173->80/tcp
+### exit=0
+## 1. Baseline
+
+### 14:15:24.329 $ health
+{"status":"ok"}
+HTTP 200
+### exit=0
+
+### 14:15:24.342 $ gen
+ason":"not_needed"},{"track_id":"66609426","reason":"not_needed"},{"track_id":"701326562","reason":"not_needed"},{"track_id":"8086136","reason":"not_needed"},{"track_id":"82715364","reason":"not_needed"},{"track_id":"92720102","reason":"not_needed"},{"track_id":"985745702","reason":"not_needed"}],"duration_gap_s":40.0,"warnings":[],"created_at":"2026-10-15T14:15:24.372891Z"}
+HTTP 200 in 0.163591s
+### exit=0
+
+### 14:15:24.503 $ psql_q select count(*) as sessions, count(*) filter (where plan_json is null or n_segments is null) as incomplete from sessions
+1|0
+### exit=0
+## 2. Incident: stop postgres
+
+### 14:15:24.620 $ docker compose -p cyclebeat-it stop postgres
+ Container cyclebeat-it-postgres-1  Stopping
+ Container cyclebeat-it-postgres-1  Stopped
+### exit=0
+
+### 14:15:28.042 $ sleep 6
+### exit=0
+
+### 14:15:34.043 $ docker compose -p cyclebeat-it ps
+NAME                 IMAGE              COMMAND                  SERVICE   CREATED          STATUS                    PORTS
+cyclebeat-it-api-1   cyclebeat-it-api   "uvicorn api.main:ap…"   api       35 seconds ago   Up 25 seconds (healthy)   0.0.0.0:18000->8000/tcp
+cyclebeat-it-web-1   cyclebeat-it-web   "/docker-entrypoint.…"   web       35 seconds ago   Up 19 seconds (healthy)   0.0.0.0:14173->80/tcp
+### exit=0
+
+### 14:15:37.123 $ health
+{"status":"ok"}
+HTTP 200
+### exit=0
+
+### 14:15:37.129 $ gen
+{"type":"about:blank","title":"Internal Server Error","status":500,"detail":"The request could not be completed.","reasons":[]}
+HTTP 500 in 4.041050s
+### exit=0
+
+### 14:15:41.001 $ gen
+{"type":"about:blank","title":"Internal Server Error","status":500,"detail":"The request could not be completed.","reasons":[]}
+HTTP 500 in 3.166864s
+### exit=0
+
+### 14:15:44.038 $ docker compose -p cyclebeat-it logs --no-color --since 30s api
+api-1  | INFO:     127.0.0.1:38852 - "GET /health HTTP/1.1" 200 OK
+api-1  | INFO:     172.28.0.1:39698 - "GET /health HTTP/1.1" 200 OK
+api-1  | INFO:     172.28.0.1:39706 - "POST /v1/sessions/generate HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:38864 - "GET /health HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:47352 - "GET /health HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:47362 - "GET /health HTTP/1.1" 200 OK
+api-1  | INFO:     172.28.0.1:49726 - "GET /health HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:56684 - "GET /health HTTP/1.1" 200 OK
+api-1  | INFO:     172.28.0.1:49728 - "POST /v1/sessions/generate HTTP/1.1" 500 Internal Server Error
+api-1  | ERROR:    Exception in ASGI application
+api-1  | Traceback (most recent call last):
+api-1  |   File "/usr/local/lib/python3.11/site-packages/uvicorn/protocols/http/h11_impl.py", line 406, in run_asgi
+api-1  |     result = await app(  # type: ignore[func-returns-value]
+api-1  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+api-1  |     return await self.app(scope, receive, send)
+api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/fastapi/applications.py", line 1054, in __call__
+api-1  |     await super().__call__(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/applications.py", line 112, in __call__
+api-1  |     await self.middleware_stack(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 187, in __call__
+api-1  |     raise exc
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 165, in __call__
+api-1  |     await self.app(scope, receive, _send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/prometheus_fastapi_instrumentator/middleware.py", line 169, in __call__
+api-1  |     raise exc
+api-1  |   File "/usr/local/lib/python3.11/site-packages/prometheus_fastapi_instrumentator/middleware.py", line 167, in __call__
+api-1  |     await self.app(scope, receive, send_wrapper)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/middleware/cors.py", line 85, in __call__
+api-1  |     await self.app(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
+api-1  |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+api-1  |     raise exc
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+api-1  |     await app(scope, receive, sender)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 714, in __call__
+api-1  |     await self.middleware_stack(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 734, in app
+api-1  |     await route.handle(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 288, in handle
+api-1  |     await self.app(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 76, in app
+api-1  |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+api-1  |     raise exc
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+api-1  |     await app(scope, receive, sender)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 73, in app
+api-1  |     response = await f(request)
+api-1  |                ^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 301, in app
+api-1  |     raw_response = await run_endpoint_function(
+api-1  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 214, in run_endpoint_function
+api-1  |     return await run_in_threadpool(dependant.call, **values)
+api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/concurrency.py", line 37, in run_in_threadpool
+api-1  |     return await anyio.to_thread.run_sync(func)
+api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/anyio/to_thread.py", line 65, in run_sync
+api-1  |     return await get_async_backend().run_sync_in_worker_thread(
+api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py", line 2641, in run_sync_in_worker_thread
+api-1  |     return await future
+api-1  |            ^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py", line 1033, in run
+api-1  |     result = context.run(func, *args)
+api-1  |              ^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/app/api/routers/sessions.py", line 41, in generate_session
+api-1  |     return service.generate(request)
+api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/app/api/services/session.py", line 110, in generate
+api-1  |     self._sessions.save(wire.model_dump(mode="json"))
+api-1  |   File "/app/api/repositories/session.py", line 34, in save
+api-1  |     with connection() as db:
+api-1  |   File "/usr/local/lib/python3.11/contextlib.py", line 137, in __enter__
+api-1  |     return next(self.gen)
+api-1  |            ^^^^^^^^^^^^^^
+api-1  |   File "/app/api/repositories/database.py", line 172, in connection
+api-1  |     database = _connect()
+api-1  |                ^^^^^^^^^^
+api-1  |   File "/app/api/repositories/database.py", line 150, in _connect
+api-1  |     return Database(psycopg.connect(url), postgres=True)
+api-1  |                     ^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/psycopg/connection.py", line 100, in connect
+api-1  |     attempts = conninfo_attempts(params)
+api-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/psycopg/_conninfo_attempts.py", line 55, in conninfo_attempts
+api-1  |     raise last_exc
+api-1  | psycopg.OperationalError: failed to resolve host 'postgres': [Errno -2] Name or service not known
+api-1  | INFO:     172.28.0.1:37696 - "POST /v1/sessions/generate HTTP/1.1" 500 Internal Server Error
+api-1  | ERROR:    Exception in ASGI application
+api-1  | Traceback (most recent call last):
+api-1  |   File "/usr/local/lib/python3.11/site-packages/uvicorn/protocols/http/h11_impl.py", line 406, in run_asgi
+api-1  |     result = await app(  # type: ignore[func-returns-value]
+api-1  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+api-1  |     return await self.app(scope, receive, send)
+api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/fastapi/applications.py", line 1054, in __call__
+api-1  |     await super().__call__(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/applications.py", line 112, in __call__
+api-1  |     await self.middleware_stack(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 187, in __call__
+api-1  |     raise exc
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 165, in __call__
+api-1  |     await self.app(scope, receive, _send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/prometheus_fastapi_instrumentator/middleware.py", line 169, in __call__
+api-1  |     raise exc
+api-1  |   File "/usr/local/lib/python3.11/site-packages/prometheus_fastapi_instrumentator/middleware.py", line 167, in __call__
+api-1  |     await self.app(scope, receive, send_wrapper)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/middleware/cors.py", line 85, in __call__
+api-1  |     await self.app(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
+api-1  |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+api-1  |     raise exc
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+api-1  |     await app(scope, receive, sender)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 714, in __call__
+api-1  |     await self.middleware_stack(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 734, in app
+api-1  |     await route.handle(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 288, in handle
+api-1  |     await self.app(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 76, in app
+api-1  |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+api-1  |     raise exc
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+api-1  |     await app(scope, receive, sender)
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 73, in app
+api-1  |     response = await f(request)
+api-1  |                ^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 301, in app
+api-1  |     raw_response = await run_endpoint_function(
+api-1  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 214, in run_endpoint_function
+api-1  |     return await run_in_threadpool(dependant.call, **values)
+api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/starlette/concurrency.py", line 37, in run_in_threadpool
+api-1  |     return await anyio.to_thread.run_sync(func)
+api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/anyio/to_thread.py", line 65, in run_sync
+api-1  |     return await get_async_backend().run_sync_in_worker_thread(
+api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py", line 2641, in run_sync_in_worker_thread
+api-1  |     return await future
+api-1  |            ^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/anyio/_backends/_asyncio.py", line 1033, in run
+api-1  |     result = context.run(func, *args)
+api-1  |              ^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/app/api/routers/sessions.py", line 41, in generate_session
+api-1  |     return service.generate(request)
+api-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/app/api/services/session.py", line 110, in generate
+api-1  |     self._sessions.save(wire.model_dump(mode="json"))
+api-1  |   File "/app/api/repositories/session.py", line 34, in save
+api-1  |     with connection() as db:
+api-1  |   File "/usr/local/lib/python3.11/contextlib.py", line 137, in __enter__
+api-1  |     return next(self.gen)
+api-1  |            ^^^^^^^^^^^^^^
+api-1  |   File "/app/api/repositories/database.py", line 172, in connection
+api-1  |     database = _connect()
+api-1  |                ^^^^^^^^^^
+api-1  |   File "/app/api/repositories/database.py", line 150, in _connect
+api-1  |     return Database(psycopg.connect(url), postgres=True)
+api-1  |                     ^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/psycopg/connection.py", line 100, in connect
+api-1  |     attempts = conninfo_attempts(params)
+api-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1  |   File "/usr/local/lib/python3.11/site-packages/psycopg/_conninfo_attempts.py", line 55, in conninfo_attempts
+api-1  |     raise last_exc
+api-1  | psycopg.OperationalError: failed to resolve host 'postgres': [Errno -2] Name or service not known
+api-1  | INFO:     127.0.0.1:56698 - "GET /health HTTP/1.1" 200 OK
+### exit=0
+## 3. Recovery: start postgres
+
+### 14:15:48.455 $ docker compose -p cyclebeat-it start postgres
+ Container cyclebeat-it-postgres-1  Starting
+ Container cyclebeat-it-postgres-1  Started
+### exit=0
+### postgres healthy after 7.167567182 s (poll every 1 s)
+
+### 14:16:01.979 $ docker compose -p cyclebeat-it ps
+NAME                      IMAGE                COMMAND                  SERVICE    CREATED              STATUS                    PORTS
+cyclebeat-it-api-1        cyclebeat-it-api     "uvicorn api.main:ap…"   api        About a minute ago   Up 53 seconds (healthy)   0.0.0.0:18000->8000/tcp
+cyclebeat-it-postgres-1   postgres:16-alpine   "docker-entrypoint.s…"   postgres   About a minute ago   Up 7 seconds (healthy)    5432/tcp
+cyclebeat-it-web-1        cyclebeat-it-web     "/docker-entrypoint.…"   web        About a minute ago   Up 47 seconds (healthy)   0.0.0.0:14173->80/tcp
+### exit=0
+### first generate after recovery:
+
+### 14:16:05.048 $ gen
+ason":"not_needed"},{"track_id":"66609426","reason":"not_needed"},{"track_id":"701326562","reason":"not_needed"},{"track_id":"8086136","reason":"not_needed"},{"track_id":"82715364","reason":"not_needed"},{"track_id":"92720102","reason":"not_needed"},{"track_id":"985745702","reason":"not_needed"}],"duration_gap_s":40.0,"warnings":[],"created_at":"2026-10-15T14:16:05.077110Z"}
+HTTP 200 in 0.036618s
+### exit=0
+
+### 14:16:05.088 $ gen
+ason":"not_needed"},{"track_id":"66609426","reason":"not_needed"},{"track_id":"701326562","reason":"not_needed"},{"track_id":"8086136","reason":"not_needed"},{"track_id":"82715364","reason":"not_needed"},{"track_id":"92720102","reason":"not_needed"},{"track_id":"985745702","reason":"not_needed"}],"duration_gap_s":40.0,"warnings":[],"created_at":"2026-10-15T14:16:05.116129Z"}
+HTTP 200 in 0.036118s
+### exit=0
+
+### 14:16:05.127 $ psql_q select count(*) as sessions, count(*) filter (where plan_json is null or n_segments is null) as incomplete from sessions
+3|0
+### exit=0
+
+### 14:16:05.248 $ psql_q select session_id, n_segments, json_array_length((plan_json::json)->'segments') as segments_in_json, created_at from sessions order by created_at
+5ff4bc73eeee440f89a8c978ef229767|13|13|2026-10-15 14:15:24.372891
+a0d3738ab23f42069ac292cd8f400fc4|13|13|2026-10-15 14:16:05.07711
+218c0c4887884bd3a8cb59f0004baac3|13|13|2026-10-15 14:16:05.116129
+### exit=0
+## 4. Teardown
+
+### 14:16:05.356 $ docker compose -p cyclebeat-it down -v
+ Container cyclebeat-it-web-1  Stopping
+ Container cyclebeat-it-web-1  Stopped
+ Container cyclebeat-it-web-1  Removing
+ Container cyclebeat-it-web-1  Removed
+ Container cyclebeat-it-api-1  Stopping
+ Container cyclebeat-it-api-1  Stopped
+ Container cyclebeat-it-api-1  Removing
+ Container cyclebeat-it-api-1  Removed
+ Container cyclebeat-it-postgres-1  Stopping
+ Container cyclebeat-it-postgres-1  Stopped
+ Container cyclebeat-it-postgres-1  Removing
+ Container cyclebeat-it-postgres-1  Removed
+ Volume cyclebeat-it_postgres_data  Removing
+ Network cyclebeat-it_default  Removing
+ Volume cyclebeat-it_postgres_data  Removed
+ Network cyclebeat-it_default  Removed
+### exit=0
+
+### 14:16:11.425 $ docker compose -p cyclebeat-it ps -a
+NAME      IMAGE     COMMAND   SERVICE   CREATED   STATUS    PORTS
+### exit=0

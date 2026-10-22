@@ -145,3 +145,7 @@ first.
   `tail`, so a red gate looks green (phase 7: a commit with 2 dead links went through this way).
 - The hook reads `RUNTIME_DB_PATH` only as a command prefix (`RUNTIME_DB_PATH=... make dbt`), not
   from the exported environment.
+- A file ignored by git passes every local check and is missing in CI: `*.log` kept an incident
+  log out of `ce4b631`, its link passed locally and broke the CI. A link must point to a TRACKED
+  file (`make lint` now refuses an untracked target); check `git check-ignore -v <file>` before
+  citing a new file.

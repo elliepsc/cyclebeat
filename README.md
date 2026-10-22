@@ -85,6 +85,7 @@ Every check below runs in CI on every push. Counts are in each PR description, n
 | dbt models and data tests | `make dbt` | staging → intermediate → marts, and the data tests |
 | API contract | `make contract` | `openapi.yaml` vs the schema FastAPI generates, plus schemathesis against the real app |
 | Integration (end to end) | `make test-integration` | the compose stack (api, web, postgres) driven over HTTP — see [End-to-end tests](#end-to-end-tests) |
+| Security scans | `make audit` | Semgrep (blocking on severity ERROR) and gitleaks over the whole git history (blocking on any finding), Docker images pinned by digest — see [Security & ops](#security--ops) |
 
 ## Run it locally
 
@@ -209,9 +210,23 @@ WSL setup and the branch/PR workflow: [CONTRIBUTING.md](CONTRIBUTING.md).
 | 4 | Contract-first API | ✅ |
 | 5 | Frontend (React, client generated from `openapi.yaml`) | ✅ |
 | — | Public deployment (API) | ✅ |
-| 6+ | Bounded warehouse copilot, agent extension pack, security audit | planned |
+| 7 | Agent extension pack (MCP server, hook, subagents, skill, plugin) | ✅ |
+| 10 | Security, audit and DevOps (criterion 13) | in review (`phase-10/security-audit`) |
+| 6 | Bounded warehouse copilot (LLM layer) | planned |
 
 Detailed roadmap: [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## Security & ops
+
+| What | Where |
+|---|---|
+| Index of the security artifacts | [security/README.md](security/README.md) |
+| PR audits (raw reviewer output and triage) | [security/pr-audits/](security/pr-audits/pr-38.md) |
+| Scan findings (Semgrep, gitleaks, pip-audit, npm audit), triaged | [security/scans/2026-10-20.md](security/scans/2026-10-20.md) |
+| Agent and extension security: threat model, bypasses fixed, what remains | [security/agent-security.md](security/agent-security.md) |
+| AI tool and data policy | [security/ai-policy.md](security/ai-policy.md) |
+| Operational diagnosis: Postgres down while the API reports healthy | [ops/](ops/README.md) |
+| What a coding agent may do here, and the guardrails | [docs/permissions.md](docs/permissions.md) |
 
 ## How it was built
 

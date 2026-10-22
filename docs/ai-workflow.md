@@ -1,5 +1,57 @@
 # AI workflow log
 
+## Session 2026-10-13 to 2026-10-20 — Phase 10 — Criterion 13 (security, audit, DevOps): `make audit` in CI, PR #38 audit and triage, hook patch, agent security notes, an ops incident reproduced
+
+**Loop**: plan → owner decisions (5) → edit → run → test → raw outputs committed → triage → diff → review → push
+**Tool/model**: Claude Code (auto mode) / Opus 5.5
+**Initial prompt**: (owner) criterion 13 (security, audit, DevOps), capped by the owner at 1.5 days, on branch `phase-10/security-audit`. Plan validated with 5 decisions: gitleaks blocks on any finding, Semgrep blocks on severity ERROR; scanner images pinned by version and digest and run through `make audit`; GitHub Actions pinned by commit SHA; pip-audit and npm audit run once (not blocking); only PR #38 is audited.
+**Notable iterations** (commits on the branch, oldest first, `git log origin/main..HEAD`):
+- a8d9830, then 331677a: `security-auditor` definition. Artifacts go to `security/`, no PR-Agent, no Write tool, the E.4 tests counted 6 + 3, explicit Semgrep packs with `--metrics=off`; checking the `.env` history is an owner action (the hook refuses `git log -- .env`; the owner's result, "no line", 13 October 2026, is cited). After PR #41 merged, the branch was rebased on `main` with no conflict. Git skipped a8d9830 as already applied (same patch as 263ccb9, its port in PR #41), so a8d9830 is no longer in `origin/main..HEAD`.
+- The PR #38 audit is the reason PR #41 (`fix/query-marts-cte-scope`) exists. That work is logged in the previous entry.
+- 2cedef3: `make audit` runs Semgrep CE (`semgrep/semgrep:1.178.0`, 4 community packs, `--metrics=off`, over `git archive HEAD`) and gitleaks (`v8.30.1`, the history of every ref, from a read-only mount of `.git` only). Both images are pinned by version and digest, so no Python dependency is added. New CI job `security`, which `deploy` now needs. The four actions are pinned by commit SHA with a version comment. `tests/unit/test_security_layout.py` enforces the pins and how the audit may scan. This first version excluded one Semgrep rule for the whole scan (Dockerfile `missing-user`).
+- ed0ca24: the global exclusion was replaced by a targeted `nosemgrep` above `CMD` in the root `Dockerfile` (the API image runs as root). Measured on a scratch copy: a `CMD` added to `frontend/Dockerfile` is still reported (gate rc=1). Tests pin both.
+- ce4b631, then 2853f8c: ops incident "Postgres down, API healthy", reproduced on the `cyclebeat-it` compose project only. With Postgres stopped, `api` stays healthy, `/health` returns 200 and generate returns 500 after 3-4 s. Postgres is healthy again 7.2 s after start, and the first generate after that returns 200. No session is half-written: 1 row before, 3 after, 0 incomplete. Teardown with `down -v`. The fix (a readiness endpoint) is recorded, not coded (ROADMAP `[présentable]`, 70dd774).
+- 18aa983: the raw PR #38 audit by `security-auditor` on its new definition (`security/pr-audits/pr-38.md`), committed first and alone.
+- 0eff691 (red), then a66a8a2: `check_links` refuses a link whose target is on disk but not tracked by git. 2 failed before, 6 passed after. A CLAUDE.md "Known pitfalls" line was added in the same commit.
+- 88f65ec: `security/pr-audits/pr-38-triage.md` (one verdict per finding), `pr-38-hook.patch`, `agent-security.md`, `ai-policy.md`, `scans/2026-10-20.md` with the raw outputs in `scans/raw-2026-10-20/`.
+- 70dd774: a Security & ops section in the README, phase 10 in `docs/ROADMAP.md`, and layout tests for `security/` and `ops/`.
+- Hook patch (`security/pr-audits/pr-38-hook.patch`): NOT applied, because `agent-hooks/` belongs to the owner. It covers:
+  - `git clean` in every form;
+  - recursive `rm` on a glob or braces;
+  - `find -delete`/`-exec` from a start path containing `data/` or `lake/`;
+  - `bash`/`sh -c` and `eval` checked again (nesting capped at 3);
+  - brace patterns that spell a secret;
+  - recursive `grep`, `rg -uu`, `tar` and `zip` on the repo root, a parent or `~`, unless `.env*` is excluded (a purely textual check);
+  - `gh api` GraphQL merge/create, `POST .../pulls`, and `PUT`/`DELETE .../contents` on `main`.
+
+  Results in the scratch copy: 160 passed. The hook at HEAD, loaded in memory, let through all 32 new refused cases. Of the 33 new allowed cases, it refused 2 as false positives, measured: `grep -rn KEY . --exclude='.env*'` and `tar czf /tmp/x.tgz --exclude='.env*' .` (the excluded value `.env*` read as a secret glob); the patch fixes both. `rg -uu KEY -g '!.env*'` was already allowed. `git apply --check` is clean. The official hooks reference (<https://code.claude.com/docs/en/hooks>) documents `tool_input` only for built-in tools, so the patch has no rule on MCP arguments (the owner's condition was not met).
+- Scans (20 October 2026, `security/scans/2026-10-20.md`):
+  - Semgrep: 243 rules, 0 findings; the ERROR gate: 89 rules, 0 findings.
+  - gitleaks: 160 commits, no leaks. These were measured in CI run 39428694882 because local Docker was down.
+  - npm audit: 0.
+  - pip-audit: 102 vulnerabilities in 13 packages (7 production, 6 development). No CRITICAL or HIGH has an exploitable path today. DuckDB CVE-2024-41672 was exploitable through `query_marts` until PR #41. No upgrade was made.
+- `security/agent-security.md` describes the exposure window, from the PR #38 merge (ea7b054, 2026-10-12 16:08 +0200) to the PR #41 merge (7fd132a, 2026-10-15 16:08 +0200). In that window `query_marts` could return the first line of any file the MCP server could read, `.env` included. No MCP call log exists, so no evidence either way. The line "décision de la propriétaire : [à compléter]" is left for the owner.
+**Incidents and stops**:
+1. The hook refused creating a fake `.env` in the scratchpad for a test. The agent stopped. The owner then ruled that the grep rule must be purely textual, with no file lookup.
+2. A deny rule refused `cp agent-hooks/pre_tool_use.py <scratchpad>`: the SOURCE in `agent-hooks/` was read as a write. The agent stopped and the owner made the scratch copy herself. This is recorded in `agent-security.md` as a known limit of deny rules.
+3. `.gitignore:34` (`*.log`) ignored the incident evidence log, so ce4b631 committed the diagnosis without it. `check_links` passed locally and CI failed. Fixed with a targeted `!ops/evidence/*.log` exception (2853f8c) and a lasting check (0eff691, a66a8a2).
+4. Earlier, a machine shutdown lost the scratchpad. Raw outputs are now committed first.
+5. Agent process error: the agent ran `git push` right after `make audit` without checking its exit code. `make audit` had failed locally (Docker daemon down), but the push still went out. CI then ran `make audit` green (run 39428694882).
+**Corrected by human review** (owner):
+1. Ruled the grep rule textual (no file lookup).
+2. Made the scratch copy of the hook herself.
+3. Ruled that L2, L3 and `git show HEAD:.env` are recorded, not fixed (`pr-38-triage.md`).
+4. Required the raw PR #38 audit to be committed first and pushed at once.
+5. Required the `.gitignore` exception, the lasting `check_links` fix (test first) and the CLAUDE.md pitfall.
+6. Required the global Semgrep exclusion of 2cedef3 to become a targeted `nosemgrep` on the API Dockerfile line, with its reason, and checked that `frontend/Dockerfile` stays covered (ed0ca24).
+**Role split**: decided by the owner: the 5 plan decisions, the arbitrations above, the decision on rotating the `.env` keys (taken 22 October 2026, see the follow-up below) / done by the agent: Makefile, CI job, tests, the incident reproduction, the triage, the hook patch, the security docs, this entry / human actions still pending: applying the hook patch, opening and merging the PR. The branch is pushed and no PR is open yet.
+**Verification**: `check_links` tests 2 failed before a66a8a2 and 6 passed after. Hook patch: 160 passed in the scratch copy, `git apply --check` clean. `make audit`: failed locally on 20 October (Docker daemon down); green in CI run 39428694882 on a66a8a2. Final DoD on 70dd774 + this entry (20 October 2026): `make lint` 0 dead links, `make typecheck` no issues in 21 files, `make test-unit` 677 passed / 15 skipped / 2 xfailed, `make eval` 55 passed, `make contract` 25 passed, `make dbt` on a copy of the warehouse PASS=65; `make audit` could not run locally (Docker daemon down) and is measured by the CI job `security` of the push. `data/` and `lake/` fingerprint unchanged (sha256 b78e902b…cde903).
+**Lesson**: Committing raw outputs first, and making the links check depend on git tracking instead of the disk, turned two silent gaps (a lost scratchpad, an ignored log) into checks. The guardrails stopped the agent three times (fake `.env`, `cp` from `agent-hooks/`, `git log -- .env`) and it stopped each time. The agent's own miss was the same mistake as in phase 7: it chained a push on a gate command without checking that gate's exit code.
+**To capitalize in CLAUDE.md** (proposal, for the owner to apply):
+- Under "Known pitfalls": "Never chain `git push` after a gate (`make audit`, `make lint`, ...) with `;` or a new line: use `&&` or check the exit code first. A gate that cannot run (Docker daemon down) is red, not skipped." The existing pitfall covers `tail`/`head` pipes, not chained pushes.
+- Under "Agent guardrails": "Deny rules on Bash are prefix-based and can refuse a command whose SOURCE (not destination) is a protected path (`cp agent-hooks/... <scratch>`): stop and ask the owner for the copy."
+**Follow-up, 22 October 2026**: the owner's decision is recorded in `security/agent-security.md` (no key rotation: the first line of `.env` is a comment, checked by her; `sniff_csv` exposes header column names; the MCP server served only her demo sessions), and `test_security_layout.py` now pins the dated decision instead of the placeholder. The hook patch was regenerated from a fresh copy of the hook and its tests made by the owner that day: identical byte for byte to `security/pr-audits/pr-38-hook.patch`, `git apply --check` against HEAD clean, 160 passed in the copy (32 new refused cases all let through by HEAD, 2 HEAD false positives fixed). Still the owner's to apply.
+
 ## Session 2026-10-13 to 2026-10-15 — Phase 10 (security fix branch) — Close H1 in `query_marts` (a CTE defined in a subquery whitelisted a real table), test first, through four pre-merge audit passes
 
 **Loop**: audit finding → red tests (failure measured) → fix → docs → security-auditor + contract-guardian pass → owner triage → next red tests, four times → owner closes the loop
