@@ -34,6 +34,9 @@ Added after the phase-10 audit of PR #38 (owner decisions, 2026-10-20):
 * `gh api` routes to a merge or to `main`: GraphQL `mergePullRequest` (and `createPullRequest`,
   `createCommitOnBranch`), `POST .../pulls`, and `PUT`/`DELETE .../contents/...` on `main`.
 
+Added with issue #44 (owner decision, 2026-10-22): `gh issue close` and `gh issue edit --state`;
+the merged PR closes an issue (`Closes #N`), never the agent. Label edits stay allowed.
+
 It reads command TEXT. It stops mistakes, not an adversary: `python -c` with a computed path
 gets through. The deny rules of `.claude/settings.json` and the auto-mode classifier are the
 other layers. Standard library only, so it runs before any virtualenv exists.
@@ -369,6 +372,14 @@ def _gh_rule(words: list[str]) -> str | None:
         action, _ = _sub(["pr", *rest], {"-R", "--repo"})
         if action in ("create", "new", "merge"):
             return f"gh pr {action} is the owner's action"
+    if sub == "issue":
+        # Issue #44: the merged PR closes an issue, never the agent. Label edits stay allowed.
+        action, _ = _sub(["issue", *rest], {"-R", "--repo"})
+        if action == "close":
+            return "closing an issue is the merged PR's job, not the agent's"
+        if action == "edit" and any(w == "--state" or w.startswith("--state=") for w in rest):
+            return "changing an issue's state is the merged PR's job, not the agent's"
+        return None
     if sub != "api":
         return None
     if any(re.search(r"/pulls/\d+/merge\b|/merges\b", w) for w in rest):

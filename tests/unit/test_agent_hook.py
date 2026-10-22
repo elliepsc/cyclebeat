@@ -138,6 +138,14 @@ ALLOWED: list[tuple[str, dict[str, Any], str]] = [
         bash("gh api -X PUT repos/o/r/contents/x.md -f message=m -f content=x -f branch=f"),
         "feature",
     ),
+    # ── issue #44: the tracker stays usable; only closing is the merged PR's job ─────────
+    ("gh issue view", bash("gh issue view 44"), "feature"),
+    ("gh issue comment", bash("gh issue comment 44 --body-file /tmp/plan.md"), "feature"),
+    ("gh issue create", bash("gh issue create --title t --body-file /tmp/b.md"), "feature"),
+    ("gh issue edit, add a label", bash("gh issue edit 44 --add-label docs"), "feature"),
+    ("gh issue edit, remove a label", bash("gh issue edit 44 --remove-label docs"), "feature"),
+    ("gh issue edit, a title", bash("gh issue edit 44 --title 'Product spec'"), "feature"),
+    ("gh issue list --state closed", bash("gh issue list --state closed"), "feature"),
 ]
 
 DENIED: list[tuple[str, dict[str, Any], str]] = [
@@ -247,6 +255,12 @@ DENIED: list[tuple[str, dict[str, Any], str]] = [
         bash("gh api --method=PUT repos/o/r/contents/x.md -f message=m -f content=x"),
         "feature",
     ),
+    # ── issue #44: the merged PR closes an issue, never the agent ───────────────────────
+    ("gh issue close", bash("gh issue close 44"), "feature"),
+    ("gh issue close with a comment", bash("gh issue close 44 --comment done"), "feature"),
+    ("gh -R issue close", bash("gh -R elliepsc/cyclebeat issue close 44"), "feature"),
+    ("gh issue edit --state", bash("gh issue edit 44 --state closed"), "feature"),
+    ("gh issue edit --state=", bash("gh issue edit 44 --state=closed"), "feature"),
 ]
 
 
