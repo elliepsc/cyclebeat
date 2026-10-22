@@ -1,5 +1,35 @@
 # AI workflow log
 
+## Session 2026-10-22 — Pre-submission (issue #44) — Write a compact product spec, open a public task tracker, and apply the validated CLAUDE.md proposals
+
+**Loop**: reconnaissance → plan → owner review (three rounds) → issues → plan commented on #44 → edit → run → test → diff → commit
+**Tool/model**: Claude Code / Opus 5.5
+**Initial prompt**: (owner, faithful summary) add a product specification and a public task tracker in GitHub issues, so planned work lives in issues rather than in the roadmap, and apply the CLAUDE.md proposals from this log that she had validated. Branch `spec/44-product-spec-tracker`, cut from `main` @ 9cbae8d.
+**Owner decisions** (three review rounds on the agent's reconnaissance and plan):
+- The spec stays compact.
+- 7 labels: `spec`, `testing`, `data`, `docs`, `observability`, `ci-cd`, `agents`.
+- Two milestones, "Submission" and "Complete project", with no due date: the submission date is not decided.
+- FR-12 is added.
+- The quality KPI screen is out of scope (it stays in the ROADMAP).
+- The ROADMAP `[présentable]` list is a reserve, not a plan: a retained line becomes an issue.
+**Notable iterations** (`git log origin/main..HEAD`, oldest first):
+- Issues #44 to #51 were created in the draft's order with `--body-file`. Their cross-references had been written in advance as #(43+k), and the real numbers matched. Milestones as created: #44-#47 "Submission", #48-#51 "Complete project". The agent's plan was posted on #44 as a comment starting "Posted by the coding agent (Claude Code)." before any code.
+- 4735bdd (`CLAUDE.md`, +20 lines, 151 → 171): 20 validated proposals from this log, one line each, under existing headings. P15 was dropped by the owner. P25 was dropped because `CONTRIBUTING.md:68-108` already covers the publishing procedure. The obsolete Windows-era proposals P10, P13 and P21 had never entered CLAUDE.md, so no rule was removed.
+- 04af428: `product-spec.md` with FR-01..FR-10, FR-12 and NFR-01..NFR-10. Each status is Delivered, Partial or Planned and cites a PR #N or an issue #N. Also `.github/ISSUE_TEMPLATE/work-block.md` and `tests/unit/test_product_spec.py` (31 tests, offline). The test checks the reference FORMAT only, not that a cited PR or issue exists.
+- 0933fc4: `CLAUDE.md` links the spec and records the issue process in two one-line rules (171 → 174 lines): a block starts with `gh issue view <N>` and a plan comment; commits cite `#N`, the PR says `Closes #N`, and the agent never closes or reopens an issue by hand. Also links in `README.md` and a dated note at the head of `docs/ROADMAP.md`.
+- Hook patch, prepared but NOT applied (`agent-hooks/` belongs to the owner). It refuses `gh issue close` and `gh issue edit --state`. Label edits, `view`, `comment`, `create` and `gh issue list --state` stay allowed. It was prepared in the owner's scratch copy, which was identical to HEAD fed5712 before editing. Results there: 172 tests pass; the hook at HEAD let all 5 new refused cases through; 85 allowed / 81 refused; `git apply --check` clean. One fact found: the installed gh 2.45 has no `--state` option on `gh issue edit`, so that refusal is defensive only. Not covered: `gh issue reopen` and `gh api ... -f state=closed` (the owner set the scope to close and edit `--state` only).
+**Corrected by human review** (owner):
+1. In the reconnaissance, the agent reported the dbt "semantic layer" as absent from the repo. Its `git grep` had matched `docs/ROADMAP.md:170`, but the agent had cut the output with `cut -c1-170`, before the relevant part of that long line. The owner caught it. The work is now issue #46.
+2. Three review rounds set the scope listed under owner decisions: compact spec, the label set, undated milestones, FR-12 added, KPI screen out, `[présentable]` as a reserve.
+3. She dropped P15 from the CLAUDE.md batch.
+4. She kept the hook patch's scope to `close` and `edit --state`. The two uncovered paths are reported above, not patched.
+**Role split**: decided by the owner: the decisions above, the hook patch scope, whether to apply the patch / done by the agent: reconnaissance, plan, issues #44-#51 with labels and milestones, the plan comment on #44, the three commits, the hook patch in the scratch copy, this entry / human actions still pending: applying the hook patch, pushing the branch, opening and merging the PR. Not pushed and no PR when this entry was written; #44-#51 are all open.
+**Verification**: `pytest --collect-only tests/unit/test_product_spec.py` → 31. Final DoD on 0933fc4 (22 October 2026): `make lint` 0 dead links, `make typecheck` no issues in 21 files, `make test-unit` 773 passed / 15 skipped / 2 xfailed (742 + 31), `make eval` 55 passed, `make contract` 25 passed, `make dbt` on a copy of the warehouse PASS=65. `data/` and `lake/` fingerprint unchanged. Found after the DoD: on gh 2.45 (installed), `gh issue view 44` fails, with or without `--comments`, on a GraphQL error about Projects (classic) being sunset; `gh issue view 44 --json title,body,comments` works. The CLAUDE.md rule written in 0933fc4 named the failing form; it was corrected on this branch to the `--json` form (still one line, 174 lines).
+**Lesson**: Truncating `grep` output to make it readable can hide the very match being looked for. A "not found" claim needs the full matching line, or a `grep -o` of the term. Writing the cross-references as #(43+k) only worked because the issues were created strictly in order, in one go.
+**To capitalize in CLAUDE.md**:
+- (Known pitfalls) "Never truncate search output (`cut -c`, `head`) before concluding that something is absent: re-read the full matching line."
+- (Applied on this branch, not a proposal any more) the issue-reading rule uses `gh issue view <N> --json title,body,comments`.
+
 ## Session 2026-10-22 — Pre-submission (docs) — Put the official, current course grid in the repo verbatim, archive the old one, and add a side-by-side quality bar
 
 **Loop**: owner question → read the rubric at its source → compare with the repo copy → owner decisions → inventory of references → edit → lint/test → diff → commit

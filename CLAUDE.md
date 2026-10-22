@@ -39,7 +39,7 @@ V1/V2 are never a source. Conflict detected → the highest source wins AND you 
 - **Write facts after they happen**, in `ai-workflow.md` and everywhere else: numbers after the last
   measurement, a PR as opened or merged only once it is.
 - **Experiments never touch the real `lake/` or `data/`.**
-- A block of work starts with `gh issue view <N>`; the agent comments its plan on the issue before coding, each comment starting with "Posted by the coding agent (Claude Code)."
+- A block of work starts by reading its issue, `gh issue view <N> --json title,body,comments` (plain `gh issue view` fails on gh 2.45: Projects classic sunset); the agent comments its plan on the issue before coding, each comment starting with "Posted by the coding agent (Claude Code)."
 - Commits cite `#N`; the PR says `Closes #N` and ticks the acceptance criteria met; the agent never closes or reopens an issue by hand: the merged PR closes it.
 - **Task end**: an `ai-workflow.md` entry (prompt/objective, what worked, what human review corrected);
   invoke the `ai-workflow-scribe` subagent.
