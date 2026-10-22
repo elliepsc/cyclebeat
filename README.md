@@ -230,6 +230,10 @@ Detailed roadmap: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## How it was built
 
+What the system must do, requirement by requirement, with the PRs and tests that prove each one:
+[product-spec.md](product-spec.md). Remaining work: the [GitHub issues](https://github.com/elliepsc/cyclebeat/issues),
+one per block, each closed by the pull request that delivers it.
+
 Developed with AI coding agents under explicit rules: project instructions (`AGENTS.md`,
 `CLAUDE.md`), dedicated subagents (`.claude/agents/`: contract guardian, dbt reviewer,
 security auditor), one phase = one branch = one pull request, and CI as the definition of done.

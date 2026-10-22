@@ -1,5 +1,10 @@
 # CYCLEBEAT — ROADMAP CONSOLIDÉE
 
+> **Note du 22 octobre 2026.** Le travail planifié vit dans les [issues GitHub](https://github.com/elliepsc/cyclebeat/issues)
+> (jalons « Submission » et « Complete project ») ; la spécification est [product-spec.md](../product-spec.md).
+> La liste `[présentable]` ci-dessous est une réserve, pas un plan : une ligne retenue devient une issue.
+> Le reste de ce document n'est pas réécrit.
+
 > Version : **R1.3 — clôture de la phase 1** (2026-08-15)
 > *R1.1 :* grille 2026 (max 30 pts, MCP déplacé crit 2→12), mapping modules↔phases↔critères (§2.6), décision DB Postgres+DuckDB (§2.7), objectif pro « flotte d'agents » (§4.1).
 > *R1.2 :* phase 1 synchronisée sur **ADR-005** (backbone = librosa sur preview Deezer ; Jamendo abandonné ; Spotify = import playlist optionnel via ISRC, hors core).
