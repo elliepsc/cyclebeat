@@ -114,8 +114,9 @@ def test_the_readme_points_to_security_and_ops() -> None:
     assert "(security/README.md)" in readme and "(ops/README.md)" in readme
 
 
-def test_the_exposure_window_leaves_the_decision_to_the_owner() -> None:
-    """The key-rotation decision is the owner's: the line stays until she fills it."""
+def test_the_exposure_window_records_the_owner_decision() -> None:
+    """The key-rotation decision is the owner's, recorded as hers, with its date."""
     notes = (ROOT / "security" / "agent-security.md").read_text()
     assert "Exposure window, PR #38 to PR #41" in notes
-    assert "décision de la propriétaire" in notes
+    assert "décision de la propriétaire (22 October 2026)" in notes
+    assert "[à compléter]" not in notes

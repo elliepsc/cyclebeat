@@ -57,7 +57,7 @@ PID) and an unreadable directory's `PermissionError` now give one fixed message,
 | Reach | through `query_marts` (MCP), the **first line** of any file the MCP server process could read: `.env` included, SSH keys included (bypass 5). Through bypass 1, any table of the warehouse |
 | Who could trigger it | an agent session with the project MCP server approved (`.mcp.json`, one-time approval) or the plugin enabled |
 | Evidence of use | **none either way**: MCP tool calls are not logged anywhere this project can read. The phase-7 demo used the server (`docs/demo.md`); no recorded query used `sniff_csv` or `LATERAL`, but absence of a log is not absence of use |
-| Owner's decision on rotating the `.env` keys | **décision de la propriétaire : [à compléter]** |
+| Owner's decision on rotating the `.env` keys | **décision de la propriétaire (22 October 2026): no key rotation.** Her reasons: the first line of `.env` is a comment (`# LLM`), checked by the owner on 22 October 2026 with a command that prints the variable name only; `sniff_csv` exposes the column names of the header line, so no secret was reachable; and the MCP server only served in the owner's own demo sessions, on known data. Not measured by the agent: how far `sniff_csv` reads beyond the first line (see the audit of PR #38, "Unable to verify") |
 
 ## What remains
 
