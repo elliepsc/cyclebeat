@@ -129,6 +129,8 @@ first.
 
 ## Subagents (`.claude/agents/`)
 
+Who does what, the hand-offs and where each trace lands: [docs/agent-team.md](docs/agent-team.md).
+
 - `dbt-reviewer` — any PR touching `dbt/` or SQL, before merge.
 - `ai-workflow-scribe` — end of each session/PR.
 - `security-auditor` — secret hygiene and the final audit.
