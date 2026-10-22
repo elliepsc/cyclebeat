@@ -1,5 +1,49 @@
 # AI workflow log
 
+## Session 2026-10-22 — Pre-submission (docs) — Put the official, current course grid in the repo verbatim, archive the old one, and add a side-by-side quality bar
+
+**Loop**: owner question → read the rubric at its source → compare with the repo copy → owner decisions → inventory of references → edit → lint/test → diff → commit
+**Tool/model**: Claude Code (auto mode) / Opus 5.5
+**Initial prompt**: (owner) read the course rubric at its source rather than the repo's copy. The source is DataTalksClub/ai-dev-tools-zoomcamp, `project/README.md`. It was rewritten on 16 October 2026 by 3ef6f18 ("Revise project criteria and scoring") and 526d9c1 ("Lower project pass threshold to 10 points"; its diff changes "18 points to pass" to "10"). The current grid has 12 criteria and 24 points, needs 10 points to pass, and requires peer review of 3 projects. The repo's `docs/grading-criteria.md` was the previous version of that same file (14 criteria, 30 points, the draft of 9 October). The agent checked this by reading the file at 3ef6f18's parent. The "V2" grid in the owner's audit of 16 October matched the new grid on everything that file shows: names, maxima, total and pass mark. The audit's level wording cannot be checked against that file because the file does not contain it.
+**Owner decisions**:
+- The official grid goes verbatim in `docs/grading-criteria.md`, with its source.
+- The old grid is archived with a dated note.
+- The two grids are merged in a separate `docs/quality-bar.md`, and their scores are never added.
+- The audit file's provenance line is updated and the file is committed.
+- Every reference to the old grid is listed before anything changes.
+- No work plan for the gaps.
+**Notable iterations** (`git log origin/main..HEAD`, oldest first):
+- eda0d95 (6 files):
+  - `docs/grading-criteria.md` is the course file at 526d9c1, verbatim. A header gives the source URL, the two commits and the retrieval date (22 October 2026, through the GitHub API, identical to `main` that day). The verbatim match was checked programmatically.
+  - The old file is now `docs/archive/grading-criteria-v1-2026-10-09.md`. It is unchanged except for an 8-line "Superseded on 16 October 2026" note at the top (checked with `diff` against `eda0d95~1:docs/grading-criteria.md`). The old path now holds new content, so `git show --stat` records an add plus a modify, not a rename.
+  - `docs/quality-bar.md` has 21 requirement rows. Each row gives the requirement's provenance (official / old / both), its current state, an evidence level (EXECUTED / OBSERVED / DECLARED / ABSENT) and what is missing. The state was measured on 22 October: no single command runs both test suites, there is no `product-spec.md`, there are 0 GitHub issues, there is no alert rule in `monitoring/`, there is no tracing library, and CD deploys to production with no dev environment.
+  - Repointed references:
+    - `docs/agent-extension-pack.md` and the comments in `tests/unit/test_extension_pack_layout.py` cited line numbers of the old file. They now point into the archive: 106 → 114 and 45-50 → 53-58 (the shift is the 8-line note).
+    - Five `docs/ROADMAP.md` pointers now go to the archive.
+    - A dated note was added at the top of ROADMAP §2.6.
+- 3909c03: `docs/audit/grading-audit-2026-10-16.md` is committed. It was untracked before. The only change to the owner's text is the two provenance lines of its summary table, which now name V1 as the superseded draft (archived) and V2 as the official current grid.
+- Inventory of references to the old grid: about 90 lines. Most are "criterion N" labels in comments (Makefile, `ci.yml`, `.gitignore`, agent definitions, READMEs, tests, ADRs), and they keep the old numbering, as the archive note and the quality bar both say. Only pointers to the old grid's *content* were changed.
+- Things the agent reported to the owner as now false in the 16 October audit. None of them was rewritten, per her decision:
+  - phase 10 has been pushed and merged (#42);
+  - all five criterion-13 artifacts and `make audit` are on `main`;
+  - CI now has a `security` job that `deploy` needs;
+  - this log was 576 lines / 30 sessions before this entry;
+  - 42 PRs are merged;
+  - the test counts have changed;
+  - the README row "10 ... in review" is stale since the merge.
+**Corrected by human review** (owner):
+1. She had the agent read the rubric at its source. It had been treating the repo copy as current, and the repo copy was a superseded draft.
+2. She required the full list of references before any edit. Without that list, the line-number pointers in `agent-extension-pack.md` and the layout test would have silently pointed at the wrong text.
+3. She ruled that the two grids are kept separate in `quality-bar.md` (scores never added) and that the page records state without planning the gaps.
+4. She ruled that the audit's now-false statements are reported, not rewritten. Only its provenance lines change.
+**Role split**: decided by the owner: the decisions above / done by the agent: retrieving and checking the source, the verbatim copy, the archive note, `quality-bar.md` and its measurements, the reference inventory, the repointing, the two commits, this entry / human actions still pending: pushing the branch, opening and merging the PR. Not pushed and no PR when this entry was written.
+**Verification**: archive = old file + 8-line note (`diff`); line 114 of the archive is the same text as line 106 of the old file (criterion 12); `quality-bar.md` has 21 data rows. Final DoD on 3909c03 + this entry (22 October 2026): `make lint` 0 dead links, `make typecheck` no issues in 21 files, `make test-unit` 742 passed / 15 skipped / 2 xfailed, `make eval` 55 passed, `make contract` 25 passed, `make dbt` on a copy of the warehouse PASS=65. `data/` and `lake/` fingerprint unchanged (sha256 b78e902b…).
+**Lesson**: The repo's copy of an external grid was a snapshot taken a week before the source changed. Every "criterion N" label in the repo, and the 30-point target in the ROADMAP, were built on it. Reading the source took minutes, but nothing in the workflow had triggered that read. Line-number pointers into a doc break as soon as anything is prepended to it, and only an inventory done before the edit catches that.
+**To capitalize in CLAUDE.md** (proposal, for the owner to apply):
+- Under "Truth sources": "`docs/grading-criteria.md` is a verbatim copy of an external file. Before relying on it, re-check it against its source (URL and commit in its header). The old grid is history (`docs/archive/`)."
+- Under "Known pitfalls": "Repo labels 'criterion 12' / 'criterion 13' use the OLD grid's numbering (archive), not the official one."
+- Under "Known pitfalls": "Pointers of the form `file:line` break when text is prepended to the target. Prefer a section anchor, or grep for them before editing the target."
+
 ## Session 2026-10-13 to 2026-10-20 — Phase 10 — Criterion 13 (security, audit, DevOps): `make audit` in CI, PR #38 audit and triage, hook patch, agent security notes, an ops incident reproduced
 
 **Loop**: plan → owner decisions (5) → edit → run → test → raw outputs committed → triage → diff → review → push
