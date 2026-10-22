@@ -1,8 +1,8 @@
 """The agent extension pack is where Claude Code loads it AND where the grading looks for it.
 
-Criterion 12 (`docs/grading-criteria.md:45-50`) names the paths reviewers open; Claude Code
-loads each element from its own place. This file pins both, so a move breaks a test rather than
-a grade or a session.
+Criterion 12 of the old grid (`docs/archive/grading-criteria-v1-2026-10-09.md:53-58`) names the
+paths reviewers open; Claude Code loads each element from its own place. This file pins both,
+so a move breaks a test rather than a grade or a session.
 """
 
 from __future__ import annotations
@@ -23,8 +23,9 @@ def test_agents_md_is_a_pointer_with_no_rule_of_its_own() -> None:
     assert "V2" not in text and "V3 plan" not in text
 
 
-# The grading layout (docs/grading-criteria.md:45-50). `plugins/` rather than `custom-agent/`
-# (owner decision). docs/demo.md is the owner's demo session, the proof of use.
+# The grading layout of the old grid (docs/archive/grading-criteria-v1-2026-10-09.md:53-58).
+# `plugins/` rather than `custom-agent/` (owner decision). docs/demo.md is the owner's demo
+# session, the proof of use.
 GRADING_PATHS = [
     "agent-capabilities/README.md",
     "agent-hooks/pre_tool_use.py",

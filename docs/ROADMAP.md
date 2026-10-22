@@ -204,7 +204,14 @@ Le détail exécutable (modèle de données, formules de confidence, signatures 
 
 ### 2.6 Grille AI Dev Tools **2026** (max **30 pts**) — mapping modules ↔ phases ↔ critères
 
-Le syllabus 2026 a **14 critères** (max **30 pts** : somme des maxima du brouillon officiel, `docs/grading-criteria.md`). Deux nouveautés vs 2025, et elles tombent pile sur ce que L0 planifiait déjà :
+> **Note du 22 octobre 2026.** Cette section décrit l'**ancienne** grille (14 critères, 30 points),
+> remplacée le 16 octobre 2026 dans le dépôt du cours (commits 3ef6f18 et 526d9c1) par la grille officielle
+> actuelle : 12 critères, 24 points, seuil de 10, reprise mot pour mot dans [docs/grading-criteria.md](grading-criteria.md).
+> L'ancienne est archivée ([docs/archive/grading-criteria-v1-2026-10-09.md](archive/grading-criteria-v1-2026-10-09.md)).
+> Les deux, exigence par exigence, avec l'état actuel : [docs/quality-bar.md](quality-bar.md). Les numéros
+> « critère 12 », « critère 13 » de ce document et du dépôt sont ceux de l'ancienne grille.
+
+Le syllabus 2026 a **14 critères** (max **30 pts** : somme des maxima du brouillon officiel, `docs/archive/grading-criteria-v1-2026-10-09.md`). Deux nouveautés vs 2025, et elles tombent pile sur ce que L0 planifiait déjà :
 
 - **Crit 12 — Agent Extension Pack (2 pts, nouveau).** MCP **sort du crit 2** (où il était en 2025) et devient sa propre note ici, avec 6 briques : project instructions + 1 workflow/skill + 1 subagent + 1 outil/serveur MCP + 1 hook/guardrail + notes de permissions.
 - **Crit 13 — Security/Audit/DevOps (2 pts, nouveau).** 5 artefacts : PR audit + scan déterministe + notes sécurité agent + diagnostic opérationnel + policy outils/données IA.
@@ -246,7 +253,7 @@ Règle de la version complète : `[rendu]` si elle tient avant le gel du **25 oc
 complète » ci-dessous sont classées `[présentable]`.
 
 **Sources.** Tableau des phases (§2.1), grille (§2.6), texte du brouillon de la grille
-(`docs/grading-criteria.md`), plan archivé (`docs/archive/CYCLEBEAT_PLAN_V3.md` :
+(`docs/archive/grading-criteria-v1-2026-10-09.md`), plan archivé (`docs/archive/CYCLEBEAT_PLAN_V3.md` :
 §9, §10, §12, §13, §15, §16, §18, E.4), lignes `[rendu]` de ce document, et les arbitrages du propriétaire
 du 9 octobre. Ce que ces sources ne disent pas est marqué **à définir**. Le plan ne chiffre que
 l'ensemble (« 32-40 jours effectifs », §15) : **les efforts ci-dessous viennent de la relecture du
@@ -275,7 +282,7 @@ propriétaire, pas des sources.**
 |---|---|---|
 | **Éléments** | Chaque brique utilisée au moins une fois (preuve dans `ai-workflow.md`) :<br>• instructions de projet : fait (`CLAUDE.md`, `AGENTS.md`)<br>• sous-agent : fait (4 existent)<br>• **serveur MCP** réutilisant les outils de la phase 6 (version complète de la brique MCP)<br>• skill `new-mart` : un mart dbt de bout en bout (modèle, `schema.yml`, tests, doc, endpoint)<br>• hook de pré-commit : tests et détection de secrets<br>• notes de permissions | • packaging en **plugin** installable + `docs/agent-pack.md` (permissions, périmètre, sécurité) (§12) |
 | **Effort estimé** (propriétaire) | Serveur MCP : compté avec la phase 6. Skill, hook et permissions : 1 à 1,5 jour | À définir |
-| **Points de grille** | 2 (critère 12, §16) | 0 de plus. Confirmé par le brouillon de la grille (`docs/grading-criteria.md`, critère 12) : le plafond de 2 points demande instructions de projet, workflow réutilisable, sous-agent, outil ou serveur MCP, hook ou garde-fou, notes de permissions. Le plugin n'y figure pas |
+| **Points de grille** | 2 (critère 12, §16) | 0 de plus. Confirmé par le brouillon de la grille (`docs/archive/grading-criteria-v1-2026-10-09.md`, critère 12) : le plafond de 2 points demande instructions de projet, workflow réutilisable, sous-agent, outil ou serveur MCP, hook ou garde-fou, notes de permissions. Le plugin n'y figure pas |
 | **Valeur en entretien** | « La symétrie copilote produit / MCP de développement est l'idée forte du projet » (§12), ici avec les outils partagés et un copilote futur | À définir |
 
 Le hook du plan (§12) vérifiait aussi la divergence de `openapi.yaml` ; cette vérification n'est pas
@@ -293,7 +300,7 @@ dans la liste retenue (elle tourne déjà en CI via `make contract`).
 Dépendance : le diagnostic d'incident compose demande la phase 8 (`docker compose` complet).
 
 **Emplacement des artefacts.** Ils vont dans `security/` et `ops/` **à la racine**, comme l'attend la grille
-(contenu attendu du dépôt, `docs/grading-criteria.md`), et non dans `docs/security/` comme le prévoyait le plan.
+(contenu attendu du dépôt, `docs/archive/grading-criteria-v1-2026-10-09.md`), et non dans `docs/security/` comme le prévoyait le plan.
 Répartition confirmée par le propriétaire le 9 octobre 2026 : `security/` contient `agent-security.md`,
 `ai-policy.md`, les audits de PR dans `security/pr-audits/` et les rapports Semgrep dans `security/scans/` ;
 `ops/` contient le diagnostic d'incident. Fait en phase 10 : `.claude/agents/security-auditor.md` écrit son rapport en
@@ -327,7 +334,7 @@ retour (plus de `docs/security/`, plus de PR-Agent, plus de Write ; a8d9830, pui
    reste en CI.
 3. **PR-Agent** : écarté (voir la phase 10).
 
-**Résolu le 9 octobre 2026, d'après le brouillon de la grille (`docs/grading-criteria.md`).** Critères 8, 9
+**Résolu le 9 octobre 2026, d'après le brouillon de la grille (`docs/archive/grading-criteria-v1-2026-10-09.md`).** Critères 8, 9
 et 14 : le plafond de 2 points se juge sans la couche LLM. Le §16 du plan les reliait à `litellm` et
 `ollama`, mais le texte de la grille ne les cite pas :
 - **Critère 8, conteneurisation** : « The full system runs via Docker or Docker Compose with clear

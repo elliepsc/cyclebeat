@@ -1,7 +1,7 @@
 # Agent extension pack (criterion 12)
 
-The six elements the grading asks for (`docs/grading-criteria.md:106`), where Claude Code loads
-each one, where a reviewer finds it in the expected layout (`docs/grading-criteria.md:45-50`),
+The six elements the grading asks for (old grid, criterion 12: `docs/archive/grading-criteria-v1-2026-10-09.md:114`), where Claude Code loads
+each one, where a reviewer finds it in the expected layout (`docs/archive/grading-criteria-v1-2026-10-09.md:53-58`),
 and the proof it has been used. Every file below has a single source; the grading-layout paths
 either hold the real code or point to it.
 
