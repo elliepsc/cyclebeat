@@ -10,9 +10,29 @@
 -- Great/Okay/Hard to 'Unknown', and `check_invalid_rating` fails on 'Unknown' — so the first
 -- `POST /v1/sessions/{id}/feedback` turned the next `dbt build` red. CI missed it because it
 -- runs `make dbt` before any POST, against an empty table.
+--
+-- Only the most recent `dt` partition is read (#54). `extract_to_lake` writes a FULL copy of
+-- the app-store table into each day's partition, so reading every partition counted a
+-- feedback once per day it was extracted. The table has no key to deduplicate on, and a
+-- union deduplicated on every column breaks when the same row is extracted under two
+-- timezones (`created_at` is written as local wall time). With no UPDATE or DELETE path in
+-- the app store, the latest copy holds every feedback.
+--
+-- Limit: after the store is reset or switched (file deleted, `APP_DB_PATH` or `DATABASE_URL`
+-- changed) between two extractions, the feedback of the older copy is gone from here, while
+-- `stg_sessions` keeps every session it ever saw — those sessions then show
+-- `feedback_count = 0`. The two semantics differ on purpose: a session has a key
+-- (`session_id`), so a union over partitions deduplicates it exactly; a feedback has none, so
+-- the only exact copy is one whole partition.
 
 with source as (
     select * from {{ source('raw', 'feedback') }}
+),
+
+latest as (
+    select *
+    from source
+    where dt = (select max(dt) from source)
 ),
 
 cleaned as (
@@ -44,7 +64,7 @@ cleaned as (
         note,
         created_at,
         cast(date_trunc('day', created_at) as date)  as feedback_date
-    from source
+    from latest
     -- A row needs one of the two keys to be attachable to anything. `session_id` is the real
     -- key (ADR-008); `session_title` is what the v1 rows have.
     where session_id is not null
