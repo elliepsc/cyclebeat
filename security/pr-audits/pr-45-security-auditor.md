@@ -1,3 +1,7 @@
+> security-auditor, pre-PR audit of the issue #45 branch, run on 23 October 2026. Diff reviewed: `origin/main..9df6133` (5c50786, 9df6133). Agent definition: `.claude/agents/security-auditor.md` as on `origin/main` @ 1265f66 (unchanged on the branch). Raw output, unedited except for one change: in L1's suggested sentence, the Markdown link `[permissions.md](permissions.md)` is wrapped in backticks, because from `security/pr-audits/` it is a dead link and `make lint` (`check_links`) refuses it. The triage is in `pr-45-triage.md`.
+
+---
+
 # Security audit: `test/45-test-command-agent-team` (issue #45)
 
 Reference: branch `test/45-test-command-agent-team` checked against `origin/main` (fetched). Diff covers commits 5c50786 and 9df6133, 8 files, +201/-3.
@@ -47,7 +51,7 @@ Reference: branch `test/45-test-command-agent-team` checked against `origin/main
   - The hook does not know which agent is calling: `grep -n "agent_type\|subagent" agent-hooks/pre_tool_use.py` returns nothing. It applies the same repo-wide rules to every agent (`data/`, `lake/`, secrets, `agent-hooks/`, settings).
   - `.claude/agents/*.md` itself is protected by neither the deny rules nor the hook (`_write_refusal`, `pre_tool_use.py:197-205`), so the main agent can edit a subagent's tool list.
 - **Impact:** The doc presents a write boundary that rests on the subagent prompts, not on code. This matches the "a doc that overstates protection" criterion, but the impact is low because the repo-wide hook still covers the sensitive zones.
-- **Fix:** Add a sentence under the table: "Read-only and the scribe's write scope are set by each subagent's instructions; the code-enforced limits are the repo-wide ones in [permissions.md](permissions.md), which apply to every agent alike." Optionally, the owner adds `Edit(/.claude/agents/**)` to the deny rules.
+- **Fix:** Add a sentence under the table: "Read-only and the scribe's write scope are set by each subagent's instructions; the code-enforced limits are the repo-wide ones in `[permissions.md](permissions.md)`, which apply to every agent alike." Optionally, the owner adds `Edit(/.claude/agents/**)` to the deny rules.
 - **Effort:** 5 min, quick win.
 
 **L2. `make -i test` exits 0 and prints "passed" when both suites fail, and the new test inherits the parent's `MAKEFLAGS`**
