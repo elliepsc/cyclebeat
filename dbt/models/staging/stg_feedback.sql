@@ -1,5 +1,10 @@
 -- Feedback, cleaned. Carries TWO rating scales side by side, and translates neither.
 --
+-- Grain: one row represents one feedback (one insert into the app-store `feedback` table), as
+-- held by the latest `dt` partition of the lake. Key: (session_id, session_title, created_at),
+-- asserted by `dbt/tests/check_stg_feedback_grain.sql`; the reasoning behind that key is in
+-- `dbt/tests/check_recent_activity_grain.sql`, which applies it to the mart.
+--
 -- E.3 fixes the API's vocabulary to `up` / `down` — a **satisfaction** judgement. The v1 rows
 -- already in the warehouse use `Great` / `Okay` / `Hard` — a **perceived effort** judgement.
 -- These are different axes: a session can be very hard and very much enjoyed, so `down` is not

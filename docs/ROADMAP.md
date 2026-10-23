@@ -80,7 +80,7 @@ présentable ; + `[production]` = prêt pour un vrai système.
 | Marquer comme données non fiables les chaînes externes (`title`, `artist`, `preview_url`) renvoyées par les outils MCP, à décider avec `trigger_resolve` en phase 6 (audit de #38, L2) | ⬜ |
 | Migrer les tests `accepted_values` de `dbt/models/` de la forme `values:` au premier niveau vers `arguments:`, dépréciée depuis dbt 1.11 (`MissingArgumentsPropertyInGenericTestDeprecation`, 18 occurrences mesurées par `dbt parse --no-partial-parse` le 23 octobre 2026, contre 11 avant #46, qui en a ajouté 7 pour suivre la convention du repo ; relevé par `dbt-reviewer`, finding 11) | ⬜ |
 | Clé primaire sur la table `feedback` de la base transactionnelle (`api/repositories/database.py`) : elle n'a aucune identité, si bien que l'entrepôt ne peut dédoublonner un retour que par partition entière (#54). Changement d'API et de schéma, hors périmètre de #54 | ⬜ |
-| Entrepôt de démo semé de séances et de retours synthétiques, pour que les 32 tests de données sur 72 qui tournent aujourd'hui sur des modèles vides (0 séance, 0 retour, mesuré pendant #46) s'exercent sur des lignes en CI | ⬜ |
+| Entrepôt de démo semé de séances et de retours synthétiques, pour que les tests de données qui tournent sur des modèles vides s'exercent sur des lignes en CI (32 sur 72, mesuré pendant #46, sur un entrepôt à 0 séance et 0 retour) | ⬜ |
 
 ### `[production]` — sans date
 - « Idée 2 » : lecteur YouTube intégré, table d'observations de BPM, tap tempo, micro, puis

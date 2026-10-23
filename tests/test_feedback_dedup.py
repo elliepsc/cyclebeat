@@ -11,13 +11,15 @@ the lake was extracted on both days: the old `up` sits in both partitions, the n
 in one. Counting per partition gives s1 two `up` for one `down`, which moves both the counts
 and the satisfaction ratio; counting the latest copy gives one of each.
 
-Nothing here touches the real `data/` or `lake/`: the lake, the warehouse, dbt's target and
-logs all live under `tmp_path`.
+Nothing here touches the real `data/` or `lake/`: the lake, the warehouse, dbt's target, logs
+and profiles dir all live under `tmp_path`. The profiles dir is a copy of `dbt/profiles.yml`
+because dbt writes its `.user.yml` cookie into whichever profiles dir it is given.
 """
 
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from datetime import date, datetime
@@ -72,19 +74,23 @@ def _two_day_lake(root: Path) -> None:
     lake.write_partition([s1_up, s1_down, s2_up], lake.FEEDBACK, DAY_2, root=root)
 
 
-def _dbt_build(
+def _dbt(
+    command: str,
     warehouse: Path,
     work: Path,
     select: str = "+mart_feedback_summary +mart_session_kpis +mart_recent_activity",
 ) -> subprocess.CompletedProcess[str]:
     env = {**os.environ, "RUNTIME_DB_PATH": str(warehouse)}
+    profiles = work / "profiles"
+    profiles.mkdir(exist_ok=True)
+    shutil.copy(DBT_DIR / "profiles.yml", profiles / "profiles.yml")
     return subprocess.run(
         [
             str(Path(sys.executable).parent / "dbt"),
             "--no-use-colors",
-            "build",
+            command,
             "--project-dir", str(DBT_DIR),
-            "--profiles-dir", str(DBT_DIR),
+            "--profiles-dir", str(profiles),
             "--target-path", str(work / "target"),
             "--log-path", str(work / "logs"),
             "--select", select,
@@ -104,7 +110,7 @@ def test_feedback_indicators_count_each_feedback_once(tmp_path: Path) -> None:
     _two_day_lake(lake_root)
     load_lake(db_path=warehouse, lake_root=lake_root)
 
-    result = _dbt_build(warehouse, tmp_path)
+    result = _dbt("build", warehouse, tmp_path)
     assert result.returncode == 0, result.stdout[-4000:]
 
     con = duckdb.connect(str(warehouse), read_only=True)
@@ -139,9 +145,10 @@ def test_feedback_indicators_count_each_feedback_once(tmp_path: Path) -> None:
     }
 
 
-def test_recent_activity_key_test_fails_on_a_duplicated_feedback(tmp_path: Path) -> None:
+def test_grain_tests_fail_on_a_duplicated_feedback(tmp_path: Path) -> None:
     """The grain test is evidence only if it can fail: the same feedback twice in the latest
-    partition (what a store holding a doubled insert would extract) must turn it red."""
+    partition (what a store holding a doubled insert would extract) must turn both grain
+    tests red: the one over every feedback and the one over the mart's 20 rows."""
     lake_root = tmp_path / "lake"
     warehouse = tmp_path / "warehouse.duckdb"
     s1 = _session("s1", datetime(2026, 10, 23, 7, 0, 0))
@@ -150,9 +157,19 @@ def test_recent_activity_key_test_fails_on_a_duplicated_feedback(tmp_path: Path)
     lake.write_partition([twice, twice], lake.FEEDBACK, DAY_2, root=lake_root)
     load_lake(db_path=warehouse, lake_root=lake_root)
 
-    result = _dbt_build(warehouse, tmp_path, select="+mart_recent_activity")
+    # `run` then `test`, not `build`: under `build` the failing test on `stg_feedback` skips
+    # every model downstream, and the mart's own test would never run.
+    built = _dbt("run", warehouse, tmp_path, select="+mart_recent_activity")
+    assert built.returncode == 0, built.stdout[-4000:]
+    result = _dbt("test", warehouse, tmp_path, select="+mart_recent_activity")
 
     assert result.returncode != 0
     failing = [line for line in result.stdout.splitlines() if " FAIL " in line]
-    assert len(failing) == 1, result.stdout[-4000:]
-    assert "check_recent_activity_grain" in failing[0]
+    names = sorted(
+        name
+        for name in ("check_stg_feedback_grain", "check_recent_activity_grain")
+        for line in failing
+        if name in line
+    )
+    assert len(failing) == 2, result.stdout[-4000:]
+    assert names == ["check_recent_activity_grain", "check_stg_feedback_grain"]

@@ -5,13 +5,14 @@
 -- which is the conflation ADR-009 exists to prevent.
 --
 -- Grain: one row represents one feedback, as held by the latest lake extraction (one insert
--- into the app-store `feedback` table, deduplicated across `dt` by `stg_feedback`, #54), among
+-- into the app-store `feedback` table; `stg_feedback` reads only the latest `dt`, #54), among
 -- the 20 most recent by `feedback_at`, with the context of the session it rates. Its key is
 -- (session_id, session_title, feedback_at), checked by `dbt/tests/check_recent_activity_grain.sql`.
 --
--- The tie-break after `feedback_at desc` makes the 20 rows deterministic: once the key holds,
--- (feedback_at, session_id, session_title) orders every row, so equal timestamps no longer
--- leave the cut at row 20 to the engine. NULLs sort last (DuckDB's default for ascending).
+-- The tie-break after `feedback_at desc` makes the 20 rows deterministic: the key holds over
+-- every feedback (`check_stg_feedback_grain.sql`), so (feedback_at, session_id, session_title)
+-- orders every row, and equal timestamps no longer leave the cut at row 20 to the engine.
+-- NULLs sort last (DuckDB's default for ascending).
 select
     feedback_at,
     feedback_date,

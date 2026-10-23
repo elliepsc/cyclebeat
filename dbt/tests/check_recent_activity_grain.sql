@@ -1,13 +1,21 @@
 -- Fail if `mart_recent_activity` holds the same feedback twice.
 --
 -- The grain is one feedback (one insert into the app-store `feedback` table). That table has
--- no key, so the identity is what tells two inserts apart: the rated session and the instant.
--- `session_id` for API rows, `session_title` for v1 rows (NULL `session_id`); `feedback_at` is
--- `datetime.now(UTC)` at µs for API rows, DuckDB `now()` for v1 rows. `rating`,
--- `rating_scale` and `note` are left out: they describe a feedback, they do not identify it,
--- and a key that includes them would let two different ratings at the same instant on the
--- same session pass as two rows. A singular test rather than `unique` on a concatenation:
--- GROUP BY compares NULLs as equal, so a duplicated v1 row (NULL `session_id`) still collides.
+-- no key, so the key is the rated session and the instant: `session_id` for API rows,
+-- `session_title` for v1 rows (NULL `session_id`), and `feedback_at`.
+--
+-- The key ASSUMES that two inserts on one session never share a timestamp:
+-- - API rows: `datetime.now(UTC)` at µs, taken per insert;
+-- - v1 rows: DuckDB `now()`, the transaction start, so two v1 rows written in one transaction
+--   would share it and fail this test. No current code path writes v1 rows (#54).
+--
+-- `rating`, `rating_scale` and `note` stay out. An exact duplicate is identical in every
+-- column, so adding them would catch nothing more. Leaving them out makes the test stricter:
+-- a (session, instant) collision between two different ratings is flagged too, because under
+-- the assumption above it cannot be two genuine inserts.
+--
+-- A singular test rather than `unique` on a concatenation: GROUP BY compares NULLs as equal,
+-- so a duplicated v1 row still collides.
 select
     session_id,
     session_title,

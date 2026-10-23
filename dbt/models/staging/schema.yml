@@ -46,6 +46,9 @@ models:
       Cleaned feedback carrying TWO rating scales side by side. `satisfaction` is E.3's
       up/down, written by the API; `effort` is the v1 Great/Okay/Hard. They are different
       axes and are never mapped onto each other — see the model header and ADR-009.
+      One row represents one feedback (one app-store insert) as held by the latest `dt`
+      partition of the lake (#54). Key: (session_id, session_title, created_at), asserted by
+      `dbt/tests/check_stg_feedback_grain.sql`.
     columns:
       - name: session_id
         description: >

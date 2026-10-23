@@ -37,7 +37,12 @@ UPDATE or DELETE path on `feedback`, so that copy holds every feedback.
 
 Every indicator below that is computed from feedback is checked end to end by
 `tests/test_feedback_dedup.py`. The test builds a two-partition lake, loads it, runs dbt and reads
-the marts. On the version that read every partition it failed on all four figures it checks.
+the marts. On the version that read every partition, all four figures it checks came out wrong.
+That was measured at 4129a70, before the grain tests below existed. Today the same version fails
+earlier: the dbt build itself goes red on the grain tests, before the figures are read.
+
+The key `(session_id, session_title, created_at)` is asserted on every row of `stg_feedback` by
+`dbt/tests/check_stg_feedback_grain.sql`, and on the mart below.
 
 **Limit.** A row in an older partition only disappears if the store is reset or switched between
 two extractions: the file is deleted, or `APP_DB_PATH` or `DATABASE_URL` changes. No make target,
@@ -91,14 +96,23 @@ of the session it rates. The key follows from that:
 - `session_title` does it for v1 rows, whose `session_id` is NULL;
 - `feedback_at` separates two inserts on the same session.
 
-`rating`, `rating_scale` and `note` describe a feedback; they do not identify it, so they stay out
-of the key. Key: `(session_id, session_title, feedback_at)`, asserted by
-`dbt/tests/check_recent_activity_grain.sql`. `tests/test_feedback_dedup.py` shows that test
-failing on a duplicated feedback.
+Key: `(session_id, session_title, feedback_at)`, asserted by
+`dbt/tests/check_recent_activity_grain.sql` and, over every feedback, by
+`dbt/tests/check_stg_feedback_grain.sql`. `tests/test_feedback_dedup.py` shows both tests failing
+on a duplicated feedback.
+
+The key **assumes** that two inserts on one session never share a timestamp. API rows take
+`datetime.now(UTC)` at µs per insert. v1 rows took DuckDB `now()`, the transaction start, so two v1
+rows written in one transaction would collide; no current code path writes v1 rows. `rating`,
+`rating_scale` and `note` stay out of the key:
+- an exact duplicate is identical in every column, so including them would catch nothing more;
+- leaving them out makes the test stricter: it also flags a (session, instant) collision between
+  two different ratings.
 
 Source: `int_feedback_enriched`. The 20 rows are selected by
-`order by feedback_at desc, session_id, session_title limit 20`. Once the key holds, that order is
-total, so equal timestamps no longer leave the cut at row 20 to the engine. `feedback_at` is
+`order by feedback_at desc, session_id, session_title limit 20`. The key holds over every feedback
+(`check_stg_feedback_grain`), so that order is total, and equal timestamps no longer leave the cut
+at row 20 to the engine. `feedback_at` is
 exposed, because a table keeps no row order and a reader sorts on it. The mart exposes no
 aggregate, only rows. Guards: the key test, `not_null` on `feedback_at`, `rating` and
 `rating_scale`, and `accepted_values` on the last two. On an empty warehouse they are vacuous;
