@@ -129,6 +129,8 @@ first.
 
 ## Subagents (`.claude/agents/`)
 
+Who does what, the hand-offs and where each trace lands: [docs/agent-team.md](docs/agent-team.md).
+
 - `dbt-reviewer` — any PR touching `dbt/` or SQL, before merge.
 - `ai-workflow-scribe` — end of each session/PR.
 - `security-auditor` — secret hygiene and the final audit.
@@ -165,6 +167,9 @@ first.
 - Never chain `git push` after a gate with `;` or a newline: use `&&` or check the exit code; a gate that cannot run (Docker daemon down) is red, not skipped.
 - Subagent definitions are read from the checked-out branch: before a review, check that `.claude/agents/<name>.md` there is the intended version.
 - Commit raw subagent review outputs under `security/pr-audits/` as soon as they return: the scratchpad in `/tmp` does not survive a WSL shutdown.
+- A raw subagent output can carry links relative to the reviewer's context, dead from `security/pr-audits/`: run `make lint` before committing it, and disclose any change in its provenance header.
+- A test that runs `make` in a subprocess drops `MAKEFLAGS`, `MFLAGS` and `MAKELEVEL` from its environment: a parent `make -i` would leak in and hide the child's exit status.
+- A doc sentence describing a guardrail is checked against the hook's code, not the rule's intent (issue #45: the hook refuses `gh issue close` only, not reopen, delete, transfer or `gh api` state changes).
 - A guard over SQL text compares identifiers as the engine does (DuckDB folds ASCII only) and re-checks the SQL it emits.
 - In a container, `HEALTHCHECK` and `CMD` read the same `${PORT:-8000}`, and `CMD` uses `exec` so uvicorn receives the stop signal.
 - A compose service built from the API image inherits its `HEALTHCHECK`: a service that does not run uvicorn needs `healthcheck: disable: true`.

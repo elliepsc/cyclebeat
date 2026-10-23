@@ -63,6 +63,15 @@ make lint && make test-unit
 `TEST_DATABASE_URL`; CI runs them against `postgres:16-alpine`. The 6 Airflow DAG tests
 (`tests/test_dags.py`) run here.
 
+To run both test suites with one command, unit then integration:
+
+```bash
+make test
+```
+
+It stops at the first failing suite and names it. The integration suite needs Docker (prerequisites above):
+without it `make test` fails, it does not skip.
+
 ---
 
 ## Contributing workflow — branches and pull requests

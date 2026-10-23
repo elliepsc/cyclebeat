@@ -1,5 +1,82 @@
 # AI workflow log
 
+## Session 2026-10-22 to 2026-10-23 — Pre-submission (issue #45) — Add one command for both test suites (`make test`) and a description of the agent team as it actually works
+
+**Loop**: issue read → brief re-checked on the remote → branch cut from `origin/main` → plan commented on #45 → STOP → owner decisions → edit → run → measure → security-auditor → quick wins → diff → commit
+**Tool/model**: Claude Code (auto mode) / Opus 5.5
+**Initial prompt**: (faithful summary) issue #45 "One test command and the agent team description". Add one command that runs the unit and integration suites. Write one page describing the agent team and how it works with the owner.
+**Process followed**:
+- The agent read the issue with `gh issue view 45 --json ...` and re-checked the brief on `origin/main` @ 1265f66.
+- On that Makefile, `make test` fails with "No rule to make target 'test'" (exit 2).
+- The branch was cut from `origin/main` after a fetch.
+- The plan was posted on #45 (issuecomment-6349258851). The agent then stopped until the owner validated it. The agent relayed her decisions on #45 (issuecomment-6349294012).
+**Owner decisions** (relayed on #45):
+1. `make test` stops at the first failing suite, and the message names that suite.
+2. The `docs/quality-bar.md` rows "one command" and "Agent team" are updated only after measurement. NFR-05 in `product-spec.md` moves to Delivered only in a LAST commit, once she gives the real PR number.
+3. The agent does not stop Docker itself (Docker Desktop runs on the Windows side). It asks the owner.
+4. Check that `tests/unit/test_extension_pack_layout.py` ("pointer with no rule of its own") still passes with the new link in `AGENTS.md`. It does: 15 passed, together with the new layout test.
+5. `docs/agent-team.md` describes the REAL process, not an ideal team.
+**Notable iterations** (`git log origin/main..HEAD`, oldest first):
+- 5c50786 adds the `test` target to the `Makefile`.
+  - It is a sequential recipe, `$(MAKE) test-unit` then `$(MAKE) test-integration`, not prerequisites, because `make -j` would run prerequisites in parallel.
+  - Each line ends with `|| { echo "make test: FAILED in the ... suite" >&2; exit 1; }`.
+  - The same commit adds:
+    - a README "Quality gates" row and a CONTRIBUTING "First run" paragraph;
+    - `docs/agent-team.md` (roles, triggers, process steps, owner-only decisions, refusals, traces);
+    - links to that page from `CLAUDE.md` ("Subagents", +2 lines) and `AGENTS.md` (+1 line);
+    - `tests/unit/test_agent_team_layout.py`. It runs `make test` offline with `RUN` / `IT_COMPOSE` overridden to `true`/`false`/`echo`. It also checks the layout: the page is tracked, every `.claude/agents/*.md` is named, the sections are there, and `CLAUDE.md` and `AGENTS.md` link to the page.
+- 9df6133 updates the two `docs/quality-bar.md` rows, after the measurements below. The "one command" row moves from ABSENT to EXECUTED.
+- 428336d commits the raw security-auditor output (`security/pr-audits/pr-45-security-auditor.md`) as soon as it came back. The `security-auditor` definition was the same as on `origin/main` 1265f66: the branch has no diff under `.claude/agents/`.
+- d142216 adds a provenance header to that raw output and fixes one dead link (see "Agent self-corrections").
+- 1026db9 applies the quick wins and adds `security/pr-audits/pr-45-triage.md`.
+**security-auditor findings** (overall Low):
+- **M1**: the doc overstated the issue-state guardrail. The hook refuses only `gh issue close` and `gh issue edit --state`, and `--state` is not a flag on gh 2.45. `reopen`, `delete`, `transfer` and `gh api` state changes pass.
+- **L1**: the "read-only" subagents are bound by instruction, not by per-agent enforcement.
+- **L2**: a parent `MAKEFLAGS` (`make -i`) leaked into the test's child make. With `MAKEFLAGS=i`: 2 failed before the fix, 8 passed after.
+- **L3**: the README claimed every check runs in CI, but `make test` itself does not.
+- Fixed in 1026db9: M1a, L1, L2a, L3.
+- Left to the owner, not done: the hook patch (M1b) and the issue row in `docs/permissions.md` (M1c).
+**Agent self-corrections**:
+- 428336d left `make lint` red. The raw report had a relative link `[permissions.md](permissions.md)`, which is dead from `security/pr-audits/`. d142216 wraps that one link in backticks and says so in the provenance header. Nothing was pushed in between.
+- The first CONTRIBUTING wording said the Docker prerequisites were "below", but they are above. Fixed before the commit.
+- An early draft of the test had a pytest `skipif` for when `make` is missing. Removed before the commit (no skip without a ticket).
+**Corrected by human review** (owner):
+1. She set the five decisions above before any code. Decision 1 fixed the failure behaviour, 2 the order of the doc commits, 3 who handles Docker, 4 the `AGENTS.md` check, and 5 that the page describes the real process.
+2. She did not fix the hook for the false positive below. She told the agent to compute the fingerprint from the repo root instead.
+3. She made the warehouse copy for `make dbt` / `make contract` after the classifier refused it to the agent.
+4. She restarted Docker Desktop for the integration measurements.
+5. She asked for the three refusals to be recorded as known limits (below).
+**Refusals** (recorded as known limits, at the owner's request):
+1. Hook false positive. The hook refused `cd data && sha256sum ... > $S/data-fp-before.txt` with "writes to data/ and lake/ are refused (data-fp-before.txt)": `cd data` followed by a redirect to a variable the hook cannot resolve. The agent stopped and reported it. The owner decided on no hook fix and the fingerprint form computed from the repo root.
+2. The auto-mode classifier refused `cp data/cyclebeat_runtime.duckdb <scratchpad>/runtime.duckdb` ("Permission to use Bash with command ... has been denied", not a hook message). The same refusal happened in phase 7. The agent did not retry, and the owner made the copy.
+3. During the audit, the hook refused the auditor's `git check-ignore -v .env` ("secrets files are never read or written by the agent (.env)"). It was not retried and was left for the owner to check.
+**Role split**:
+- Decided by the owner: the 5 decisions, stopping and restarting Docker, the fingerprint form, the warehouse copy, no hook fix.
+- Done by the agent: the plan and relay comments on #45, the code, tests and docs, the measurements, the review triage, the quick wins.
+- Human actions still pending: opening the PR, giving its number for the NFR-05 commit, merging, and optionally the hook patch (M1b) and the `docs/permissions.md` issue row (M1c).
+- When this entry was written, the branch was not pushed, no PR was open, and NFR-05 was still "Partial ... one command: issue #45" in `product-spec.md`.
+**Verification**:
+- Real `make test` on 5c50786. Exit codes were read directly, with no pipe.
+  - **Docker daemon down** (it was already down when checked; the agent stopped nothing): exit 2. The unit suite passed (793). Then "Cannot connect to the Docker daemon" and "make test: FAILED in the integration suite".
+  - **A temporary failing unit test** (deleted afterwards, never committed): exit 2. "1 failed, 793 passed", then "FAILED in the unit suite (make test-unit); the integration suite did not run". There was no compose output.
+  - **A temporary failing integration test**, after the owner restarted Docker Desktop (deleted afterwards): exit 2. Unit 793 passed, integration "1 failed, 13 passed", then "FAILED in the integration suite".
+  - **All green**: exit 0. 793 passed / 15 skipped / 2 xfailed, then 13 passed, then "make test: unit and integration suites passed".
+- Final DoD on 1026db9 (23 October 2026):
+  - `make lint`: 0 dead links.
+  - `make typecheck`: no issues in 21 files.
+  - `make test-unit`: 793 passed / 15 skipped / 2 xfailed.
+  - `make eval`: 55 passed.
+  - `make dbt`: PASS=65. `make contract`: 25 passed. Both ran on the owner's scratch copy of the warehouse through `RUNTIME_DB_PATH`.
+- The `data/` and `lake/` fingerprint (`find data lake -printf '%p %s %TY-%Tm-%Td_%TH:%TM:%TS\n' | sort | sha256sum`) was b78e902b…cde903 before and after, the same as in earlier sessions.
+**Lesson**:
+- Overriding `RUN` / `IT_COMPOSE` let the test check the stop-at-first-failure logic offline. The real measurements still had to be run by hand, and the Docker-down case cost nothing because the daemon was already down.
+- The auditor caught two things the agent's own checks did not. Under `make -i` the leaked `MAKEFLAGS` made the child make exit 0, so 2 of the test's cases failed: the test was not hermetic. The guardrail sentence promised more than the hook does.
+- The raw-output commit (428336d) broke `make lint`. The cause was text the agent did not write: a link that was relative to the reviewer's context.
+**To capitalize in CLAUDE.md** (proposals, for the owner to apply):
+- (Known pitfalls) "A raw subagent output can carry links relative to the reviewer's context, which are dead from `security/pr-audits/`. Run `make lint` before committing a raw output, and disclose any change to it in its provenance header."
+- (Known pitfalls) "A test that runs `make` in a subprocess drops `MAKEFLAGS`, `MFLAGS` and `MAKELEVEL` from the environment. Otherwise a parent `make -i` leaks in and hides the child's exit status."
+- (Known pitfalls) "A doc sentence that describes a guardrail is checked against the hook's code, not against the rule's intent. The hook refuses `gh issue close` only; reopen, delete, transfer and `gh api` state changes are refused by instruction only."
+
 ## Session 2026-10-22 — Pre-submission (issue #44) — Write a compact product spec, open a public task tracker, and apply the validated CLAUDE.md proposals
 
 **Loop**: reconnaissance → plan → owner review (three rounds) → issues → plan commented on #44 → edit → run → test → diff → commit
