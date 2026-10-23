@@ -18,6 +18,10 @@ been followed so far, not an ideal one. The session-by-session record is
 | [`security-auditor`](../.claude/agents/security-auditor.md) | subagent, read-only (Read, Grep, Glob, Bash) | a PR diff with a security surface (guardrails, tools, Makefile, CI), and the phase-10 audit | nothing: it returns its report as its final message | findings with file, line and a proposed fix, plus an "Unable to verify" section |
 | [`ai-workflow-scribe`](../.claude/agents/ai-workflow-scribe.md) | subagent (Read, Edit, Write, Grep, Glob, Bash) | the end of each session or PR | `docs/ai-workflow.md` and `docs/specs/` only | the session entry, plus proposed `CLAUDE.md` lessons that the owner applies or not |
 
+"Read-only" and the scribe's write scope are set by each subagent's instructions and tool list,
+not enforced per agent: the code-enforced limits are the repo-wide ones in
+[docs/permissions.md](permissions.md), which apply to every agent alike.
+
 The three reviewers never fix anything. The main agent applies a fix or records why it did not,
 and the owner arbitrates when the two disagree.
 
@@ -58,7 +62,9 @@ and the owner arbitrates when the two disagree.
   a question for the owner, never a silent fill-in.
 - Opening and merging PRs, and anything that lands on `main`. The hook refuses `gh pr create`,
   `gh pr merge`, pushes and merges to `main`, and force pushes.
-- Closing or reopening issues. The hook refuses `gh issue close` and `gh issue edit --state`.
+- Closing, reopening, deleting or transferring issues. The hook refuses `gh issue close` only;
+  reopening, deleting or transferring an issue, and changing its state through `gh api`, are
+  refused by instruction only.
 - **Changing the guardrails.** `agent-hooks/` and `.claude/settings*.json` belong to the owner.
   When a hook change is needed, the agent prepares a patch only, for example
   [`pr-38-hook.patch`](../security/pr-audits/pr-38-hook.patch), and **the owner applies it**,

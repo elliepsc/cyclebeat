@@ -80,7 +80,7 @@ Every check below runs in CI on every push. Counts are in each PR description, n
 | Check | Command | What it covers |
 |---|---|---|
 | Lint, strict typing, dead links | `make lint` · `make typecheck` | ruff, strict mypy, relative Markdown links |
-| Unit then integration, one command | `make test` | `make test-unit`, then `make test-integration`; stops at the first failing suite and names it; fails (never skips) without Docker |
+| Unit then integration, one command | `make test` | `make test-unit`, then `make test-integration`; stops at the first failing suite and names it; fails (never skips) without Docker; CI runs its two halves in separate jobs (`make test-unit`, `make test-integration`) |
 | Unit tests | `make test-unit` | everything under `tests/` except `tests/integration/`, including the API contract suite |
 | Evals | `make eval` | adversarial playlists and the planner **mutation check** |
 | dbt models and data tests | `make dbt` | staging → intermediate → marts, and the data tests |

@@ -6,6 +6,7 @@ chaining and the exit status are checked offline: no pytest run, no Docker.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -20,7 +21,9 @@ AGENTS_DIR = ROOT / ".claude" / "agents"
 def _make_test(**overrides: str) -> subprocess.CompletedProcess[str]:
     args = ["make", "--no-print-directory", "-C", str(ROOT), "test"]
     args += [f"{name}={value}" for name, value in overrides.items()]
-    return subprocess.run(args, capture_output=True, text=True, timeout=60, check=False)
+    # A parent `make -i` (or any MAKEFLAGS) would leak into the child make and hide its status.
+    env = {k: v for k, v in os.environ.items() if k not in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")}
+    return subprocess.run(args, capture_output=True, text=True, timeout=60, check=False, env=env)
 
 
 def test_make_test_stops_on_a_unit_failure_and_names_it() -> None:
