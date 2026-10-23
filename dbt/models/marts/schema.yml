@@ -1,6 +1,7 @@
 version: 2
 
-# Every mart states its grain in its description and has a test that guarantees it: `unique`
+# Every mart states its grain in its description and, except `mart_recent_activity` (#54),
+# has a test that guarantees it: `unique`
 # on a single-column key, or a singular `check_*_grain` test on a composite one (GROUP BY
 # compares NULLs as equal, which a concatenated `unique` key would not). KPI definitions,
 # and the count-vs-NULL rule they follow, are in docs/metrics.md.
@@ -22,7 +23,7 @@ models:
         description: "Artist name as the source platform returned it, latest ingestion. Never NULL in raw (RawTrack)."
 
       - name: source_platform
-        description: "Where the track's identity comes from (`deezer` for the catalogue; ADR-010). Identity only, never a BPM source."
+        description: "Where the track's identity comes from: `deezer`, or `csv` for a manual import (ADR-010). Identity only, never a BPM source."
 
       - name: duration_s
         description: "Full track length in seconds, as the platform reports it. NULL when the platform gave none."
@@ -41,7 +42,8 @@ models:
 
       - name: zone
         description: >
-          E.2 zones on bpm_effective: Z1 <100, Z2 100-115, Z3 116-130, Z4 131-145, Z5 >145.
+          E.2 zones on bpm_effective after rounding to the nearest integer
+          (`cyclebeat.e2.zone_for`): Z1 <100, Z2 100-115, Z3 116-130, Z4 131-145, Z5 >145.
           NULL exactly when bpm_effective is NULL.
         tests:
           - accepted_values:
@@ -173,8 +175,9 @@ models:
       - name: pct_of_catalogue
         description: >
           Percent, 1 decimal: `100 * n_usable / tracks in stg_tracks` — over the whole
-          catalogue, not this source's rows. NULL only on an empty catalogue (division by
-          zero guarded); no row exists then anyway.
+          catalogue, not this source's rows. NULL when the catalogue is empty (division by
+          zero guarded); resolutions without tracks would then still produce rows, and
+          `not_null` would fail.
         tests: [not_null]
 
   - name: mart_data_quality
@@ -273,8 +276,9 @@ models:
 
   - name: mart_recent_activity
     description: >
-      The 20 most recent feedback rows, newest first, with the context of the session they
-      rate. Grain NOT guaranteed: the source feedback table has no identity (no key; API
+      The feedback rows selected as the 20 most recent by `feedback_at` (not exposed; a
+      table keeps no row order, and ties make the selection arbitrary), with the context of
+      the session they rate. Grain NOT guaranteed: the source feedback table has no identity (no key; API
       rows carry `session_id`, v1 rows only `session_title`) and a feedback can repeat
       across lake partitions — see #54. No key test until #54 declares the grain.
     columns:

@@ -173,7 +173,7 @@ nothing exposes. The worktree was deleted with its changes. Only this file enter
 
 ## What the demo surfaced
 
-- `mart_session_kpis` returns NULL, not 0, for two counters on an empty history (step 2) — a KPI
+- `mart_session_kpis` returns NULL, not 0, for two counters on an empty history (step 2; fixed in #46) — a KPI
   definition defect, logged in the roadmap for phase 11.
 - `ruff format --check` flags 15 files and `make lint` does not run it (seen in step 3) — logged in
   the roadmap.

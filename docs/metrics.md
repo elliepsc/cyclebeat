@@ -3,7 +3,8 @@
 Every figure a dbt mart publishes, with its definition, grain, formula, source and the tests
 that guard it. The models are the reference (`dbt/models/marts/`); column-level detail is in
 [`dbt/models/marts/schema.yml`](../dbt/models/marts/schema.yml). A mart's grain is stated in its
-`schema.yml` description and guarded by a test (issue #46).
+`schema.yml` description and guarded by a test (issue #46), except `mart_recent_activity`,
+whose grain waits on [#54](https://github.com/elliepsc/cyclebeat/issues/54).
 
 ## The rule: a count is 0, everything else stays NULL
 
@@ -61,7 +62,7 @@ are never mixed (ADR-009). Guards: `not_null` and `accepted_values` on the key c
 | KPI | Definition | Unit | Formula | Empty input |
 |---|---|---|---|---|
 | `count` | Feedback rows with this rating on this scale. **Known defect, see [#54](https://github.com/elliepsc/cyclebeat/issues/54).** | count | `count(*)` per group | no row (a rating nobody gave has no row) |
-| `pct` | This rating's share of its scale; sums to 100 within a scale, never across. **Known defect, see [#54](https://github.com/elliepsc/cyclebeat/issues/54).** | percent, 2 dp | `100 * count / sum(count) over (partition by rating_scale)` | no row |
+| `pct` | This rating's share of its scale; sums to 100 within a scale, never across. **Known defect, see [#54](https://github.com/elliepsc/cyclebeat/issues/54).** | percent, 2 dp | `round(100.0 * count(*) / sum(count(*)) over (partition by rating_scale), 2)` | no row |
 
 ## `mart_recent_activity` — the last 20 feedback rows
 
@@ -69,7 +70,8 @@ Grain: **not guaranteed**. A row is meant to be one feedback submission, but the
 identity: the app-store `feedback` table has no key, API rows carry `session_id` while v1 rows
 carry only `session_title`, and a feedback can repeat across lake partitions; see
 [#54](https://github.com/elliepsc/cyclebeat/issues/54). No key test until #54 declares the grain.
-Source: `int_feedback_enriched`, ordered by `feedback_at` descending, `limit 20`. It exposes no
+Source: `int_feedback_enriched`, the 20 rows selected by `order by feedback_at desc limit 20`.
+`feedback_at` is not exposed and a table keeps no row order; ties make the selection arbitrary. It exposes no
 aggregate, only rows. **Known defect, see [#54](https://github.com/elliepsc/cyclebeat/issues/54).**
 Guards: `not_null` and `accepted_values` on `rating` and `rating_scale`; vacuous on an empty
 warehouse.
@@ -84,7 +86,7 @@ denominator. Backs `GET /v1/quality/coverage`.
 |---|---|---|---|---|
 | `n_tracks` | Tracks this source gave an opinion on, usable or not | count | `count(*)` per source | `not_null`, `check_bpm_coverage_bounds` |
 | `n_usable` | Of those, opinions carrying a positive BPM | count | `count(*) filter (where bpm_raw is not null)` | `not_null`, `check_bpm_coverage_bounds` |
-| `pct_of_catalogue` | Usable opinions as a share of the whole catalogue, not of this source's rows | percent, 1 dp | `100 * n_usable / nullif(count(stg_tracks), 0)` | `not_null`, `check_bpm_coverage_bounds` |
+| `pct_of_catalogue` | Usable opinions as a share of the whole catalogue, not of this source's rows | percent, 1 dp | `round(100.0 * n_usable / nullif(n_catalogue, 0), 1)`, `n_catalogue` = `count(*)` of `stg_tracks` | `not_null`, `check_bpm_coverage_bounds` |
 
 ## `mart_data_quality` — confidence distribution
 
@@ -93,8 +95,8 @@ Grain: **one row per `confidence_method`**, `unknown` for tracks no source resol
 
 | KPI | Definition | Unit | Formula | Guards |
 |---|---|---|---|---|
-| `n_tracks` | Catalogue tracks in this E.2 branch | count | `count(*)` per branch | `not_null` |
-| `pct_of_catalogue` | The branch's share of the catalogue; the shares sum to 100 | percent, 1 dp | `100 * count(*) / total tracks` | `not_null`, `check_data_quality_shares` |
+| `n_tracks` | Catalogue tracks in this E.2 branch | count | `count(*)` per branch | `not_null`, `check_data_quality_shares` (sum equals the `dim_track` row count) |
+| `pct_of_catalogue` | The branch's share of the catalogue; the shares sum to 100 | percent, 1 dp | `round(count(*) * 100.0 / max(total.n_tracks), 1)`, `total.n_tracks` = all catalogue tracks | `not_null`, `check_data_quality_shares` |
 | `avg_confidence` | Mean E.2 confidence of the branch | score 0-1, 3 dp | `round(avg(confidence), 3)` | NULL for `unknown` (no confidence); `check_confidence_matches_method` on the source values |
 | `n_with_bpm` | Tracks with a resolved BPM | count | `count(*) filter (where bpm_effective is not null)` | — |
 | `n_with_deezer_bpm` | Tracks where Deezer gave a positive BPM | count | `count(*) filter (where has_deezer_bpm)` | — |
@@ -111,7 +113,7 @@ Grain: **one row per `(phase, effort_bucket, bpm_bucket, resistance_bucket, patt
 |---|---|---|---|---|
 | `pattern_count` | Patterns in the combination | count | `count(*)` per group | no row |
 | `avg_bpm` | Mean midpoint of the patterns' BPM windows | BPM, 1 dp | `round(avg(bpm_mid), 1)` | NULL if no pattern has a window |
-| `avg_resistance` | Mean resistance level | level (1-10 in the current file), 1 dp | `round(avg(resistance), 1)` | NULL if no pattern has one |
+| `avg_resistance` | Mean resistance level | level (1-10 in the current file), 1 dp | `round(avg(cast(resistance as double)), 1)` | NULL if no pattern has one |
 
 ## `dim_track` and `fct_session`
 
