@@ -47,6 +47,7 @@ Deezer API (metadata + public 30 s preview)   CSV (manual BPM)
 ```
 
 Orchestration: three chained Airflow DAGs (`dags/`). Monitoring: Prometheus + Grafana (`monitoring/`).
+Every KPI the marts expose, with its grain, formula and guarding tests: [docs/metrics.md](docs/metrics.md).
 
 ## Key design decisions
 
