@@ -13,4 +13,4 @@ Verdicts: **fixed** (commit), **owner** (a guardrail change: `agent-hooks/` and
 | L2 — a parent `MAKEFLAGS` (e.g. `make -i`) leaked into the child make of the test | **Fixed** (L2a): `_make_test` drops `MAKEFLAGS`, `MFLAGS`, `MAKELEVEL`. Measured: `MAKEFLAGS=i` 2 failed before, 8 passed after. `make -i test` exiting 0 (L2b) is **recorded**, not guarded: `-i` is an explicit operator choice | same commit |
 | L3 — README says every check runs in CI; `make test` itself does not | **Fixed**: the row says CI runs its two halves in separate jobs | same commit |
 | Info — moving `main` through the refs API is not refused by the hook | **Recorded**: the server-side ruleset "main protection" is active (read by the auditor); bypass actors unverified, owner setting | — |
-| Hook refusal during the audit (`git check-ignore -v .env`) | **Recorded**: not retried by the auditor; owner check | `docs/ai-workflow.md`, the issue #45 entry |
+| Hook refusal during the audit (`git check-ignore -v .env`) | **Recorded**: not retried by the auditor. Owner check, 23 October 2026: `.gitignore:12:.env      .env`, so `.env` is ignored | `docs/ai-workflow.md`, the issue #45 entry |

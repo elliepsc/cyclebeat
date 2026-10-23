@@ -64,7 +64,7 @@ Status: **Delivered** (merged, with tests), **Partial** (part merged, the rest i
 | NFR-02 | No audio stored | every preview download goes through `temporary_download` and is deleted in a `finally` | Delivered | PR #25; `tests/unit/test_no_audio_storage.py` |
 | NFR-03 | Contract-first API | `openapi.yaml` written before the backend; the FastAPI schema and schemathesis agree with it; the front client is generated from it | Delivered | PR #14, PR #27; `make contract`, `frontend/src/api/contract.test.ts` |
 | NFR-04 | The whole system in one command | `docker compose up --build` starts postgres, api and web with chained healthchecks | Delivered | PR #35; `make test-integration` in CI |
-| NFR-05 | Unit and integration tests, one command | both suites exist and pass; one command runs both and fails when either fails (including when Docker is unavailable) | Partial | PR #35 (both suites); one command: issue #45 |
+| NFR-05 | Unit and integration tests, one command | both suites exist and pass; one command runs both and fails when either fails (including when Docker is unavailable) | Delivered | PR #35 (both suites), PR #53 (`make test`); `tests/unit/test_agent_team_layout.py` |
 | NFR-06 | CI/CD | CI runs every check on each push and pull request; CD deploys after green CI; a dev environment and a manual promotion to production | Partial | PR #30, PR #42 (CI and CD); dev environment and manual promotion: issue #49 |
 | NFR-07 | Observability | the `generate` journey traced, structured logs sharing the trace ID with metrics, no customer data in telemetry, a UI | Partial | metrics on `/metrics` (PR #14); traces and logs: issue #48 |
 | NFR-08 | An alert on user impact | at least one alert rule on user impact, tested | Planned | issue #48 |
