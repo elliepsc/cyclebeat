@@ -38,6 +38,7 @@ V1/V2 are never a source. Conflict detected → the highest source wins AND you 
 - Never present a command block with placeholders as runnable: one command per block, each placeholder spelled out as a substitution.
 - **Write facts after they happen**, in `ai-workflow.md` and everywhere else: numbers after the last
   measurement, a PR as opened or merged only once it is.
+- A PR number that must appear in a file is never guessed: it is written in a last commit pushed after the PR is created, or in the next PR.
 - **Experiments never touch the real `lake/` or `data/`.**
 - A block of work starts by reading its issue, `gh issue view <N> --json title,body,comments` (plain `gh issue view` fails on gh 2.45: Projects classic sunset); the agent comments its plan on the issue before coding, each comment starting with "Posted by the coding agent (Claude Code)."
 - Commits cite `#N`; the PR says `Closes #N` and ticks the acceptance criteria met; the agent never closes or reopens an issue by hand: the merged PR closes it.
