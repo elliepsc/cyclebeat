@@ -78,6 +78,7 @@ présentable ; + `[production]` = prêt pour un vrai système.
 | Exposition locale d'Airflow : le profil `pipeline` publie le port 8080 sur toutes les interfaces de l'hôte (`docker-compose.yml:157`), et Airflow 3.0.6 porte 3 CVE critiques et 11 hautes (développement seulement, [security/scans/2026-10-20.md](../security/scans/2026-10-20.md)). Lier le port à `127.0.0.1` et monter Airflow | ⬜ |
 | Montée des dépendances de production signalées par pip-audit (gitpython, sqlparse, starlette, urllib3 ; aucun chemin d'exploitation dans CycleBeat, mesuré le 20 octobre 2026), avec la remise à jour générale des dépendances | ⬜ |
 | Marquer comme données non fiables les chaînes externes (`title`, `artist`, `preview_url`) renvoyées par les outils MCP, à décider avec `trigger_resolve` en phase 6 (audit de #38, L2) | ⬜ |
+| Migrer les tests `accepted_values` de `dbt/models/` de la forme `values:` au premier niveau vers `arguments:`, dépréciée depuis dbt 1.11 (`MissingArgumentsPropertyInGenericTestDeprecation`, 18 occurrences mesurées par `dbt parse --no-partial-parse` le 23 octobre 2026, contre 11 avant #46, qui en a ajouté 7 pour suivre la convention du repo ; relevé par `dbt-reviewer`, finding 11) | ⬜ |
 
 ### `[production]` — sans date
 - « Idée 2 » : lecteur YouTube intégré, table d'observations de BPM, tap tempo, micro, puis
