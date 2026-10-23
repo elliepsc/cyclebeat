@@ -72,7 +72,11 @@ def _two_day_lake(root: Path) -> None:
     lake.write_partition([s1_up, s1_down, s2_up], lake.FEEDBACK, DAY_2, root=root)
 
 
-def _dbt_build(warehouse: Path, work: Path) -> subprocess.CompletedProcess[str]:
+def _dbt_build(
+    warehouse: Path,
+    work: Path,
+    select: str = "+mart_feedback_summary +mart_session_kpis +mart_recent_activity",
+) -> subprocess.CompletedProcess[str]:
     env = {**os.environ, "RUNTIME_DB_PATH": str(warehouse)}
     return subprocess.run(
         [
@@ -83,7 +87,7 @@ def _dbt_build(warehouse: Path, work: Path) -> subprocess.CompletedProcess[str]:
             "--profiles-dir", str(DBT_DIR),
             "--target-path", str(work / "target"),
             "--log-path", str(work / "logs"),
-            "--select", "+mart_feedback_summary +mart_session_kpis +mart_recent_activity",
+            "--select", select,
         ],
         cwd=REPO_ROOT,
         env=env,
@@ -133,3 +137,22 @@ def test_feedback_indicators_count_each_feedback_once(tmp_path: Path) -> None:
         # One row per feedback, not per extraction.
         "mart_recent_activity rows": 3,
     }
+
+
+def test_recent_activity_key_test_fails_on_a_duplicated_feedback(tmp_path: Path) -> None:
+    """The grain test is evidence only if it can fail: the same feedback twice in the latest
+    partition (what a store holding a doubled insert would extract) must turn it red."""
+    lake_root = tmp_path / "lake"
+    warehouse = tmp_path / "warehouse.duckdb"
+    s1 = _session("s1", datetime(2026, 10, 23, 7, 0, 0))
+    twice = _feedback("s1", "up", datetime(2026, 10, 23, 8, 0, 0, 123456))
+    lake.write_partition([s1], lake.SESSIONS, DAY_2, root=lake_root)
+    lake.write_partition([twice, twice], lake.FEEDBACK, DAY_2, root=lake_root)
+    load_lake(db_path=warehouse, lake_root=lake_root)
+
+    result = _dbt_build(warehouse, tmp_path, select="+mart_recent_activity")
+
+    assert result.returncode != 0
+    failing = [line for line in result.stdout.splitlines() if " FAIL " in line]
+    assert len(failing) == 1, result.stdout[-4000:]
+    assert "check_recent_activity_grain" in failing[0]
