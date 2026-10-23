@@ -38,8 +38,9 @@ UPDATE or DELETE path on `feedback`, so that copy holds every feedback.
 Every indicator below that is computed from feedback is checked end to end by
 `tests/test_feedback_dedup.py`. The test builds a two-partition lake, loads it, runs dbt and reads
 the marts. On the version that read every partition, all four figures it checks came out wrong.
-That was measured at 4129a70, before the grain tests below existed. Today the same version fails
-earlier: the dbt build itself goes red on the grain tests, before the figures are read.
+That was measured with the `stg_feedback` unit tests (`dbt/models/staging/unit_tests.yml`) set
+aside. With the committed suite, the pre-fix version fails first on those unit tests, and dbt then
+skips `stg_feedback` and everything downstream: the figures are never read.
 
 The key `(session_id, session_title, created_at)` is asserted on every row of `stg_feedback` by
 `dbt/tests/check_stg_feedback_grain.sql`, and on the mart below.
@@ -103,7 +104,10 @@ on a duplicated feedback.
 
 The key **assumes** that two inserts on one session never share a timestamp. API rows take
 `datetime.now(UTC)` at µs per insert. v1 rows took DuckDB `now()`, the transaction start, so two v1
-rows written in one transaction would collide; no current code path writes v1 rows. `rating`,
+rows written in one transaction would collide; no current code path writes v1 rows. One blind
+spot: an unreadable `created_at` is replaced by the extraction time (`cyclebeat/app_store.py`,
+`_as_datetime`), so a doubled insert carrying one would get two stamps and pass the key; that
+fallback is #57. `rating`,
 `rating_scale` and `note` stay out of the key:
 - an exact duplicate is identical in every column, so including them would catch nothing more;
 - leaving them out makes the test stricter: it also flags a (session, instant) collision between
