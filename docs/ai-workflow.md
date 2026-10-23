@@ -1,5 +1,103 @@
 # AI workflow log
 
+## Session 2026-10-23 — Pre-submission (issue #46) — Complete the marts' semantic layer: every mart described in `schema.yml`, the ghost test reference removed, counters that are 0 (not NULL) on an empty history, and `docs/metrics.md`
+
+**Loop**: issue read → brief re-checked on `origin/main` → branch cut from `origin/main` @ c6e2ce7 → plan commented on #46 → STOP → owner decisions → first unit test run on the unchanged mart (red) → edit → run → mutation checks → dbt-reviewer → fixes → diff → commit
+**Tool/model**: Claude Code (auto mode) / Opus 5.5
+**Initial prompt**: (faithful summary) issue #46 "dbt semantic layer: complete schema.yml, the ghost test, NULL counters, docs/metrics.md". Give every mart a `schema.yml` entry with its grain and a uniqueness test. Point the ghost reference `check_confidence_values.sql` to the real test. Make the `mart_session_kpis` counters 0 on an empty history, tested. Write `docs/metrics.md` for every KPI a mart exposes.
+**Process followed**:
+- The agent read the issue with `gh issue view 46 --json title,body,comments` and re-checked each claim of the brief on `origin/main`. The ghost reference, the 4 marts without an entry and the `sum()` counters were confirmed.
+- Two discrepancies were flagged in the plan comment (issuecomment-6363821860):
+  1. the `docs/ROADMAP.md:170` pointer had drifted to line 176 (same content);
+  2. `mart_session_kpis` reads `int_session_summary`, not `fct_session` as the criterion says. The empty-history test empties `int_session_summary`, the mart's real input (confirmed by the owner, decision 6).
+- The agent stopped after the plan. The owner's decisions were relayed on #46 (issuecomment-6363908813 and issuecomment-6364536581).
+- The owner copied the warehouse into the agent's scratchpad (the classifier refuses that copy to the agent). Every `make dbt` ran on that copy through the `RUNTIME_DB_PATH=...` command prefix, never on `data/`.
+**Owner decisions** (relayed on #46):
+1. Empty-history test: option B, native dbt unit tests, instead of the agent's recommended option A (a macro plus a singular test). Condition: the official docs confirm support on the `uv.lock` version, and a first unit test actually runs. Otherwise fall back to A.
+2. The unit tests cover the empty case AND at least one case with data.
+3. The scratch warehouse holds 0 sessions, so a grain test that passes there proves nothing. Every grain test added is shown to fail once on a duplicated row, and the vacuous data tests are listed.
+4. `mart_recent_activity`: write its grain in one sentence from the SQL first; if it is ambiguous, stop and ask. No key chosen only because the current rows happen to be unique.
+5. Descriptions never just rephrase the column name: unit, NULL meaning, computation rule.
+6. The empty-history test empties `int_session_summary` (the interpretation flagged in the plan).
+- After the stop on decision 4: option B. No key test on `mart_recent_activity`, grain documented as not guaranteed, a new issue (#54), and every feedback-derived KPI marked "known defect, see #54" in `docs/metrics.md`.
+**Notable iterations** (`git log origin/main..HEAD`, oldest first):
+- 17d41f2, the work:
+  - `dbt/models/marts/schema.yml`: an entry for all 8 marts; the ghost reference now points to `check_confidence_matches_method.sql`.
+  - `mart_session_kpis.sql`: `coalesce(sum(track_count), 0)` and `count(*) filter (where verdict = 'review')`. Averages, extrema and `last_session_at` stay NULL.
+  - `dbt/models/marts/unit_tests.yml`: `session_kpis_empty_history` (`rows: []` on `int_session_summary`) and `session_kpis_with_history` (three sessions).
+  - Three singular tests: `check_feedback_summary_grain.sql`, `check_pattern_coverage_grain.sql`, `check_session_kpis_one_row.sql`.
+  - `docs/metrics.md`, linked from `README.md`; the phase-11 row of `docs/ROADMAP.md` points to #46 and #54.
+- f857d39 commits the raw dbt-reviewer output (`security/pr-audits/pr-46-dbt-reviewer.md`) with a provenance header.
+- 62e837f applies findings 1, 3, 4, 5, 6, 7, 8 and 10 (see below), including `docs/demo.md` (the NULL counters marked "fixed in #46").
+- Unit-test support was settled by measurement, not by the docs. https://docs.getdbt.com/docs/build/unit-tests says "Available from dbt v1.8"; `uv.lock` pins dbt-core 1.11.12 / dbt-duckdb 1.8.1. Three doc pages say nothing about an empty input. So the empty-input unit test was written FIRST and run on the unchanged mart: it ran and failed (`total_tracks_used` and `sessions_flagged_review`: expected 0, got NULL). Only then was the mart fixed, and the with-data test added.
+- Composite grains (`mart_feedback_summary`, `mart_pattern_coverage`) use singular `GROUP BY ... HAVING count(*) > 1` tests, not the plan's `unique` on a concatenated key expression: `GROUP BY` treats NULLs as equal, a concatenation of a NULL bucket does not. No dbt package was added.
+- Grain of `mart_recent_activity`: the plan proposed the key `(session_id, feedback_at, rating_scale)`, to be checked first. Writing the grain from the SQL (decision 4) showed it was ambiguous, and the agent stopped:
+  - two kinds of rows: API `satisfaction` rows keyed by `session_id`, v1 `effort` rows keyed only by `session_title`;
+  - no identity in the source `feedback` table;
+  - probable duplicates across lake `dt` partitions: `extract_to_lake` writes the whole table into each day's partition, `read_dataset` reads every partition, and `stg_feedback` does not deduplicate, unlike `stg_sessions`. Read in the code, NOT measured: the scratch warehouse holds 0 feedback.
+- Issue #54 was drafted and shown to the owner before it was created (see human review, item 3).
+**dbt-reviewer findings** (verdict APPROVED WITH RESERVATIONS, 0 blocking, 13 non-blocking):
+- Applied in 62e837f, all doc claims the code did not support:
+  - 1: "every mart has a grain test" in `schema.yml` and `docs/metrics.md`, false for `mart_recent_activity`;
+  - 3: `docs/demo.md` still said in the present tense that the counters are NULL;
+  - 4: four formulas in `docs/metrics.md` were not the SQL verbatim (missing `round`, `cast`);
+  - 5: `mart_bpm_coverage.pct_of_catalogue` claimed "no row exists" on an empty catalogue;
+  - 6: `dim_track.source_platform` left out `csv`;
+  - 7: `dim_track.zone` left out the rounding rule of `e2.zone_for`;
+  - 8: `mart_recent_activity` promised a row order a table does not keep;
+  - 10: the guards of `mart_data_quality.n_tracks` omitted `check_data_quality_shares.sql`.
+- Left to the owner, not done:
+  - 2: acceptance criterion 2 of #46 and FR-12 are only partly met until #54 lands (the PR must not tick criterion 2 without the exception);
+  - 9: `effort_bucket` maps unmapped efforts to `medium`; measured by the reviewer, 17 of 40 patterns (`very_easy`, `very_hard`, ...). Behaviour predates this PR;
+  - 11: 7 more uses of the deprecated top-level `values:` syntax on `accepted_values`, following the repo convention;
+  - 12: the level/goal enums are tested on `stg_sessions`, not at mart level;
+  - 13: an observation, the 4 data tests on `mart_session_kpis` are not vacuous on a 0-session warehouse.
+**Agent self-corrections**:
+- The first `docs/metrics.md` and `schema.yml` contained the eight unsupported claims above. The agent's own checks (lint, `make dbt`) could not catch them: they are true-or-false only against the SQL, and the reviewer caught them.
+- The plan's key for `mart_recent_activity` was abandoned when the grain sentence could not be written, before any key test was added.
+**Corrected by human review** (owner):
+1. Overrode the agent's recommendation on the empty-history test (A → B), with a fallback condition tied to the official docs and a measured first run.
+2. Refused vacuous evidence: every grain test had to be shown failing on a duplicate (decision 3). Without that, the 72 data tests would all have passed on a warehouse where 32 of them run over empty models.
+3. Corrected the #54 draft before it was created:
+   - a truncated first acceptance criterion was rewritten;
+   - a criterion was added to choose the dedup method (latest partition vs union-dedup), with ADR-003's per-deploy reset as the argument against the latest-partition option;
+   - the out-of-scope `feedback` primary key is to be recorded in the `[présentable]` list;
+   - the `product-spec.md` link was made absolute.
+4. Chose option B for `mart_recent_activity` (grain not guaranteed, no key test, #54) after the agent stopped.
+5. Made the warehouse copy for `make dbt`, which the classifier refuses to the agent.
+**Refusals**:
+- The hook refused a `grep` over `.` because it reaches `.env`. The refusal message itself named the fix (exclude `.env*` explicitly), and the agent re-ran it with that exclusion. This follows the hook's own instruction; it is not a route around it.
+**Role split**:
+- Decided by the owner: decisions 1 to 6, option B for `mart_recent_activity`, the #54 corrections, the warehouse copy, findings 2, 9, 11, 12, 13 left open.
+- Done by the agent: the brief re-check and plan, the SQL fix, the unit and singular tests, the descriptions and `docs/metrics.md`, the mutation checks, the #54 draft, the review triage and fixes.
+- Human actions still pending: opening the PR (description with `Closes #46`, criterion 2 not ticked without the #54 exception), merging it, and deciding on findings 2, 9, 11, 12.
+- When this entry was written, no PR was open for this branch.
+**Verification**:
+- Red-then-green: `session_kpis_empty_history` failed on the `sum()` mart (expected 0, got NULL), and both unit tests pass after the fix. The reviewer reproduced it independently: on a project copy with the `origin/main` mart, `FAIL 1 mart_session_kpis::session_kpis_empty_history`.
+- Grain tests, decision 3: each of the 7 grain tests returned FAIL 1 on a scratch copy of the warehouse with one injected duplicate row. The reviewer re-mutated 4 of them (the 3 new singular tests and `unique` on `mart_data_quality.confidence_method`), all FAIL 1.
+- Vacuous tests: 32 of the 72 data tests run only over empty models on the scratch warehouse, listed from the manifest (`stg_sessions` 11, `mart_feedback_summary` 7, `stg_feedback` 5, `fct_session` 5, `mart_recent_activity` 4, per the reviewer's count, which matched the agent's).
+- Gates after 62e837f, exit codes read directly, all 0:
+  - `make lint`: 0 dead links.
+  - `make typecheck`: green.
+  - `make test-unit`: 793 passed / 15 skipped / 2 xfailed.
+  - `make eval`: 55 passed.
+  - `make contract`: 25 passed.
+  - `make dbt` on the scratch warehouse: PASS=91 (17 models, 72 data tests, 2 unit tests).
+**Spec/actual gaps** (issue #46 vs the branch):
+- Criterion 5 asks for "a singular dbt test" on "an empty `fct_session`". Delivered: two dbt unit tests on an empty `int_session_summary` (owner decisions 1 and 6).
+- Criterion 2 ("every mart ... a uniqueness test guarantees it") is met for 7 of 8 marts; `mart_recent_activity` waits on #54 (reviewer finding 2). FR-12 of `product-spec.md` is not delivered until then.
+- The roadmap row stays "TODO": phase 11 holds other items.
+**Lesson**:
+- Running the unit test on the unchanged mart before fixing it answered the question the docs left open (empty input) and proved the test catches the bug, in one run.
+- On a 0-session warehouse a green `make dbt` says little: 32 of 72 data tests had nothing to check. Mutation (one injected duplicate) was the evidence that the grain tests work.
+- Writing the grain as a sentence before choosing a key surfaced a probable data defect (#54) that a key test passing on 0 rows would have hidden.
+- The reviewer's value here was in prose, not SQL: 8 doc claims stronger than the code. The agent's descriptions were checked by lint and dbt, neither of which reads meaning.
+**To capitalize in CLAUDE.md** (proposals, for the owner to apply):
+- (Known pitfalls) "A data test that passes on an empty model proves nothing: on the scratch warehouse (0 sessions) 32 of 72 dbt data tests run over empty models. A new grain or key test is shown to fail once on an injected duplicate row before it counts as evidence."
+- (Known pitfalls) "A mart's grain is written as one sentence ('one row represents ...') from its SQL and sources before a key is chosen; a key picked because the current rows are unique is not a grain (issue #46 → #54)."
+- (Known pitfalls) "A composite-grain test uses a singular `GROUP BY ... HAVING count(*) > 1`, not `unique` on a concatenated key: a NULL in one column makes the concatenation NULL and hides the duplicate."
+- (Known pitfalls) "When the docs leave a tool's behaviour open (a dbt unit test with `rows: []`), the answer is a first run against the unchanged code, expected to fail; record the docs URL and the locked version next to the measurement."
+
 ## Session 2026-10-22 to 2026-10-23 — Pre-submission (issue #45) — Add one command for both test suites (`make test`) and a description of the agent team as it actually works
 
 **Loop**: issue read → brief re-checked on the remote → branch cut from `origin/main` → plan commented on #45 → STOP → owner decisions → edit → run → measure → security-auditor → quick wins → diff → commit
