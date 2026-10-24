@@ -159,6 +159,11 @@ Grain: **one row per `(phase, effort_bucket, bpm_bucket, resistance_bucket, patt
 The mart describes the knowledge base, not the sessions: nothing in the planner, the API, the
 front or the agent tools reads it ([product-spec.md](../product-spec.md), Scope).
 
+A bucket at `unknown` makes `dbt build` red, which skips the downstream models. In production
+a red build is not deployed: the image runs `dbt build` at build time (`Dockerfile`, the demo
+warehouse `RUN`; [ADR-003](adr/adr-003-render-no-disk.md)). Locally, the tables of the last
+green run stay readable, and only the exit code reports the failure.
+
 | KPI | Definition | Unit | Formula | Empty group |
 |---|---|---|---|---|
 | `pattern_count` | Patterns in the combination | count | `count(*)` per group | no row |
