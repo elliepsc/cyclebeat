@@ -1,5 +1,84 @@
 # AI workflow log
 
+## Session 2026-10-24 — Pre-submission (issue #55) — Stop `stg_patterns` from putting unrecognised `effort` values into `medium`: an explicit mapping chosen by the owner, `unknown` plus a failing test for anything else, NULL resistance and BPM included
+
+**Loop**: issue read → branch cut from `origin/main` @ ac1f9c8 → investigation → plan commented on #55 → STOP → owner decisions relayed → CLAUDE.md commit → red dbt unit tests → fix → injected-row test → docs → dbt-reviewer → fixes → dbt-reviewer pass 2 → N5/N6 relayed → docs → DoD
+**Tool/model**: Claude Code (auto mode) / Opus 5.5
+**Initial prompt**: (faithful summary) issue #55: the `CASE` in `stg_patterns` ends with `else 'medium'`, so 17 of the 40 patterns (`very_easy`, `very_hard`, `easy_moderate`, `moderate_hard`) land in `medium` without warning. Read the issue, cut the branch from `origin/main`, comment a plan on #55, and stop before coding.
+**Process followed**:
+- The agent read the issue, fetched, and cut `fix/55-pattern-effort-bucket` from `origin/main` @ ac1f9c8, the merge of PR #58. It commented its plan on #55 (comment 6383425702) and stopped.
+- **Criterion 1, do the patterns feed a session?** No:
+  - the planner takes only `PlannerTrack` and `SessionParams`;
+  - `openapi.yaml` has no effort level;
+  - nothing in `cyclebeat/`, `api/`, `frontend/src/`, `mcp-server/` or `dags/` reads the patterns;
+  - `mart_pattern_coverage` is not on `MARTS_ALLOWLIST`.
+  The patterns are the planned seed of the phase-6 CoachingGenerator knowledge base (ADR-001, V3 plan §0.2, §5, §9). This is now written in the Scope section of `product-spec.md` (1480f5b).
+- For the 4 unmapped values, the agent measured resistance, `bpm_mid`, cadence and phase, and recommended no bucket. The owner chose the criterion and the mapping (below).
+- `light`, `tempo` and `explosive`, in the old mapping, appear in no version of `data/cycling_patterns.json` (2 commits). The mapping came from 787e6ed (V1), and `explosive` is a `coach_tone` value. All three were removed.
+- The agent checked the criterion against the patterns that already had a bucket and found one contradiction: `cadence_drill_high` (`moderate`, resistance 3). The new mapping adds a second one: `steady_power` (`moderate_hard`, resistance 7). Both were reported, not changed, and both are written as a limit in the model header and in `docs/metrics.md`.
+**Owner decisions** (relayed on #55, comment 6384674482):
+1. Criterion: resistance, on the `resistance_bucket` thresholds (≤ 3 low, 4-6 medium, ≥ 7 high). BPM is not an effort criterion.
+2. Mapping: `very_easy` → low, `easy_moderate` → medium, `moderate_hard` → medium, `very_hard` → high. Its two limits must be written down: it is a labelling decision over 2 to 6 patterns per value, and `easy_moderate` / `moderate_hard` are the edge cases.
+3. Scope widened by the owner: in `int_pattern_effort_profile`, a NULL `resistance` went to `max` and a NULL `bpm_mid` to `very_fast` (the `CASE`'s `else`). The same rule now applies to them.
+4. Rule: an unrecognised value → `unknown`, failed by a new singular test, the same pattern as `rating_scale = 'unknown'` and `check_invalid_rating`.
+**Notable iterations** (`git log origin/main..HEAD`, oldest first):
+- 8e5dd52: two CLAUDE.md lines, per its commit message the owner's rewording of two points from the #54 review. One limits the SQL rule to the layering of application code (#54 F8). The other is the `dbt build` skip pitfall proposed in the #54 entry.
+- eff11e8: the fix. `stg_patterns` gets an explicit mapping with `else 'unknown'`. `int_pattern_effort_profile` gets two `when ... is null then 'unknown'` branches. `accepted_values` now include `unknown` on 4 columns. The new test is `dbt/tests/check_invalid_pattern_buckets.sql`. There are 2 unit tests in `dbt/models/staging/unit_tests.yml` and 2 in the new `dbt/models/intermediate/unit_tests.yml`.
+- 1480f5b: docs. `docs/metrics.md` gets the rule, the mapping table, the criterion and its limits. `product-spec.md` gets the KB scope. `docs/ROADMAP.md` gets two `[présentable]` lines: `save_patterns` writes 0 instead of NULL, and the scope of the SQL rule for `db/runtime.py`, `cyclebeat/lake.py` and `cyclebeat/warehouse.py`.
+- 93b78b4 commits the raw dbt-reviewer output as soon as it returned. a2fe0b1 applies B1 and N2. dec4b68 commits the raw second pass.
+- 190ec4a: `docs/metrics.md` says a red build is not deployed in production and that, locally, the last green tables stay readable (N5). `docs/ROADMAP.md` gets the N6 `[présentable]` line.
+**dbt-reviewer findings**:
+- Pass 1 (`security/pr-audits/pr-55-dbt-reviewer.md`): verdict APPROVED WITH RESERVATIONS, 1 blocking finding.
+  - B1, BLOCKING: `int_pattern_effort_profile` was changed but had no grain sentence and no key test. Fixed in a2fe0b1: grain in the header and in the new `dbt/models/intermediate/schema.yml`, `not_null` + `unique` on `id`. `unique` was shown failing (FAIL 1) on a scratch copy with a duplicated pattern.
+  - N1, medium: `accepted_values` widened with `unknown`. Not a weakening, because `check_invalid_pattern_buckets` rejects every such row, but the PR has to say so. Pending (PR body).
+  - N2, medium: the ROADMAP `save_patterns` line said a 0 BPM window goes unreported, but `check_pattern_bpm_range` already flags it. Reworded in a2fe0b1: only a 0 resistance goes unreported.
+  - N3, low: the singular test returns 0 rows on today's data and counts as evidence only through the injected rows. Accepted.
+  - N4, low: the brief counted 3 red unit tests, but all 4 fail on the `origin/main` SQL (see the self-corrections).
+  - N5 and N6, low: relayed to the owner (below).
+- Pass 2 (`security/pr-audits/pr-55-dbt-reviewer-pass2.md`, delta `93b78b4..a2fe0b1`): APPROVED. B1 and N2 fixed, no new defect.
+**N5 / N6** (proposed on #55, comment 6384774076):
+- N5, stale tables after a red build: the owner wanted no issue for it. The agent checked that production does not deploy a red build: in the `Dockerfile` the `RUN` is chained with `&&` up to `dbt build`, `render.yaml` builds from that image, and ADR-003 applies. That is the new sentence in `docs/metrics.md`. A comment on #48 (6384840902) leaves a "last green dbt build" signal for #48's plan to decide.
+- N6, business logic in staging: a `[présentable]` ROADMAP line. #55 kept its mapping where the old one was.
+**Agent self-corrections**:
+- The fourth unit test (`stg_patterns_explicit_effort_mapping`) was written with the fix and not run red first, so the brief to the reviewer counted 3 red tests. The reviewer's N4 showed it fails on the old code too. The agent then ran it red on a scratch copy of the dbt project with the `origin/main` models.
+**Corrected by human review** (owner):
+1. The first DoD run happened while the first dbt-reviewer pass was still running. The owner asked whether it had run alone. It had not, so the full DoD was rerun after pass 2 with no subagent active (Verification).
+2. The N5 comment on #55 said "applies to every mart materialised as a table", and that claim was written before it was checked. The agent checked it afterwards against `dbt/dbt_project.yml` (marts `+materialized: table`). The claim is accurate, and the agent told the owner it had been checked after the fact.
+3. The criterion and the buckets were chosen by the owner, not the agent; the agent was asked to give numbers only. The owner also asked for the two limits to be written, and widened the scope to the NULL cases of `int_pattern_effort_profile`.
+4. The comparison worktree had already been removed with `--force`. The owner asked for `git worktree remove`, then `prune`, then `list` as evidence that it was gone.
+**Refusals**:
+- During pass 2, the PreToolUse hook refused a reviewer command that exported `RUNTIME_DB_PATH` instead of using it as a command prefix ("dbt writes data/"). The reviewer reran it in the documented prefix form. Nothing was written to `data/`. The refusal was reported to the owner, and the hook was not touched.
+**Role split**:
+- Decided by the owner: the effort criterion, the mapping and its written limits, the NULL scope widening, the `unknown` + singular-test rule, no issue for N5, the #48 comment, N6 and the two other findings as ROADMAP lines, the DoD rerun.
+- Done by the agent: the investigation (criterion 1, value profiles, history of `light`/`tempo`/`explosive`, criterion check), the plan and relay comments, the CLAUDE.md commit, the model fix, the unit tests and the singular test with their red runs, the grain fix, the docs, the production-build check, the #48 comment.
+- Human actions still pending: opening the PR (with N1's sentence in its body), then the FR-12 commit, then merging. FR-12 stays Partial (#57 and #51 are open). Its line is updated in a last commit after the PR is created.
+- When this entry was written, no PR existed.
+**Verification**:
+- Red first, then green:
+  - `stg_patterns_unknown_effort_is_rejected` failed on the unchanged model (`medium` for both rows);
+  - the two intermediate unit tests failed on it too (`max`, `very_fast`);
+  - `stg_patterns_explicit_effort_mapping` failed on the scratch copy with the `origin/main` models;
+  - all 4 pass after eff11e8.
+- `check_invalid_pattern_buckets` failed on 3 injected rows (`dbt run`, then `dbt test`). It returns 0 rows on the real 40.
+- `mart_pattern_coverage` on the scratch copy:
+  - before: 29 rows, low 6 / medium 20 / high 14 patterns;
+  - after: 27 rows, low 12 / medium 11 / high 17 patterns.
+- DoD after pass 2, local, no subagent active, exit codes read directly, all 0:
+  - `make lint`, `make typecheck`;
+  - `make test-unit`: 795 passed / 15 skipped / 2 xfailed, the same as `origin/main`;
+  - `make eval` (55), `make contract` (25);
+  - `make dbt`: PASS=103 (PASS=96 before the branch).
+- CI: not run yet, no PR.
+**Spec/actual gaps** (issue #55 vs the branch):
+- The scope went beyond `effort`: the NULL `resistance` and `bpm_mid` defaults in `int_pattern_effort_profile` were fixed too, on the owner's decision.
+- The NULL branches cannot be reached through today's ingestion (`save_patterns` writes 0, not NULL; N3). Only the unit tests exercise them, and that gap is a ROADMAP line.
+- FR-12 is not updated on this branch. That commit waits for the PR number.
+**Lesson**:
+- Giving numbers without a recommendation kept a labelling choice with the owner. Checking the chosen criterion against the patterns already classified surfaced the two contradictions now written as limits.
+- History settled the dead values (`light`, `tempo`, `explosive`): they were absent from both versions of the file, so they were removed rather than mapped.
+- The agent got two things wrong on its own process: it ran the DoD while a subagent was working, and it counted 3 red tests instead of 4. The owner caught the first and the reviewer caught the second; neither showed up in a gate.
+**To capitalize in CLAUDE.md**: proposals, in the final report to the owner (not applied here).
+
 ## Session 2026-10-23 — Pre-submission (issue #54) — Count each feedback once: `stg_feedback` reads only the latest lake `dt` partition, the affected indicators re-verified through the real chain, and `mart_recent_activity` given a grain and a key test
 
 **Loop**: issue read → branch cut from `origin/main` @ f6b0c9c → investigation → plan commented on #54 → STOP → owner decisions relayed → reset-path list → CLAUDE.md commits → red dbt unit tests → fix → red pytest → green → mart grain → docs → dbt-reviewer → fixes → DoD
