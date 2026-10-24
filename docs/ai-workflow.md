@@ -1,5 +1,18 @@
 # AI workflow log
 
+## Session 2026-10-24 — Cross-cutting — Translate the playbook into English
+
+**Loop**: context → locate source → isolate branch → translate → verify → diff → workflow entry; commit and push pending when this entry was written.
+**Tool/model**: Codex
+**Initial prompt**: "traduie plaubook.md en anglais, commit et push"
+**Notable iterations**: the requested file was the untracked French `docs/playbook.md`, absent from `origin/main`. The agent translated all seven sections while preserving the structure, commands, paths and meaning. Work was isolated in `docs/playbook-english`, cut from fetched `origin/main` at `ac1f9c8`, because the original checkout (`fix/55-pattern-effort-bucket`) held unrelated work. The translated text was also applied to the original local copy, which remains untracked there.
+**Corrected by human review**: no human review corrections received yet.
+**Role split**: written by the human: the translation, commit and push request / delegated: source discovery, translation, isolated worktree, local checks and this entry through `ai-workflow-scribe`. Context: `CLAUDE.md`, `docs/agent-team.md` and the scribe definition.
+**Verification**: `uv sync --locked` succeeded. All six local gates passed: `make lint` (ruff clean, zero dead links), `make typecheck` (21 source files), `make test-unit` (795 passed, 15 skipped, 2 xfailed), `make eval` (55 passed), `make dbt` (PASS=96, WARN=0, ERROR=0, SKIP=0) and `make contract` (25 passed). `make ingest` supplied 40 patterns, 48 tracks and 88 resolutions, with no sessions or feedback. No code or tests changed; existing skips and xfails were unchanged. CI had not run when this entry was written.
+**Deviations**: no issue was supplied, so there is no issue-based plan comment or issue number to cite. No PR was created; commit and push were still pending.
+**Lesson**: an untracked source and unrelated work in the active checkout require checking the actual file and isolating the publication branch before staging.
+**To capitalize in CLAUDE.md**: nothing new.
+
 ## Session 2026-10-23 — Pre-submission (issue #54) — Count each feedback once: `stg_feedback` reads only the latest lake `dt` partition, the affected indicators re-verified through the real chain, and `mart_recent_activity` given a grain and a key test
 
 **Loop**: issue read → branch cut from `origin/main` @ f6b0c9c → investigation → plan commented on #54 → STOP → owner decisions relayed → reset-path list → CLAUDE.md commits → red dbt unit tests → fix → red pytest → green → mart grain → docs → dbt-reviewer → fixes → DoD
