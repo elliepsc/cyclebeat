@@ -1,4 +1,5 @@
--- Pattern effort profile — maps each pattern to a BPM bucket for coach decision analysis.
+-- Pattern effort profile: one row per pattern of `stg_patterns` (`id`), with its BPM and
+-- resistance buckets, for coach decision analysis.
 with patterns as (
     select * from {{ ref('stg_patterns') }}
 )
