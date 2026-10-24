@@ -33,6 +33,12 @@ DuckDB warehouse modelled with dbt; a deterministic session planner; a contract-
 front; persistence of sessions and feedback; containers, CI/CD and a public deployment; read-only
 agent tools; security guardrails and scans.
 
+**Pattern knowledge base:** the 40 cycling patterns (`data/cycling_patterns.json`) are the seed
+of the CoachingGenerator's knowledge base, planned in phase 6 and not wired yet (the LLM-layer
+line of `[présentable]` in [docs/ROADMAP.md](docs/ROADMAP.md)). They are ingested and modelled,
+but nothing in the planner, the API, the front or the agent tools reads them:
+`mart_pattern_coverage` is descriptive and feeds no session (#55).
+
 **Out:** storing audio (forbidden, ADR-010); Spotify or YouTube as BPM sources (track identity only);
 user accounts and authentication; any paid service. Recorded in [docs/ROADMAP.md](docs/ROADMAP.md)
 without an issue: the quality KPI screen, and the other `[présentable]` lines (a reserve, not a plan).
