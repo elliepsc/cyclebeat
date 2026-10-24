@@ -1,5 +1,86 @@
 # AI workflow log
 
+## Session 2026-10-23 — Pre-submission (issue #54) — Count each feedback once: `stg_feedback` reads only the latest lake `dt` partition, the affected indicators re-verified through the real chain, and `mart_recent_activity` given a grain and a key test
+
+**Loop**: issue read → branch cut from `origin/main` @ f6b0c9c → investigation → plan commented on #54 → STOP → owner decisions relayed → reset-path list → CLAUDE.md commits → red dbt unit tests → fix → red pytest → green → mart grain → docs → dbt-reviewer → fixes → DoD
+**Tool/model**: Claude Code (auto mode) / Opus 5.5
+**Initial prompt**: (faithful summary) issue #54 "stg_feedback: duplicate feedback across dt partitions". `extract_to_lake` writes the whole app-store `feedback` table into each day's partition, `read_dataset` reads every partition, and `stg_feedback`, unlike `stg_sessions`, does not deduplicate. Prove the duplicate with a red dbt unit test, choose between (a) the latest `dt` partition and (b) the deduplicated union in the plan, fix, and re-verify the indicators fed by `stg_feedback`.
+**Process followed**:
+- The agent read the issue with `gh issue view 54 --json title,body,comments`, fetched, and cut `fix/54-feedback-dedup` from `origin/main` @ f6b0c9c, the merge of PR #56.
+- **Brief correction**: the owner's brief said "PR #46"; #46 is the issue, and `gh pr list --state merged --head fix/46-dbt-semantic-layer` returned PR #56. Flagged in the plan.
+- The plan (issuecomment-6367564815) mapped, environment by environment, where `extract-app` runs and against which store (read in the code):
+  - the duplicate exists only in dev: `make ingest` or the Airflow `pipeline` profile, run on two days against the same persistent host SQLite and `lake/`;
+  - Render, the default compose stack and CI build from an emptied store and hold no feedback.
+- Measured in the plan, on a scratch `APP_DB_PATH` and lake, with one feedback taken through `FeedbackRepository.add` → `extract_to_lake` → `load_lake`:
+  - `created_at` keeps µs end to end (SQLite text, then Parquet and DuckDB `TIMESTAMP`);
+  - but `lake.write_partition` writes the aware UTC value as local wall time: `16:41:49.893436` on the CEST host, `14:41:49.893436` under `TZ=UTC`. Extracted once each way, option (b) kept two rows for one feedback. With the same TZ on both runs, (b) collapsed them to one.
+- The owner copied the runtime warehouse into the scratchpad (plan §6). It held 0 feedback and 0 sessions: no v1 feedback row survives there.
+- The agent recommended (a), listed 5 open questions, and stopped.
+- Owner decisions were relayed on #54 (issuecomment-6368136358). Before coding, the agent posted the list of paths that recreate or empty the host store or `lake/` (issuecomment-6368158103). No make target, script, test or compose command does; two manual actions remain (deleting the file or `lake/`, or switching the store through `APP_DB_PATH` / `DATABASE_URL` between two extractions). The PR wording was narrowed accordingly.
+**Owner decisions** (relayed on #54, issuecomment-6368136358):
+1. Method (a), the latest `dt` partition. Conditions: the reset-path list before coding; the limit written in the `stg_feedback.sql` header and in `docs/metrics.md` (after a reset, old sessions stay in `stg_sessions` with `feedback_count = 0`, and why the two tables differ); a red unit test first, plus a second case where a feedback present only in the older partition disappears.
+2. Indicators re-verified by a pytest through the real chain (tmp lake → load → `dbt build` on a tmp warehouse), never `data/` or `lake/`, red first, running in CI; stop if too slow.
+3. `mart_recent_activity`: add `feedback_at`, write the grain sentence first, justify or correct the owner's expected key `coalesce(session_id, session_title), feedback_at, rating_scale`, show the key test failing on a duplicate, add a deterministic tie-break.
+4. Issue proposals: the lake-timestamp defect and the silent `now()` fallback become one issue, its text shown before creation; the Airflow-reads-host-SQLite fact is a comment on #49, not an issue.
+5. PR-number rule: a PR number written in a file is never guessed. FR-12 moves to Delivered in a last commit after the owner creates the PR; the roadmap cites PR #56 for #46. If the rule is not in CLAUDE.md, propose it as one line in a separate commit.
+6. First commit alone: the 4 CLAUDE.md lines from the #46 entry.
+**Notable iterations** (`git log origin/main..HEAD`, oldest first):
+- b8613ad applies the 4 "Known pitfalls" lines proposed in the #46 entry, verbatim. cebb804, separately, adds the PR-number line (decision 5).
+- 2ffe681, red first: `dbt/models/staging/unit_tests.yml` with `stg_feedback_same_feedback_in_two_partitions` and `stg_feedback_only_latest_partition_kept`. Both failed on the unchanged model, one extra row each. Then `stg_feedback.sql` filters on `max(dt)`, with the limit in its header, and both pass.
+- 4129a70, `tests/test_feedback_dedup.py`. A dbt unit test mocks only a model's direct parents, so `dt` cannot reach the marts that way; the pytest writes a two-day lake under `tmp_path`, loads it and runs a scoped dbt build on a temporary warehouse. On the pre-fix `stg_feedback`, with the staging unit tests set aside, it failed on all four indicators: `mart_feedback_summary` 75/25 instead of 66.67/33.33, `int_session_summary.feedback_count` s1=3 instead of 2, `avg_satisfaction_pct` 83.4 instead of 75.0, `mart_recent_activity` 4 rows instead of 3. It runs in about 5 s, in `make test-unit` (per the commit message).
+- 1a207d8, `mart_recent_activity`: grain "one row is one feedback of the latest lake extraction, among the 20 most recent"; `feedback_at` exposed (no consumer, not on `MARTS_ALLOWLIST`); key (session_id, session_title, feedback_at) in `dbt/tests/check_recent_activity_grain.sql`; tie-break `feedback_at desc, session_id, session_title`. A second pytest case puts the same feedback twice in the latest partition and checks that this key test fails.
+- bb1da92, docs: the "known defect, see #54" marks leave `docs/metrics.md`, which now states the method, its limit and why sessions and feedback deduplicate differently; `docs/ROADMAP.md` cites PR #56 and gains two `[présentable]` lines (a primary key on the app-store `feedback` table, a demo warehouse seeded with sessions and feedback).
+- 024304b commits the raw dbt-reviewer output as soon as it returned; 78bdb58 applies the fixes, triaged in `security/pr-audits/pr-54-triage.md`.
+- Found while fixing F1: under `dbt build`, the failing staging grain test skips the downstream mart, so the mart's key test never ran (measured: 1 FAIL line under `build`). The duplicate pytest case now runs `dbt run` then `dbt test`, and asserts exactly two FAIL lines, one per grain test (observed: `FAIL 1 check_recent_activity_grain`, `FAIL 1 check_stg_feedback_grain`, `ERROR=2`).
+**dbt-reviewer findings** (`security/pr-audits/pr-54-dbt-reviewer.md`, on `origin/main...bb1da92`; verdict CHANGES REQUIRED, 1 blocking):
+- F1, BLOCKING: `stg_feedback` changed with no grain sentence and no key test; the only key test covered the 20 rows of `mart_recent_activity`, so a dedup regression outside them failed no dbt test. Fixed: grain sentence in the header and `schema.yml`, new `dbt/tests/check_stg_feedback_grain.sql` over every row.
+- F2, MEDIUM: the key's written justification was backwards and rested on an unstated assumption (see human review, item 2). Fixed.
+- F3, LOW: the "failed on all four" claim was not reproducible with the committed suite. The first fix ("measured at 4129a70") was still wrong, as the second pass found (N1). `docs/metrics.md` now says the figures were measured with the staging unit tests set aside, and that with the committed suite those unit tests fail first.
+- F4, LOW: "32 of 72" was stale (74 tests on HEAD). Fixed in `docs/ROADMAP.md`; the CLAUDE.md line is the owner's verbatim copy, left to the owner.
+- F5, LOW: the pytest wrote `dbt/.user.yml` into the project's profiles dir. Fixed: a temporary profiles dir.
+- F6, INFO: wording in `mart_recent_activity.sql`. Fixed.
+- F7, INFO: `select *` in the `latest` CTE. Accepted (staging convention).
+- F8, INFO: SQL strings in `tests/test_feedback_dedup.py` versus the "no SQL outside `api/repositories/` and `dbt/`" rule. Question for the owner; 6 test files on `origin/main` already query DuckDB in assertions.
+- F9, INFO: the CI run link cannot be checked before the push. Pending.
+**Agent self-corrections**:
+- The plan's key for `mart_recent_activity` was `(session_id, session_title, feedback_at, rating, note)`; answering decision 3, the agent dropped `rating` and `note` from the committed key.
+- F1 (no key test on the changed staging model) was not in the plan and was caught only by the reviewer's checklist.
+**Corrected by human review** (owner):
+1. Chose (a) and added conditions the plan did not have: the reset-path list before coding, the limit written in the model header and `docs/metrics.md`, and a second unit-test case for the dropped older-partition row. The reset-path list then narrowed the PR claim from "manual reset" to "manual reset or manual switch of store".
+2. Proposed the key `coalesce(session_id, session_title), feedback_at, rating_scale`. The agent corrected it to (session_id, session_title, feedback_at), but with a justification the reviewer found backwards (F2): excluding `rating` makes the test stricter, it does not let collisions pass, and it holds only if two inserts on one session never share a timestamp, which DuckDB `now()` (transaction start) breaks for v1 rows. The justification was rewritten in 78bdb58.
+3. Set the PR-number rule (never guessed; FR-12 → Delivered in a last commit after the PR is created). The agent proposed it as one CLAUDE.md line in a separate commit (cebb804).
+4. Asked that the lake-timestamp issue be shown before creation: it is drafted on #54 (issuecomment-6368292786) and not created. The Airflow fact went to #49 (issuecomment-6368281709) instead of a new issue.
+5. Ran the runtime warehouse copy, which the brief reserved to the owner (the agent gave the command, with the path read by `realpath`).
+**Refusals**:
+- During the investigation the hook refused `rm -rf "$S/rt/"*` in a scratch probe ("a recursive rm on a pattern can reach data/ and lake/"). The probe was rerun in a fresh empty folder with no deletion, and the refusal was reported to the owner in the plan. The rule was not touched.
+**Role split**:
+- Decided by the owner: method (a) and its conditions, the pytest approach, the `mart_recent_activity` changes and the expected key, the issue/comment split, the PR-number rule, the warehouse copy, F8.
+- Done by the agent: the investigation and measurements, the plan and relay comments, the reset-path list, the CLAUDE.md commits, the model fix, the unit tests, the pytest, the grain tests, the docs, the issue draft, the #49 comment, the review triage and fixes.
+- Human actions still pending: reviewing and creating the lake-timestamp issue, answering F8, opening the PR, then the FR-12 commit with the PR number, merging.
+- When this entry was written, the branch was not pushed and no PR was open.
+**Verification**:
+- Red-then-green: both `stg_feedback` unit tests failed on the unchanged model (one extra row each) and pass after 2ffe681; the pytest failed on all four indicators on the pre-fix model, with the staging unit tests set aside, and passes after it.
+- Grain tests: on the duplicate case, `FAIL 1 check_recent_activity_grain`, `FAIL 1 check_stg_feedback_grain`, `ERROR=2` (after 78bdb58, `dbt run` then `dbt test`).
+- F5: the dbt cookie lands in the temporary profiles dir; the mtime of `dbt/.user.yml` is unchanged.
+- DoD after 78bdb58, local, exit codes read directly, all 0:
+  - `make lint`, `make typecheck`;
+  - `make test-unit`: 795 passed / 15 skipped / 2 xfailed;
+  - `make eval`, `make contract`;
+  - `make dbt` on a scratch warehouse: PASS=96.
+- CI: not run yet, the branch is not pushed (F9).
+**Spec/actual gaps** (issue #54 vs the branch):
+- Criterion 2 compared (a) and (b) on the issue's argument (the Render store reset, ADR-003). The plan showed production never extracts twice, so the choice was argued on dev, where (b) fails under the measured TZ drift.
+- The indicators are re-verified by a pytest, not dbt unit tests: a unit test cannot carry `dt` past `stg_feedback`.
+- FR-12 of `product-spec.md` is not moved to Delivered on this branch; that commit waits for the PR number (decision 5).
+- The lake-timestamp defect stays open: drafted, not created.
+**Lesson**:
+- Measuring option (b) on one real row found a defect the issue did not know about (UTC written as local time) and decided the method; the issue text had argued for (b) as faithful to the full-copy extraction.
+- `dbt build` hides downstream test failures behind a skipped model; a test that claims "both grain tests fail" had to switch to `dbt run` + `dbt test` to observe it.
+- The reviewer again caught a written claim stronger than the code (F2) and a missing key test on a changed model (F1).
+**To capitalize in CLAUDE.md** (proposals, for the owner to apply):
+- (Known pitfalls) "Under `dbt build`, a failing test skips every model downstream, so a test on a downstream model never runs: to show two grain tests failing on one injected row, run `dbt run` then `dbt test`."
+- (Known pitfalls) "A dedup over timestamps written by the lake is only as stable as the writer's timezone: `lake.write_partition` stores aware UTC values as local wall time."
+
 ## Session 2026-10-23 — Pre-submission (issue #46) — Complete the marts' semantic layer: every mart described in `schema.yml`, the ghost test reference removed, counters that are 0 (not NULL) on an empty history, and `docs/metrics.md`
 
 **Loop**: issue read → brief re-checked on `origin/main` → branch cut from `origin/main` @ c6e2ce7 → plan commented on #46 → STOP → owner decisions → first unit test run on the unchanged mart (red) → edit → run → mutation checks → dbt-reviewer → fixes → diff → commit

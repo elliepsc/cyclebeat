@@ -38,6 +38,7 @@ V1/V2 are never a source. Conflict detected → the highest source wins AND you 
 - Never present a command block with placeholders as runnable: one command per block, each placeholder spelled out as a substitution.
 - **Write facts after they happen**, in `ai-workflow.md` and everywhere else: numbers after the last
   measurement, a PR as opened or merged only once it is.
+- A PR number that must appear in a file is never guessed: it is written in a last commit pushed after the PR is created, or in the next PR.
 - **Experiments never touch the real `lake/` or `data/`.**
 - A block of work starts by reading its issue, `gh issue view <N> --json title,body,comments` (plain `gh issue view` fails on gh 2.45: Projects classic sunset); the agent comments its plan on the issue before coding, each comment starting with "Posted by the coding agent (Claude Code)."
 - Commits cite `#N`; the PR says `Closes #N` and ticks the acceptance criteria met; the agent never closes or reopens an issue by hand: the merged PR closes it.
@@ -177,3 +178,7 @@ Who does what, the hand-offs and where each trace lands: [docs/agent-team.md](do
 - A helper whose docstring states a precondition ("an ALREADY normalized value") is composed, not called, by callers holding unvalidated data; the composition sits next to it (`e2.zone_of` under `e2.zone_for`).
 - A measurement count and a warehouse grain are different numbers: say which one a figure is when a report and a mart disagree.
 - A test that cannot run on the dev OS is run in Docker before pushing to CI to find out.
+- A data test that passes on an empty model proves nothing: on the scratch warehouse (0 sessions) 32 of 72 dbt data tests run over empty models. A new grain or key test is shown to fail once on an injected duplicate row before it counts as evidence.
+- A mart's grain is written as one sentence ('one row represents ...') from its SQL and sources before a key is chosen; a key picked because the current rows are unique is not a grain (issue #46 → #54).
+- A composite-grain test uses a singular `GROUP BY ... HAVING count(*) > 1`, not `unique` on a concatenated key: a NULL in one column makes the concatenation NULL and hides the duplicate.
+- When the docs leave a tool's behaviour open (a dbt unit test with `rows: []`), the answer is a first run against the unchanged code, expected to fail; record the docs URL and the locked version next to the measurement.

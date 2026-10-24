@@ -1,7 +1,6 @@
 version: 2
 
-# Every mart states its grain in its description and, except `mart_recent_activity` (#54),
-# has a test that guarantees it: `unique`
+# Every mart states its grain in its description and has a test that guarantees it: `unique`
 # on a single-column key, or a singular `check_*_grain` test on a composite one (GROUP BY
 # compares NULLs as equal, which a concatenated `unique` key would not). KPI definitions,
 # and the count-vs-NULL rule they follow, are in docs/metrics.md.
@@ -212,8 +211,8 @@ models:
       Distribution of feedback ratings. Grain is `(rating_scale, rating)`: one row per rating
       value observed on each scale, guarded by `dbt/tests/check_feedback_summary_grain.sql`.
       The two scales (`satisfaction` up/down from the API, `effort` Great/Okay/Hard from v1)
-      are never mixed (ADR-009). Known defect: feedback can be counted more than once across
-      lake partitions, see #54.
+      are never mixed (ADR-009). Each feedback is counted once: `stg_feedback` reads only the
+      latest lake partition (#54).
     columns:
       - name: rating_scale
         description: "Which axis the ratings are on. `unknown` would mean an unrecognised rating, which `check_invalid_rating` fails."
@@ -276,12 +275,18 @@ models:
 
   - name: mart_recent_activity
     description: >
-      The feedback rows selected as the 20 most recent by `feedback_at` (not exposed; a
-      table keeps no row order, and ties make the selection arbitrary), with the context of
-      the session they rate. Grain NOT guaranteed: the source feedback table has no identity (no key; API
-      rows carry `session_id`, v1 rows only `session_title`) and a feedback can repeat
-      across lake partitions — see #54. No key test until #54 declares the grain.
+      One row represents one feedback, as held by the latest lake extraction (one insert
+      into the app-store `feedback` table; `stg_feedback` reads only the most recent `dt`
+      partition), among the 20 most recent by `feedback_at`, with the context of the session
+      it rates. Key: (session_id, session_title, feedback_at), asserted by
+      `dbt/tests/check_recent_activity_grain.sql`. Ties on `feedback_at` are broken by
+      `session_id`, then `session_title`, so the 20 rows are deterministic; a table keeps
+      no row order, so a reader sorts by `feedback_at` itself.
     columns:
+      - name: feedback_at
+        description: "When the feedback was stored (`created_at` of the app store), µs precision. Part of the key."
+        tests:
+          - not_null
       - name: feedback_date
         description: "UTC calendar day the feedback was submitted."
       - name: session_id
@@ -337,5 +342,4 @@ models:
         description: >
           Percent, 1 decimal: unweighted mean over sessions of each session's satisfaction_pct
           (share of `up` among its satisfaction ratings). Sessions without a satisfaction
-          rating are skipped; NULL when no session has one. Known defect: feedback can be
-          counted more than once across lake partitions, see #54.
+          rating are skipped; NULL when no session has one.

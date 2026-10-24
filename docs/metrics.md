@@ -3,8 +3,7 @@
 Every figure a dbt mart publishes, with its definition, grain, formula, source and the tests
 that guard it. The models are the reference (`dbt/models/marts/`); column-level detail is in
 [`dbt/models/marts/schema.yml`](../dbt/models/marts/schema.yml). A mart's grain is stated in its
-`schema.yml` description and guarded by a test (issue #46), except `mart_recent_activity`,
-whose grain waits on [#54](https://github.com/elliepsc/cyclebeat/issues/54).
+`schema.yml` description and guarded by a test (issues #46 and #54).
 
 ## The rule: a count is 0, everything else stays NULL
 
@@ -29,11 +28,36 @@ The demo and CI warehouses hold **0 sessions and 0 feedback**. A `unique`, `not_
 a KPI's definition are the **unit tests**, which run the model's SQL on fixed inputs. On the
 track and pattern marts, which the demo snapshot fills, the data tests run on real rows.
 
-## Known defect: feedback counted per lake partition (#54)
+## Feedback is read from the latest lake partition only ([#54](https://github.com/elliepsc/cyclebeat/issues/54))
 
-`stg_feedback` does not deduplicate across lake partitions, unlike `stg_sessions`; read in the
-code, not measured (the demo warehouse holds no feedback). Every indicator computed from feedback
-below is marked **known defect, see [#54](https://github.com/elliepsc/cyclebeat/issues/54)**.
+`extract_to_lake` writes a **full copy** of the app-store `feedback` table into each day's `dt`
+partition. Reading every partition counted a feedback once per day it was extracted.
+`stg_feedback` therefore reads **only the most recent `dt` partition**. The app store has no
+UPDATE or DELETE path on `feedback`, so that copy holds every feedback.
+
+Every indicator below that is computed from feedback is checked end to end by
+`tests/test_feedback_dedup.py`. The test builds a two-partition lake, loads it, runs dbt and reads
+the marts. On the version that read every partition, all four figures it checks came out wrong.
+That was measured with the `stg_feedback` unit tests (`dbt/models/staging/unit_tests.yml`) set
+aside. With the committed suite, the pre-fix version fails first on those unit tests, and dbt then
+skips `stg_feedback` and everything downstream: the figures are never read.
+
+The key `(session_id, session_title, created_at)` is asserted on every row of `stg_feedback` by
+`dbt/tests/check_stg_feedback_grain.sql`, and on the mart below.
+
+**Limit.** A row in an older partition only disappears if the store is reset or switched between
+two extractions: the file is deleted, or `APP_DB_PATH` or `DATABASE_URL` changes. No make target,
+script, test or compose command does that (the list is on [#54](https://github.com/elliepsc/cyclebeat/issues/54)). After such a reset:
+- `stg_sessions` still keeps every session it ever saw;
+- `stg_feedback` keeps only the latest copy;
+- so the older sessions show `feedback_count = 0` in `int_session_summary`.
+
+The two staging models differ on purpose:
+- **a session has a key** (`session_id`), so a union over partitions, deduplicated on that key,
+  is exact;
+- **a feedback has none**, so the only exact copy is one whole partition. A union deduplicated on
+  every column breaks when the same row is extracted under two timezones: `created_at` is written
+  as local wall time, and the same feedback then gives two rows.
 
 ## `mart_session_kpis` — global session KPIs
 
@@ -50,7 +74,7 @@ on the three counts.
 | `sessions_flagged_review` | Sessions the evaluator flagged `review` | count | `count(*) filter (where verdict = 'review')` | 0 |
 | `avg_abs_duration_gap_s` | How far sessions land from their target, either way | seconds, 1 dp | `round(avg(abs(duration_gap_s)), 1)` | NULL |
 | `last_session_at` | Most recent session | UTC timestamp | `max(created_at)` | NULL |
-| `avg_satisfaction_pct` | Unweighted mean of each session's share of `up` ratings; sessions with no satisfaction rating are skipped. **Known defect, see [#54](https://github.com/elliepsc/cyclebeat/issues/54).** | percent, 1 dp | `round(avg(satisfaction_pct), 1)` | NULL |
+| `avg_satisfaction_pct` | Unweighted mean of each session's share of `up` ratings; sessions with no satisfaction rating are skipped. | percent, 1 dp | `round(avg(satisfaction_pct), 1)` | NULL |
 
 ## `mart_feedback_summary` — rating distribution
 
@@ -61,20 +85,42 @@ are never mixed (ADR-009). Guards: `not_null` and `accepted_values` on the key c
 
 | KPI | Definition | Unit | Formula | Empty input |
 |---|---|---|---|---|
-| `count` | Feedback rows with this rating on this scale. **Known defect, see [#54](https://github.com/elliepsc/cyclebeat/issues/54).** | count | `count(*)` per group | no row (a rating nobody gave has no row) |
-| `pct` | This rating's share of its scale; sums to 100 within a scale, never across. **Known defect, see [#54](https://github.com/elliepsc/cyclebeat/issues/54).** | percent, 2 dp | `round(100.0 * count(*) / sum(count(*)) over (partition by rating_scale), 2)` | no row |
+| `count` | Feedbacks with this rating on this scale, each counted once (latest lake partition) | count | `count(*)` per group | no row (a rating nobody gave has no row) |
+| `pct` | This rating's share of its scale; sums to 100 within a scale, never across. | percent, 2 dp | `round(100.0 * count(*) / sum(count(*)) over (partition by rating_scale), 2)` | no row |
 
 ## `mart_recent_activity` — the last 20 feedback rows
 
-Grain: **not guaranteed**. A row is meant to be one feedback submission, but the source has no
-identity: the app-store `feedback` table has no key, API rows carry `session_id` while v1 rows
-carry only `session_title`, and a feedback can repeat across lake partitions; see
-[#54](https://github.com/elliepsc/cyclebeat/issues/54). No key test until #54 declares the grain.
-Source: `int_feedback_enriched`, the 20 rows selected by `order by feedback_at desc limit 20`.
-`feedback_at` is not exposed and a table keeps no row order; ties make the selection arbitrary. It exposes no
-aggregate, only rows. **Known defect, see [#54](https://github.com/elliepsc/cyclebeat/issues/54).**
-Guards: `not_null` and `accepted_values` on `rating` and `rating_scale`; vacuous on an empty
-warehouse.
+Grain: **one row represents one feedback**, as held by the latest lake extraction (one insert
+into the app-store `feedback` table), among the 20 most recent by `feedback_at`, with the context
+of the session it rates. The key follows from that:
+- `session_id` identifies the rated session for API rows;
+- `session_title` does it for v1 rows, whose `session_id` is NULL;
+- `feedback_at` separates two inserts on the same session.
+
+Key: `(session_id, session_title, feedback_at)`, asserted by
+`dbt/tests/check_recent_activity_grain.sql` and, over every feedback, by
+`dbt/tests/check_stg_feedback_grain.sql`. `tests/test_feedback_dedup.py` shows both tests failing
+on a duplicated feedback.
+
+The key **assumes** that two inserts on one session never share a timestamp. API rows take
+`datetime.now(UTC)` at µs per insert. v1 rows took DuckDB `now()`, the transaction start, so two v1
+rows written in one transaction would collide; no current code path writes v1 rows. One blind
+spot: an unreadable `created_at` is replaced by the extraction time (`cyclebeat/app_store.py`,
+`_as_datetime`), so a doubled insert carrying one would get two stamps and pass the key; that
+fallback is #57. `rating`,
+`rating_scale` and `note` stay out of the key:
+- an exact duplicate is identical in every column, so including them would catch nothing more;
+- leaving them out makes the test stricter: it also flags a (session, instant) collision between
+  two different ratings.
+
+Source: `int_feedback_enriched`. The 20 rows are selected by
+`order by feedback_at desc, session_id, session_title limit 20`. The key holds over every feedback
+(`check_stg_feedback_grain`), so that order is total, and equal timestamps no longer leave the cut
+at row 20 to the engine. `feedback_at` is
+exposed, because a table keeps no row order and a reader sorts on it. The mart exposes no
+aggregate, only rows. Guards: the key test, `not_null` on `feedback_at`, `rating` and
+`rating_scale`, and `accepted_values` on the last two. On an empty warehouse they are vacuous;
+the pytest above exercises them.
 
 ## `mart_bpm_coverage` — BPM coverage per source
 

@@ -1,0 +1,36 @@
+version: 2
+
+# Unit tests run the model's SQL on fixed inputs (dbt >= 1.8). The scratch and CI warehouses
+# hold 0 feedback rows, where a data test on stg_feedback passes without proving anything.
+
+unit_tests:
+  - name: stg_feedback_same_feedback_in_two_partitions
+    description: >
+      `extract_to_lake` copies the whole app-store table into each day's `dt` partition, so a
+      feedback extracted on two days is in the lake twice. It must come out once (#54).
+      Failed on the version without deduplication (2 rows instead of 1).
+    model: stg_feedback
+    given:
+      - input: source('raw', 'feedback')
+        rows:
+          - {session_id: 's1', session_title: 'session-s1', rating: 'up', note: 'ok', created_at: '2026-10-22 08:00:00.123456', dt: '2026-10-22'}
+          - {session_id: 's1', session_title: 'session-s1', rating: 'up', note: 'ok', created_at: '2026-10-22 08:00:00.123456', dt: '2026-10-23'}
+    expect:
+      rows:
+        - {session_id: 's1', rating: 'up', created_at: '2026-10-22 08:00:00.123456'}
+
+  - name: stg_feedback_only_latest_partition_kept
+    description: >
+      The chosen method (#54, option a): only the most recent `dt` partition is kept. A
+      feedback present only in an older partition disappears. That is intended: with no
+      UPDATE or DELETE path in the app store, the latest full copy holds every feedback,
+      unless the store was reset or switched between two extractions.
+    model: stg_feedback
+    given:
+      - input: source('raw', 'feedback')
+        rows:
+          - {session_id: 's_old', session_title: 'session-s_old', rating: 'down', note: null, created_at: '2026-10-21 09:00:00', dt: '2026-10-22'}
+          - {session_id: 's_new', session_title: 'session-s_new', rating: 'up', note: null, created_at: '2026-10-23 09:00:00', dt: '2026-10-23'}
+    expect:
+      rows:
+        - {session_id: 's_new', rating: 'up', created_at: '2026-10-23 09:00:00'}
