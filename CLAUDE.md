@@ -50,6 +50,7 @@ V1/V2 are never a source. Conflict detected → the highest source wins AND you 
 - Touching `.env` or committing a secret.
 - Modifying `openapi.yaml` without updating backend + front client in the SAME PR.
 - Writing SQL outside `api/repositories/` and `dbt/`.
+  This rule is about the layering of application code: a read-only query in a test assertion is allowed.
 - Adding a dependency without justification in the PR.
 - Widening a phase's scope.
 - Introducing a paid brick (paid API, SaaS, cloud instance) → automatic rejection, free alternative or
@@ -182,3 +183,4 @@ Who does what, the hand-offs and where each trace lands: [docs/agent-team.md](do
 - A mart's grain is written as one sentence ('one row represents ...') from its SQL and sources before a key is chosen; a key picked because the current rows are unique is not a grain (issue #46 → #54).
 - A composite-grain test uses a singular `GROUP BY ... HAVING count(*) > 1`, not `unique` on a concatenated key: a NULL in one column makes the concatenation NULL and hides the duplicate.
 - When the docs leave a tool's behaviour open (a dbt unit test with `rows: []`), the answer is a first run against the unchanged code, expected to fail; record the docs URL and the locked version next to the measurement.
+- Under `dbt build`, a failing test skips everything downstream: to prove that a downstream test fails, run `dbt run` then `dbt test`.
