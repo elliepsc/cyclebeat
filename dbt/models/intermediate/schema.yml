@@ -1,0 +1,12 @@
+version: 2
+
+models:
+  - name: int_pattern_effort_profile
+    description: >
+      One row represents one pattern of `stg_patterns` (`id`), with its BPM and resistance
+      buckets. A NULL `bpm_mid` or `resistance` gives the bucket `unknown`, which
+      `check_invalid_pattern_buckets` fails (#55).
+    columns:
+      - name: id
+        description: "Grain. The pattern id, one row per pattern of `stg_patterns`."
+        tests: [not_null, unique]

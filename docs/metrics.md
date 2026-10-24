@@ -153,13 +153,47 @@ Grain: **one row per `confidence_method`**, `unknown` for tracks no source resol
 
 Grain: **one row per `(phase, effort_bucket, bpm_bucket, resistance_bucket, pattern_type)`**
 (`dbt/tests/check_pattern_coverage_grain.sql`). Source: `int_pattern_effort_profile`. Guards:
-`not_null` and `accepted_values` on the buckets, `not_null` on `pattern_count`.
+`not_null` and `accepted_values` on the buckets, `not_null` on `pattern_count`,
+`dbt/tests/check_invalid_pattern_buckets.sql`.
+
+The mart describes the knowledge base, not the sessions: nothing in the planner, the API, the
+front or the agent tools reads it ([product-spec.md](../product-spec.md), Scope).
+
+A bucket at `unknown` makes `dbt build` red, which skips the downstream models. In production
+a red build is not deployed: the image runs `dbt build` at build time (`Dockerfile`, the demo
+warehouse `RUN`; [ADR-003](adr/adr-003-render-no-disk.md)). Locally, the tables of the last
+green run stay readable, and only the exit code reports the failure.
 
 | KPI | Definition | Unit | Formula | Empty group |
 |---|---|---|---|---|
 | `pattern_count` | Patterns in the combination | count | `count(*)` per group | no row |
 | `avg_bpm` | Mean midpoint of the patterns' BPM windows | BPM, 1 dp | `round(avg(bpm_mid), 1)` | NULL if no pattern has a window |
 | `avg_resistance` | Mean resistance level | level (1-10 in the current file), 1 dp | `round(avg(cast(resistance as double)), 1)` | NULL if no pattern has one |
+
+**Rule: an unrecognised value is never put into a default bucket (#55).** It is either mapped
+explicitly or rejected as `unknown`, and `check_invalid_pattern_buckets` fails on it, the same
+pattern as `rating_scale = 'unknown'` and `check_invalid_rating`. Three cases:
+
+- `effort_bucket` (`stg_patterns`): an `effort` outside the mapping, or a missing one;
+- `bpm_bucket` (`int_pattern_effort_profile`): a NULL `bpm_mid`;
+- `resistance_bucket` (`int_pattern_effort_profile`): a NULL `resistance`.
+
+**`effort_bucket` mapping and its criterion (owner decision, #55).** The criterion is
+resistance, on the `resistance_bucket` thresholds: 3 or less → `low`, 4 to 6 → `medium`, 7 or
+more → `high`. BPM is not an effort criterion (`very_hard` is a climb at about 92 BPM,
+resistance 8).
+
+| `effort` | patterns | `effort_bucket` |
+|---|---|---|
+| `easy`, `very_easy` | 6, 6 | `low` |
+| `moderate`, `easy_moderate`, `moderate_hard` | 3, 2, 6 | `medium` |
+| `hard`, `max`, `very_hard` | 11, 3, 3 | `high` |
+
+Two limits: (i) it is a labelling decision over 2 to 6 patterns per value, not a measurement;
+(ii) `easy_moderate` (resistance 4) is the tightest case, and `moderate_hard` loses the "hard"
+nuance on a 3-level scale. The criterion labels values, not patterns: `cadence_drill_high`
+(`moderate`, resistance 3) and `steady_power` (`moderate_hard`, resistance 7) contradict it and
+keep their value's bucket.
 
 ## `dim_track` and `fct_session`
 

@@ -85,6 +85,7 @@ models:
       - name: phase
         tests: [not_null]
       - name: effort_bucket
+        description: "Explicit mapping of `effort` (#55); an unmapped or missing effort is `unknown`, which `check_invalid_pattern_buckets` fails."
         tests:
           - accepted_values:
-              values: ['low', 'medium', 'high']
+              values: ['low', 'medium', 'high', 'unknown']
