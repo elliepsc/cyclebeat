@@ -34,3 +34,47 @@ unit_tests:
     expect:
       rows:
         - {session_id: 's_new', rating: 'up', created_at: '2026-10-23 09:00:00'}
+
+  - name: stg_patterns_unknown_effort_is_rejected
+    description: >
+      An `effort` outside the mapped vocabulary, or a missing one, is never silently put
+      into a bucket: it comes out as `unknown`, which `check_invalid_pattern_buckets` fails
+      (#55). Failed on the version with `else 'medium'` (`medium` for both rows).
+    model: stg_patterns
+    given:
+      - input: source('raw', 'patterns')
+        rows:
+          - {id: 'p_unknown', phase: 'steady', effort: 'not_in_vocabulary', bpm_min: 100, bpm_max: 120, resistance: 5}
+          - {id: 'p_missing', phase: 'steady', effort: null, bpm_min: 100, bpm_max: 120, resistance: 5}
+    expect:
+      rows:
+        - {id: 'p_unknown', effort_bucket: 'unknown'}
+        - {id: 'p_missing', effort_bucket: 'unknown'}
+
+  - name: stg_patterns_explicit_effort_mapping
+    description: >
+      The four values the pattern file holds outside the pre-#55 vocabulary get the bucket
+      the owner chose on resistance (#55), and the earlier values keep theirs.
+      `very_easy` and `very_hard` came out `medium` before #55.
+    model: stg_patterns
+    given:
+      - input: source('raw', 'patterns')
+        rows:
+          - {id: 'p1', phase: 'recovery', effort: 'very_easy'}
+          - {id: 'p2', phase: 'warm_up', effort: 'easy_moderate'}
+          - {id: 'p3', phase: 'build', effort: 'moderate_hard'}
+          - {id: 'p4', phase: 'climb', effort: 'very_hard'}
+          - {id: 'p5', phase: 'recovery', effort: 'easy'}
+          - {id: 'p6', phase: 'steady', effort: 'moderate'}
+          - {id: 'p7', phase: 'sprint', effort: 'hard'}
+          - {id: 'p8', phase: 'sprint', effort: 'max'}
+    expect:
+      rows:
+        - {id: 'p1', effort_bucket: 'low'}
+        - {id: 'p2', effort_bucket: 'medium'}
+        - {id: 'p3', effort_bucket: 'medium'}
+        - {id: 'p4', effort_bucket: 'high'}
+        - {id: 'p5', effort_bucket: 'low'}
+        - {id: 'p6', effort_bucket: 'medium'}
+        - {id: 'p7', effort_bucket: 'high'}
+        - {id: 'p8', effort_bucket: 'high'}

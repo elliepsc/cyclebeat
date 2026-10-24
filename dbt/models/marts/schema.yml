@@ -246,23 +246,23 @@ models:
         description: "Session phase the patterns belong to (from the pattern file)."
         tests: [not_null]
       - name: effort_bucket
-        description: "low | medium | high, derived in staging from the pattern's `effort`; an unmapped effort falls into `medium`."
+        description: "low | medium | high, derived in staging from the pattern's `effort` by an explicit mapping (#55); an unmapped or missing effort is `unknown`, which `check_invalid_pattern_buckets` fails."
         tests:
           - not_null
           - accepted_values:
-              values: ['low', 'medium', 'high']
+              values: ['low', 'medium', 'high', 'unknown']
       - name: bpm_bucket
-        description: "On bpm_mid (midpoint of the pattern's BPM window): slow < 100, moderate 100-130, fast over 130 to 155, very_fast over 155 or a NULL bpm_mid (the CASE's else)."
+        description: "On bpm_mid (midpoint of the pattern's BPM window): slow < 100, moderate 100-130, fast over 130 to 155, very_fast over 155; a NULL bpm_mid is `unknown`, which `check_invalid_pattern_buckets` fails (#55)."
         tests:
           - not_null
           - accepted_values:
-              values: ['slow', 'moderate', 'fast', 'very_fast']
+              values: ['slow', 'moderate', 'fast', 'very_fast', 'unknown']
       - name: resistance_bucket
-        description: "On resistance (integer level, 1-10 in the current pattern file): light ≤ 3, moderate ≤ 6, hard ≤ 8, max above or NULL (the CASE's else)."
+        description: "On resistance (integer level, 1-10 in the current pattern file): light ≤ 3, moderate ≤ 6, hard ≤ 8, max above; a NULL resistance is `unknown`, which `check_invalid_pattern_buckets` fails (#55)."
         tests:
           - not_null
           - accepted_values:
-              values: ['light', 'moderate', 'hard', 'max']
+              values: ['light', 'moderate', 'hard', 'max', 'unknown']
       - name: pattern_type
         description: "Pattern kind from the pattern file (`local` or `transition` today). Part of the grain; a NULL type would form its own group."
       - name: pattern_count

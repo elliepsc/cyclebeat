@@ -1,0 +1,33 @@
+version: 2
+
+# Unit tests run the model's SQL on fixed inputs (dbt >= 1.8). The pattern file has no NULL
+# resistance or BPM window today, so a data test would pass without proving anything.
+
+unit_tests:
+  - name: int_pattern_effort_profile_null_resistance_is_rejected
+    description: >
+      A pattern with no `resistance` is not put into a bucket: `resistance_bucket` is
+      `unknown`, which `check_invalid_pattern_buckets` fails (#55). Failed on the version
+      whose CASE sent a NULL to its `else 'max'`.
+    model: int_pattern_effort_profile
+    given:
+      - input: ref('stg_patterns')
+        rows:
+          - {id: 'p_no_resistance', phase: 'steady', effort: 'moderate', effort_bucket: 'medium', bpm_mid: 120.0, resistance: null}
+    expect:
+      rows:
+        - {id: 'p_no_resistance', resistance_bucket: 'unknown'}
+
+  - name: int_pattern_effort_profile_null_bpm_mid_is_rejected
+    description: >
+      A pattern with no BPM window (`bpm_mid` NULL) is not put into a bucket: `bpm_bucket`
+      is `unknown`, which `check_invalid_pattern_buckets` fails (#55). Failed on the version
+      whose CASE sent a NULL to its `else 'very_fast'`.
+    model: int_pattern_effort_profile
+    given:
+      - input: ref('stg_patterns')
+        rows:
+          - {id: 'p_no_window', phase: 'steady', effort: 'moderate', effort_bucket: 'medium', bpm_mid: null, resistance: 5}
+    expect:
+      rows:
+        - {id: 'p_no_window', bpm_bucket: 'unknown'}
