@@ -106,13 +106,13 @@ files change):
 | cyclebeat-api | Render Docker service; the container runs uvicorn only | `render.yaml:23-26`; `Dockerfile:61` |
 | planner + evaluator | called by the generate service | `api/services/session.py:68`, `:78` |
 | A4 | the bundle calls the API URL fixed at build time; the API lets that origin in | `render.yaml:36-37`, `:55-56`; `frontend/src/api/client.ts:6` |
-| A5, SQLite | no `DATABASE_URL` in production, so the store is SQLite | `render.yaml:31-37`; `api/repositories/database.py:145-158` |
-| A6, A10 | the API reads the warehouse read-only | `api/repositories/warehouse.py:39`; `api/repositories/track.py:27` |
+| A5, SQLite | no `DATABASE_URL` in production, so the store is SQLite | `render.yaml:31-37`; `api/repositories/database.py:153-167` |
+| A6, A10 | the API opens the warehouse read-only; it falls back to read-write only if that open fails (a missing file), which the image's baked-in warehouse does not hit | `api/repositories/warehouse.py:38-42`; `api/repositories/track.py:27` |
 | API image build, A7 | one `RUN` builds the warehouse from versioned files; the API reads it at `RUNTIME_DB_PATH` | `Dockerfile:40-45`; `render.yaml:32-33` |
 | web (compose) | nginx serves the built bundle | `docker-compose.yml:86-92`; `frontend/Dockerfile:24-28` |
 | api (compose), A11 | built from the same `Dockerfile` | `docker-compose.yml:60-61`, `:76` |
 | A8 | the compose bundle points at the compose API | `docker-compose.yml:90`; `frontend/src/api/client.ts:6` |
-| A9, postgres | `DATABASE_URL` set, so the store is Postgres | `docker-compose.yml:40-47`, `:69`; `api/repositories/database.py:145-150` |
+| A9, postgres | `DATABASE_URL` set, so the store is Postgres | `docker-compose.yml:40-47`, `:69`; `api/repositories/database.py:106-107`, `:153-158` |
 | DuckDB (compose) | the image's warehouse, not mounted over | `docker-compose.yml:58-59`, `:65` |
 | Local pipeline | `make ingest`, `make dbt`; compose profile `pipeline` | `Makefile:81-82`, `:92-96`; `docker-compose.yml:106-138`, `:148-191` |
 | sources | demo snapshot or live Deezer, optional CSV; patterns JSON | `cyclebeat/cli.py:48-67`; `ingest/ingest_pipeline.py:43` |
