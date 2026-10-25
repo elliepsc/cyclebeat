@@ -1,4 +1,4 @@
-"""The transactional store: Postgres when `DATABASE_URL` is set, SQLite otherwise.
+"""The transactional store: Postgres when `DATABASE_URL` is a Postgres DSN, SQLite otherwise.
 
 ADR-009 separates the roles. **Postgres is OLTP** — `sessions`, `feedback`, app state, small
 frequent writes that must not be lost. **DuckDB stays OLAP** — lake → dbt → marts → copilot,
@@ -14,8 +14,8 @@ read here by `track.py` and `quality.py`. Nothing in this module touches DuckDB.
 Production does not use Postgres: ADR-009 decision 4 (Neon) is not what runs. The Render
 service sets no `DATABASE_URL`, so sessions and feedback live in SQLite inside the container
 and are lost on every redeploy (ADR-009, "Note (2026-10-11)"). In CI, the repository tests
-run on Postgres through `TEST_DATABASE_URL`, never `DATABASE_URL`
-(tests/unit/test_api_repositories.py).
+run on Postgres: CI exports only `TEST_DATABASE_URL`, and the test fixture derives a per-test
+`DATABASE_URL` from it, in a throwaway schema (tests/unit/test_api_repositories.py).
 
 The SQLite fallback exists because E.8 requires the project to run with no key and no service
 on a clean clone, and criterion 14 is tested from one. Making Postgres a hard prerequisite for
