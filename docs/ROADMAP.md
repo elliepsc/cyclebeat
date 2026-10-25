@@ -140,6 +140,8 @@ Correspondance des fichiers hérités (aucun n'est supprimé ; ils sont désorma
 
 ## 1. État actuel (snapshot vérifié — `origin/main` = `6da3e71`, 2026-08-21)
 
+> **Note 2026-10-25** : instantané d'août 2026, l'état courant est dans la ligne de chaque phase (§2.1) et dans les [issues](https://github.com/elliepsc/cyclebeat/issues).
+
 | Élément | État |
 |---|---|
 | **Gate L0 → L1** | 🔴 **FERMÉ** — (b) remplie, (a) et (c) non ; aucun module B ne peut démarrer |
@@ -180,7 +182,7 @@ Correspondance des fichiers hérités (aucun n'est supprimé ; ils sont désorma
 | **8. Intégration & compose** | `tests/integration` contre compose complet (api + web + postgres ; sans LLM, voir « Résolu le 9 octobre 2026 » en §2.8) | `docker compose up` sur clone propre + suite intégration verte | ✅ — PR #35 ; sur `main` ([run 38158175761](https://github.com/elliepsc/cyclebeat/actions/runs/38158175761)), `integration` vert (17:05:25 → 17:06:52 UTC), puis `deploy` vert (17:06:57 → 17:08:06 UTC) |
 | **9. CI/CD & deploy** | Pipeline complet + deploy Render auto sur main vert *(action humaine : secrets Render)* | URL publique vivante ; un push déclenche test→deploy | ✅ — première exécution réelle verte du job `deploy` sur `a50a137` (tests puis hooks puis `live` puis 4 vérifications). La suite d'intégration reste de la phase 8 |
 | **10. Sécurité & audit** | PR-Agent, Semgrep/Snyk, `agent-security.md`, `ai-policy.md`, diagnostic ops | Les 5 artefacts du §13 committés | ✅ `[rendu]` sur `phase-10/security-audit` : audits de PR par `security-auditor` (PR-Agent écarté), Semgrep + gitleaks en CI, pip-audit et npm audit ponctuels ; Snyk et K8sGPT restent `[présentable]` |
-| **11. README & démo** | README (🟡 #47 : schéma d'architecture sourcé, `backend/README.md`, bandeau de statut) ; GIF démo (🟡 #47, captures faites par la propriétaire) ; finalisation `ai-workflow.md` (⬜) ; remise en cohérence de cette roadmap, relevée en phase 8 (⬜) : §1 et la vue linéaire §5 sont des instantanés d'août périmés, et §2.2 (« phase 7 pendant Module 3 ») contredit le mapping §2.6 (P7 ↔ M5) ; §2.7 annonce « free tier Neon en prod », alors que la production tourne en SQLite dans le conteneur (`DATABASE_URL` absente, constaté le 11 octobre 2026, note datée dans ADR-009) ; `[rendu]` couche sémantique dbt, relevée en phase 7 (✅ #46, PR #56) : `schema.yml` citait un test absent (`check_confidence_values.sql`) et 4 marts sur 8 n'y avaient aucune entrée ; compteurs NULL sur un historique vide dans `mart_session_kpis`, révélés par la démo de la phase 7 (✅ #46, PR #56, [docs/metrics.md](metrics.md)) ; un retour compté une fois par partition `dt` de `stg_feedback` (✅ #54, PR #58, test de bout en bout `tests/test_feedback_dedup.py`) | Audit à froid depuis un clone propre, par une session neuve (critère modifié le 25 octobre 2026, note ci-dessous) | 🟡 en cours |
+| **11. README & démo** | README (🟡 #47 : schéma d'architecture sourcé, `backend/README.md`, bandeau de statut) ; GIF démo (🟡 #47, captures faites par la propriétaire) ; finalisation `ai-workflow.md` (🟡, après l'audit à froid) ; remise en cohérence de cette roadmap, relevée en phase 8 (✅ #47, a minima : §2.7 et §2.2 corrigés, §1 et §5 datés comme instantanés) : §1 et la vue linéaire §5 sont des instantanés d'août périmés, et §2.2 (« phase 7 pendant Module 3 ») contredit le mapping §2.6 (P7 ↔ M5) ; §2.7 annonce « free tier Neon en prod », alors que la production tourne en SQLite dans le conteneur (`DATABASE_URL` absente, constaté le 11 octobre 2026, note datée dans ADR-009) ; `[rendu]` couche sémantique dbt, relevée en phase 7 (✅ #46, PR #56) : `schema.yml` citait un test absent (`check_confidence_values.sql`) et 4 marts sur 8 n'y avaient aucune entrée ; compteurs NULL sur un historique vide dans `mart_session_kpis`, révélés par la démo de la phase 7 (✅ #46, PR #56, [docs/metrics.md](metrics.md)) ; un retour compté une fois par partition `dt` de `stg_feedback` (✅ #54, PR #58, test de bout en bout `tests/test_feedback_dedup.py`) | Audit à froid depuis un clone propre, par une session neuve (critère modifié le 25 octobre 2026, note ci-dessous) | 🟡 en cours |
 
 > **Note 2026-10-25 (décision de la propriétaire, issue #47)** : le critère de sortie de la phase 11 était « testé depuis un clone propre par quelqu'un d'autre ». Aucun agent ne peut le remplir : une session de l'agent n'est pas « quelqu'un d'autre ». Il devient « audit à froid depuis un clone propre, par une session neuve », une session qui n'a aucun contexte de celle qui a écrit le code. Le test par une autre personne n'est pas abandonné : un pair pourra le faire pendant la période de relecture.
 
@@ -188,7 +190,7 @@ Correspondance des fichiers hérités (aucun n'est supprimé ; ils sont désorma
 
 ### 2.2 Séquençage au rythme du cours
 
-Phases 0-5 pendant Modules 1-2 · phase 7 pendant Module 3 · phase 10 pendant Module 4. Le projet avance au fil du zoomcamp au lieu de tout garder pour la fin.
+Suivant le mapping du §2.6 : phases 0-1 pendant le Module 1 · phases 4-5 pendant le Module 2 · phases 8-9 pendant le Module 3 · phase 10 pendant le Module 4 · phase 7 pendant le Module 5 (corrigé le 25 octobre 2026, #47 : cette ligne plaçait la phase 7 pendant le Module 3). Le projet avance au fil du zoomcamp au lieu de tout garder pour la fin.
 
 ### 2.3 Durcissements « série D » (ex-V3.1) — fondus dans L0
 
@@ -256,7 +258,7 @@ Le Module 3 enseigne SQLite → **Postgres** (store transactionnel de l'app). Cy
 - **DuckDB** = entrepôt analytique : lake → DuckDB → dbt (staging→marts), copilote warehouse. **Le différenciateur DE, conservé.**
 - Le pipeline ingère les données transactionnelles Postgres dans l'entrepôt pour l'analytique (`fct_session`, `mart_feedback_summary`).
 
-Coût : +1-2 j, 2 stores. **Zéro € préservé** (Postgres en conteneur compose + **free tier Neon** en prod — voir ADR-009 : le free tier Postgres de Render est limité dans le temps, ce qui casserait la condition §18 « URL déployée vivante depuis au moins une semaine » ; Render héberge l'API, Neon la base). Alternative minimale si le temps manque : DuckDB-only avec multi-env documenté — **passe** le crit 7 (libellé 2026 générique), mais raconte une histoire moins propre. Reco : la séparation, puisque tu es ouverte.
+Coût : +1-2 j, 2 stores. **Zéro € préservé** (Postgres en conteneur compose. En prod, ADR-009 prévoyait le **free tier Neon**, le free tier Postgres de Render étant limité dans le temps, ce qui casserait la condition §18 « URL déployée vivante depuis au moins une semaine ». Ce n'est pas ce qui tourne : la production stocke sessions et retours en SQLite dans le conteneur, `DATABASE_URL` absente, note datée du 11 octobre 2026 dans [ADR-009](adr/adr-009-postgres-transactional-duckdb-analytical.md) ; corrigé le 25 octobre 2026, #47). Alternative minimale si le temps manque : DuckDB-only avec multi-env documenté — **passe** le crit 7 (libellé 2026 générique), mais raconte une histoire moins propre. Reco : la séparation, puisque tu es ouverte.
 
 > **Impact phases :** Postgres transactionnel s'ajoute en **phase 4** (backend/persistance) ; l'entrepôt DuckDB reste **phase 2**. **Formalisé par ADR-009** (2026-08-30), qui supersede ADR-008 — celui-ci avait placé sessions/feedback dans DuckDB, faute d'avoir lu cette section. Le durcissement « 2 fichiers DuckDB single-writer » (§2.3) ne concerne plus que l'analytique.
 
@@ -423,6 +425,8 @@ Donc tu n'as pas à choisir entre « m'y mettre tout de suite » et « respecter
 ---
 
 ## 5. Vue linéaire d'ensemble
+
+> **Note 2026-10-25** : instantané d'août 2026, l'état courant est dans la ligne de chaque phase (§2.1) et dans les [issues](https://github.com/elliepsc/cyclebeat/issues).
 
 ```
 L0 · CORE (livrable — 30/30 + durcissements D)
