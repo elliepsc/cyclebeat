@@ -92,9 +92,11 @@ are never mixed (ADR-009). Guards: `not_null` and `accepted_values` on the key c
 
 Grain: **one row represents one feedback**, as held by the latest lake extraction (one insert
 into the app-store `feedback` table), among the 20 most recent by `feedback_at`, with the context
-of the session it rates. The key follows from that:
+of the session it rates when it carries a `session_id`. The key follows from that:
 - `session_id` identifies the rated session for API rows;
-- `session_title` does it for v1 rows, whose `session_id` is NULL;
+- `session_title` identifies the row for v1 rows, whose `session_id` is NULL. A v1 row has no
+  session context (`level`, `goal`, `duration_min`, `track_count` are NULL): it is attached by
+  `session_id` only, like `int_session_summary` (ADR-008; the title fallback was removed in #60);
 - `feedback_at` separates two inserts on the same session.
 
 Key: `(session_id, session_title, feedback_at)`, asserted by

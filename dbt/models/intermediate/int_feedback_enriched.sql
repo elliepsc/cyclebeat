@@ -1,9 +1,14 @@
 -- Feedback joined with session context — the decision layer for quality analysis.
 --
--- Joined on `session_id` (ADR-008), not on the title. A title is a mutable, non-unique
--- display string; two sessions called the same thing were indistinguishable, which is the
--- defect the rekeying fixed. The title join is kept as a FALLBACK for v1 rows, which predate
--- `session_id` and have nothing else to match on.
+-- Joined on `session_id` only (ADR-008), the same rule as `int_session_summary`. A title is a
+-- mutable, non-unique display string; two sessions called the same thing were
+-- indistinguishable, which is the defect the rekeying fixed.
+--
+-- v1 rows keep a NULL `session_id` (ADR-008: nothing back-fills a guess), so they have no
+-- session context here. Their `session_title` is the v1 session's display title, and no
+-- modelled session carries one any more: the title fallback this join used to have compared
+-- it with `s.session_id`, which matches nothing by design and attached a row only by
+-- coincidence (#60).
 
 with feedback as (
     select * from {{ ref('stg_feedback') }}
@@ -42,5 +47,4 @@ select
 
 from feedback f
 left join sessions s
-    on  f.session_id = s.session_id
-    or (f.session_id is null and f.session_title = s.session_id)
+    on f.session_id = s.session_id
