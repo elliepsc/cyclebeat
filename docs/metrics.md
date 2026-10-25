@@ -39,8 +39,8 @@ On the track and pattern marts, which the demo snapshot fills, the data tests ru
 
 ## Where the data comes from, and which window it covers
 
-Checked on the code of the #60 branch (`test/60-reference-dataset`, from `origin/main` a16fabc);
-the line numbers are those of that branch and will drift as the files change.
+Checked on commit c142425 of the #60 branch; the line numbers are those of that commit and will
+drift as the files change.
 
 **Production** (Render, `render.yaml`):
 - The warehouse the API serves is built **once, at image-build time** (`Dockerfile:40-45`, the

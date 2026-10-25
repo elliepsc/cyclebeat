@@ -86,7 +86,8 @@ def vacuous_tests(manifest: dict[str, Any], con: duckdb.DuckDBPyConnection) -> l
 
     A generic test tests its `attached_node`; a singular test, every model it depends on. A
     test that depends on no model (a source test) cannot be measured this way: it is reported
-    too, rather than skipped.
+    too, rather than skipped. Limit: a non-empty model does not mean the tested column is
+    non-empty (an all-NULL column, a `unique` over one row); that is not measured here.
     """
     rows: dict[str, int] = {}
 
