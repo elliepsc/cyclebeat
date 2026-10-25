@@ -43,8 +43,12 @@ PATTERNS = [
 
 def _assert_only_failure(result: subprocess.CompletedProcess[str], guard: str) -> None:
     failing = chain.failing_tests(result)
+    # A model that fails to build is an ERROR line, not a FAIL one: it would sit unseen next
+    # to the guard's FAIL.
+    errors = [line for line in result.stdout.splitlines() if " ERROR creating " in line]
     assert result.returncode != 0, result.stdout[-4000:]
     assert len(failing) == 1 and guard in failing[0], result.stdout[-4000:]
+    assert errors == [], result.stdout[-4000:]
 
 
 @pytest.mark.parametrize(

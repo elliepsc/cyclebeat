@@ -2,8 +2,8 @@
 
 `tests/reference_dataset.py` is written as a two-partition lake, the demo snapshot adds the
 tracks, the CLI loads the lake, the dlt pipeline loads the real pattern file, then dbt runs on
-the temporary warehouse. That gives every data test rows to run on: before #60 the CI warehouse
-held 0 sessions and 0 feedback, and 35 of the 78 data tests ran over empty models.
+the temporary warehouse. That gives every data test rows to run on: before #60, on a copy of
+the local warehouse (0 sessions, 0 feedback), 35 of the 78 data tests ran over empty models.
 
 `dbt run` then `dbt test`, not `dbt build`: under `build` a failing data test skips everything
 downstream, and a reconciliation below would then fail on a missing table instead of on its
@@ -84,7 +84,10 @@ def test_every_data_test_passes(warehouse: Warehouse) -> None:
 def vacuous_tests(manifest: dict[str, Any], con: duckdb.DuckDBPyConnection) -> list[str]:
     """Data tests whose every tested model has 0 rows (the #60 method).
 
-    A generic test tests its `attached_node`; a singular test, every model it depends on.
+    A generic test tests its `attached_node`; a singular test, every model it depends on. A
+    test that depends on no model (a source test) cannot be measured this way: it is reported
+    too, rather than skipped. Limit: a non-empty model does not mean the tested column is
+    non-empty (an all-NULL column, a `unique` over one row); that is not measured here.
     """
     rows: dict[str, int] = {}
 
@@ -105,7 +108,9 @@ def vacuous_tests(manifest: dict[str, Any], con: duckdb.DuckDBPyConnection) -> l
         models = [attached] if attached else [
             dep for dep in node["depends_on"]["nodes"] if dep.startswith("model.")
         ]
-        if models and all(count(model) == 0 for model in models):
+        if not models:
+            vacuous.append(f"{test_id} (tests no model)")
+        elif all(count(model) == 0 for model in models):
             vacuous.append(test_id)
     return sorted(vacuous)
 
@@ -118,7 +123,8 @@ def test_no_data_test_runs_over_an_empty_model(warehouse: Warehouse) -> None:
         vacuous = vacuous_tests(manifest, con)
     finally:
         con.close()
-    assert n_tests == 78
+    # 78 data tests at #60's start, plus `check_feedback_enriched_grain` added by #60.
+    assert n_tests == 79
     assert vacuous == []
 
 

@@ -30,7 +30,7 @@ feedback marts on rows:
 - the **reference dataset** ([#60](https://github.com/elliepsc/cyclebeat/issues/60)):
   `tests/test_reference_warehouse.py` runs the whole dbt project on a synthetic two-partition
   lake (`tests/reference_dataset.py`) through the real loaders, in CI with `make test-unit`.
-  No data test runs over an empty model there (0 of 78), the indicators are compared to values
+  No data test runs over an empty model there (0 of 79), the indicators are compared to values
   computed by hand, and each mart total is reconciled with the count at its source.
   `tests/test_data_guards_fail.py` shows `check_invalid_rating`, `check_invalid_duration` and
   `check_invalid_pattern_buckets` each failing on its own bad value.
@@ -39,7 +39,8 @@ On the track and pattern marts, which the demo snapshot fills, the data tests ru
 
 ## Where the data comes from, and which window it covers
 
-Checked on the code at #60; the line numbers are those of that commit.
+Checked on commit c142425 of the #60 branch; the line numbers are those of that commit and will
+drift as the files change.
 
 **Production** (Render, `render.yaml`):
 - The warehouse the API serves is built **once, at image-build time** (`Dockerfile:40-45`, the
@@ -58,8 +59,9 @@ Checked on the code at #60; the line numbers are those of that commit.
 - **The sessions created by the post-deploy test do not reach a mart.**
   `tools/deploy.py:205-207` calls `POST /v1/sessions/generate`, which stores the session in the
   app store (`api/services/session.py:110`). Nothing re-extracts at runtime: the container runs
-  uvicorn only (`Dockerfile:61`), and `render.yaml` deploys no Airflow. The next image build
-  deletes the store again.
+  uvicorn only (`Dockerfile:61`), and `render.yaml` deploys no Airflow. The store is the
+  container's own SQLite file, lost when the next deploy starts a fresh container (no disk,
+  [ADR-003](adr/adr-003-render-no-disk.md)); the next image is built from an empty store again.
 
 **Locally:**
 - `make ingest` (`Makefile:92-96`) extracts the local app store (SQLite `data/cyclebeat_app.db`,
@@ -74,7 +76,7 @@ keeps:
 
 | Indicator | Window |
 |---|---|
-| `mart_session_kpis` (all columns but `avg_satisfaction_pct`) | Every session in any lake partition, latest copy of each (`stg_sessions`): every session extracted since the oldest partition kept |
+| `mart_session_kpis` (all columns but `avg_satisfaction_pct`) | Every session in any lake partition, latest copy of each (`stg_sessions`), except those with no `session_id` or a `duration_min` of 0 or less: every session extracted since the oldest partition kept |
 | `avg_satisfaction_pct`, `int_session_summary` counts | Those sessions × the feedback of the **latest** partition only (`stg_feedback`, #54) |
 | `mart_feedback_summary` | The feedback of the latest partition: the whole store at the last extraction, all dates |
 | `mart_recent_activity` | The 20 most recent feedback of the latest partition, by `feedback_at` |
@@ -157,8 +159,9 @@ of the session it rates when it carries a `session_id`. The key follows from tha
 
 Key: `(session_id, session_title, feedback_at)`, asserted by
 `dbt/tests/check_recent_activity_grain.sql` and, over every feedback, by
-`dbt/tests/check_stg_feedback_grain.sql`. `tests/test_feedback_dedup.py` shows both tests failing
-on a duplicated feedback.
+`dbt/tests/check_stg_feedback_grain.sql`; the same key holds on `int_feedback_enriched`
+(`dbt/tests/check_feedback_enriched_grain.sql`, #60). `tests/test_feedback_dedup.py` shows the
+three tests failing on a duplicated feedback.
 
 The key **assumes** that two inserts on one session never share a timestamp. API rows take
 `datetime.now(UTC)` at µs per insert. v1 rows took DuckDB `now()`, the transaction start, so two v1

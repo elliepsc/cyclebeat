@@ -1,5 +1,9 @@
 -- Feedback joined with session context — the decision layer for quality analysis.
 --
+-- Grain: one row represents one feedback of `stg_feedback`, with the context of the session it
+-- rates when it carries a `session_id`. Key: (session_id, session_title, feedback_at), asserted
+-- by `dbt/tests/check_feedback_enriched_grain.sql`.
+--
 -- Joined on `session_id` only (ADR-008), the same rule as `int_session_summary`. A title is a
 -- mutable, non-unique display string; two sessions called the same thing were
 -- indistinguishable, which is the defect the rekeying fixed.
