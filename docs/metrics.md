@@ -24,9 +24,65 @@ failed on the previous `sum()` version of the mart (expected 0, got NULL).
 ## Which tests prove something
 
 The demo and CI warehouses hold **0 sessions and 0 feedback**. A `unique`, `not_null` or
-`accepted_values` test over an empty table always passes. On those marts, the guards that prove
-a KPI's definition are the **unit tests**, which run the model's SQL on fixed inputs. On the
-track and pattern marts, which the demo snapshot fills, the data tests run on real rows.
+`accepted_values` test over an empty table always passes. Two things exercise the session and
+feedback marts on rows:
+- the **unit tests**, which run the model's SQL on fixed inputs;
+- the **reference dataset** ([#60](https://github.com/elliepsc/cyclebeat/issues/60)):
+  `tests/test_reference_warehouse.py` runs the whole dbt project on a synthetic two-partition
+  lake (`tests/reference_dataset.py`) through the real loaders, in CI with `make test-unit`.
+  No data test runs over an empty model there (0 of 78), the indicators are compared to values
+  computed by hand, and each mart total is reconciled with the count at its source.
+  `tests/test_data_guards_fail.py` shows `check_invalid_rating`, `check_invalid_duration` and
+  `check_invalid_pattern_buckets` each failing on its own bad value.
+
+On the track and pattern marts, which the demo snapshot fills, the data tests run on real rows.
+
+## Where the data comes from, and which window it covers
+
+Checked on the code at #60; the line numbers are those of that commit.
+
+**Production** (Render, `render.yaml`):
+- The warehouse the API serves is built **once, at image-build time** (`Dockerfile:40-45`, the
+  demo warehouse `RUN`; [ADR-003](adr/adr-003-render-no-disk.md)):
+  - the patterns come from `data/cycling_patterns.json`;
+  - the tracks come from the committed demo snapshot;
+  - the sessions and feedback come from `cyclebeat.cli extract-app`.
+- At that step the app store is empty: the same `RUN` first deletes `data/*.db`, and
+  `render.yaml` sets no `DATABASE_URL` (`render.yaml:31-37`; the dashboard was not checked). So
+  `read_sessions` and `read_feedback` find no store (`cyclebeat/app_store.py:89-90`) and no
+  partition is written (`cyclebeat/app_store.py:173-181`).
+- **`fct_session` is therefore empty in production**, and so are `mart_feedback_summary` and
+  `mart_recent_activity`; `mart_session_kpis` is its one empty-history row. This follows from the
+  build; it was not measured on the deployed instance. The MCP tools, and the future copilot, can query
+  `fct_session` (`MARTS_ALLOWLIST`, `api/services/warehouse_tools.py:58-60`) and get 0 rows.
+- **The sessions created by the post-deploy test do not reach a mart.**
+  `tools/deploy.py:205-207` calls `POST /v1/sessions/generate`, which stores the session in the
+  app store (`api/services/session.py:110`). Nothing re-extracts at runtime: the container runs
+  uvicorn only (`Dockerfile:61`), and `render.yaml` deploys no Airflow. The next image build
+  deletes the store again.
+
+**Locally:**
+- `make ingest` (`Makefile:92-96`) extracts the local app store (SQLite `data/cyclebeat_app.db`,
+  or Postgres when `DATABASE_URL` is set) into the lake partition of the current UTC day, then
+  loads the lake.
+- `make dbt` (`Makefile:81-82`) rebuilds the marts.
+- `dag_build_warehouse` does the same three steps (`dags/dag_build_warehouse.py:44-77`).
+- The marts reflect the store **as of the last extraction**, not as of now.
+
+**Windows.** No mart filters on a date. Every indicator covers everything its staging model
+keeps:
+
+| Indicator | Window |
+|---|---|
+| `mart_session_kpis` (all columns but `avg_satisfaction_pct`) | Every session in any lake partition, latest copy of each (`stg_sessions`): every session extracted since the oldest partition kept |
+| `avg_satisfaction_pct`, `int_session_summary` counts | Those sessions × the feedback of the **latest** partition only (`stg_feedback`, #54) |
+| `mart_feedback_summary` | The feedback of the latest partition: the whole store at the last extraction, all dates |
+| `mart_recent_activity` | The 20 most recent feedback of the latest partition, by `feedback_at` |
+| `mart_bpm_coverage`, `mart_data_quality`, `dim_track` | Every track in any partition, latest copy per track (`stg_tracks`, `stg_resolutions`) |
+| `mart_pattern_coverage` | The pattern file as last loaded (`save_patterns` deletes then inserts) |
+
+The timestamps these windows rest on are documented as UTC but are written in the time zone of
+the process that wrote the lake ([#57](https://github.com/elliepsc/cyclebeat/issues/57)).
 
 ## Feedback is read from the latest lake partition only ([#54](https://github.com/elliepsc/cyclebeat/issues/54))
 
@@ -92,9 +148,11 @@ are never mixed (ADR-009). Guards: `not_null` and `accepted_values` on the key c
 
 Grain: **one row represents one feedback**, as held by the latest lake extraction (one insert
 into the app-store `feedback` table), among the 20 most recent by `feedback_at`, with the context
-of the session it rates. The key follows from that:
+of the session it rates when it carries a `session_id`. The key follows from that:
 - `session_id` identifies the rated session for API rows;
-- `session_title` does it for v1 rows, whose `session_id` is NULL;
+- `session_title` identifies the row for v1 rows, whose `session_id` is NULL. A v1 row has no
+  session context (`level`, `goal`, `duration_min`, `track_count` are NULL): it is attached by
+  `session_id` only, like `int_session_summary` (ADR-008; the title fallback was removed in #60);
 - `feedback_at` separates two inserts on the same session.
 
 Key: `(session_id, session_title, feedback_at)`, asserted by

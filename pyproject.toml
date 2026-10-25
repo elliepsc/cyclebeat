@@ -106,7 +106,9 @@ testpaths = ["tests"]
 # tests/integration/ drives a running compose stack (phase 8) and is NOT part of
 # `make test-unit`: ignored at collection, so a unit run never even imports it. Run it with
 # `make test-integration`, which overrides addopts.
-addopts = "-q --ignore=tests/integration"
+# `--durations=10` prints the slowest tests, which is how the CI duration of the dbt chain
+# tests is measured (#60: over 60 s is escalated).
+addopts = "-q --ignore=tests/integration --durations=10"
 markers = [
     "integration: black-box HTTP test against the compose stack (make test-integration)",
 ]

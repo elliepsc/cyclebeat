@@ -184,3 +184,6 @@ Who does what, the hand-offs and where each trace lands: [docs/agent-team.md](do
 - A composite-grain test uses a singular `GROUP BY ... HAVING count(*) > 1`, not `unique` on a concatenated key: a NULL in one column makes the concatenation NULL and hides the duplicate.
 - When the docs leave a tool's behaviour open (a dbt unit test with `rows: []`), the answer is a first run against the unchanged code, expected to fail; record the docs URL and the locked version next to the measurement.
 - Under `dbt build`, a failing test skips everything downstream: to prove that a downstream test fails, run `dbt run` then `dbt test`.
+- The final DoD runs with no sub-agent active in the repository: two simultaneous commands mix their effects, including in dbt/target (#55).
+- A test that asserts a change is shown red on the base branch; a test that pins existing behaviour is shown green on the base and red on a mutation (#55).
+- An unrecognised or NULL value goes to unknown, which a singular test fails, never into the else of a real category (#54, #55).

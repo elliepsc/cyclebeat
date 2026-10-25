@@ -31,3 +31,39 @@ unit_tests:
     expect:
       rows:
         - {id: 'p_no_window', bpm_bucket: 'unknown'}
+
+  - name: int_feedback_enriched_v1_title_equal_to_a_session_id_is_not_attached
+    description: >
+      A v1 row (NULL `session_id`) is attached by `session_id` only, like
+      `int_session_summary` does (#60): even a `session_title` equal to an existing
+      `session_id` gives it no session context. Failed on the version whose join kept a
+      title fallback (`f.session_title = s.session_id`), which attached it (`level`
+      'beginner').
+    model: int_feedback_enriched
+    given:
+      - input: ref('stg_sessions')
+        rows:
+          - {session_id: 'aaaaaaaa-0000-4000-8000-000000000001', level: 'beginner', goal: 'endurance', verdict: 'safe', duration_min: 30, duration_s: 1830.0, track_count: 6}
+      - input: ref('stg_feedback')
+        rows:
+          - {session_id: null, session_title: 'aaaaaaaa-0000-4000-8000-000000000001', rating: 'Hard', rating_raw: 'Hard', rating_scale: 'effort', created_at: '2026-04-21 10:00:00'}
+    expect:
+      rows:
+        - {session_title: 'aaaaaaaa-0000-4000-8000-000000000001', level: null, goal: null, verdict: null}
+
+  - name: int_feedback_enriched_v1_ordinary_title_has_no_session_context
+    description: >
+      A v1 row with an ordinary display title has no session context (ADR-008: v1 rows keep
+      a NULL `session_id`, nothing back-fills a guess). True before and after #60; fails on
+      a join that attaches every NULL `session_id` row (`or f.session_id is null`).
+    model: int_feedback_enriched
+    given:
+      - input: ref('stg_sessions')
+        rows:
+          - {session_id: 'aaaaaaaa-0000-4000-8000-000000000001', level: 'beginner', goal: 'endurance', verdict: 'safe', duration_min: 30, duration_s: 1830.0, track_count: 6}
+      - input: ref('stg_feedback')
+        rows:
+          - {session_id: null, session_title: 'Sunday hill ride', rating: 'Great', rating_raw: 'Great', rating_scale: 'effort', created_at: '2026-04-20 10:00:00'}
+    expect:
+      rows:
+        - {session_title: 'Sunday hill ride', level: null, goal: null, verdict: null}
