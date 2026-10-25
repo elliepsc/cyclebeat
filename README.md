@@ -21,6 +21,19 @@ own evaluator, and a contract-first API.
 
 ---
 
+## What it looks like
+
+Pick a level, a goal and a duration, then generate a session:
+
+![The "Plan a session" form: level Beginner, goal Endurance, 30 minutes](docs/screenshots/form.png)
+
+The generated session: the evaluator's verdict, then one row per track with its role, zone, BPM,
+BPM confidence and duration, and the form to rate the session:
+
+![A generated 30-minute beginner endurance session, verdict safe, 8 tracks from Z1 to Z4](docs/screenshots/run.png)
+
+Screenshots taken by the owner, in a browser, on 25 October 2026.
+
 ## Why this project
 
 Indoor-cycling classes tie riders to a fixed playlist and a fixed instructor. CycleBeat starts from
