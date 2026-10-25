@@ -1,5 +1,69 @@
 # AI workflow log
 
+## Session 2026-10-25 — Pre-submission (issue #47) — Finishing touches: a sourced Mermaid architecture diagram, the owner's screenshots, `backend/README.md`, the stale README banner and phase-10 row, the browser proof in `docs/quality-bar.md`, plus a minimal ROADMAP coherence pass
+
+**Loop**: prompt → issue read → branch cut from `origin/main` @ 2b2b4f0 (merge of PR #62) → plan commented on #47 → edits commit by commit, no wait for approval (owner's decision) → `[présentable]` proposals posted → first report → owner decisions → docstring and ROADMAP commits → contract-guardian pass 1 → fixes → pass 2 → screenshots → this entry. Final DoD, push and PR: pending.
+**Tool/model**: Claude Code / Claude Opus 5.5
+**Initial prompt**: (faithful summary) work issue #47, "Finishing touches": one sourced Mermaid architecture diagram in the README, screenshots, `backend/README.md`, the stale README status banner, the phase-10 roadmap row, and the browser proof in `docs/quality-bar.md`. The owner added four instructions:
+- FR-12 of `product-spec.md`, as the first commit, cites the PRs that delivered #60. The agent read them with a command (`gh pr list --head test/60-reference-dataset`, per the plan comment): #60 shipped in two merged PRs, #61 and #62 (4de67fd).
+- In `docs/ROADMAP.md`, the phase-11 exit criterion "testé depuis un clone propre par quelqu'un d'autre" becomes "audit à froid depuis un clone propre, par une session neuve", with a dated note (ddccb99).
+- CLAUDE.md is frozen until submission: no line added, including the 3 pitfalls proposed in the #60 entry below.
+- Any other defect found goes in a `[présentable]` proposal posted on the issue, not in the branch.
+- Post the plan and proceed without waiting for approval, since this is a low-risk docs issue. This departs from step 3 of `docs/agent-team.md`; the owner decided it, and the plan comment says so (#47, comment 6397992593).
+**Process followed**:
+- **States checked before editing** (plan comment, on `origin/main` @ 2b2b4f0): `docs/screenshots/` tracked `.gitkeep` only and `backend/` was not tracked; the banner still said the frontend's "public deployment is next" while the `deploy` job's smoke test GETs the web URL; phase 10 still read "in review" though PR #42 was merged; the browser-proof note exists and covers the **compose** front (localhost:4173), not production.
+- **Diagram** (712a165): it replaces the ASCII pipeline sketch. Every box and arrow has a `file:line` source in a table under it (rows A1-A18), and an arrow with no source is left out. It shows three things separately:
+  - production: the Render static site → the API → SQLite inside the container; the DuckDB warehouse is built once at image-build time, the container runs uvicorn only and nothing re-extracts at runtime, as #60 established;
+  - local compose: nginx web → API → Postgres;
+  - the opt-in `pipeline` profile (ingest, dbt, Airflow).
+  The issue's "nginx serving React" and "Postgres (transactional)" hold for compose only; the diagram follows the code, and the plan comment flagged the difference.
+- **Found while drawing**: no path takes the compose Postgres store into a warehouse. No `pipeline` profile service sets `DATABASE_URL`, and the `postgres` service publishes no port, so `make ingest` from the host cannot reach it either. No arrow is drawn for it.
+- **The `[présentable]` comment** (comment 6398032416) listed five defects left out of the branch: the `database.py` docstring ("Postgres in compose and production"), the `render.yaml` header, a `Dockerfile` line about phase 5, the compose-Postgres gap above, and the README roadmap table.
+- **A hook refusal**: the PreToolUse hook refused a `grep -r` over `.`, because it reaches `.env`. The search was rerun with `--exclude='.env*'`. This is not a workaround: it is the form the hook's own message prescribes (`agent-hooks/pre_tool_use.py`, "exclude it explicitly (--exclude='.env*', -g '!.env*', -x '.env*') or search a subfolder"). The hook was not touched.
+**Owner decisions** (after the first report, relayed on #47, comment 6402032543):
+1. Fix the `database.py` docstring, which claimed "Postgres in compose and production", in its own commit (7d1ddb7), docstring only.
+2. The compose-Postgres finding goes as a complement comment on #49 (comment 6402037505), pointing back to the comment posted there during #54. No new `[présentable]` line.
+3. The `--exclude='.env*'` grep is written as the hook's prescribed form, not as a workaround (above).
+4. A minimal ROADMAP coherence pass (306619e): §2.7 now says production runs SQLite and cites ADR-009's dated note; §2.2 follows the §2.6 mapping; §1 and §5 get a dated "instantané d'août 2026" note. Nothing else is rewritten. The element is ✅ in the phase-11 row; "finalisation `ai-workflow.md`" stays 🟡 until the cold audit.
+5. No GIF (comment 6402272593): the two screenshots, `docs/screenshots/form.png` and `docs/screenshots/run.png`, cover the criterion; the phase-11 row says "captures" ✅ (55c6d80). The `[présentable]` line "GIF de démo, test depuis un clone propre par une autre personne" is outside this decision and left as is.
+**Reviews**:
+- contract-guardian ran because the docstring commit touches `api/`.
+  - Pass 1 (`security/pr-audits/pr-47-contract-guardian.md`, on 306619e): CHANGES REQUIRED. Findings 3 and 4 were blocking: the docstring commit 7d1ddb7 moved `database.py` down by 8 lines and broke two README source pointers (A5, A9) written in the earlier commit 712a165. Findings 1, 2 and 5 were wording: "Postgres when `DATABASE_URL` is set" (the code needs a Postgres DSN), "never `DATABASE_URL`" (the CI fixture derives one from `TEST_DATABASE_URL`), and "read-only" without the read-write fallback of `readable()`. Fixed in 2ffe72e (1, 2) and 59cedd0 (3, 4, 5).
+  - While fixing 3 and 4, the agent grepped for `database.py:` pointers and found a third broken one, `ops/incident-2026-10-15-postgres-down.md:50` (`:150` → `:158`), fixed in 59cedd0. The agent had not run that grep before editing the docstring, which CLAUDE.md's Known pitfalls ask for.
+  - Pass 2 (`security/pr-audits/pr-47-contract-guardian-pass2.md`, on ddf96b9): APPROVED, findings 1-5 confirmed fixed. Finding 6, non-blocking: the `database.py:74` pointer in the #60 entry below is right only at 8689d4a and did not say so. Fixed by making the pin explicit, "at 8689d4a" (4144cfe).
+  - Triage of both passes: `security/pr-audits/pr-47-triage.md`.
+- No other reviewer's trigger matched: the diff touches no `dbt/`, SQL, `openapi.yaml`, guardrails, CI workflow or `Makefile`.
+**Corrected by human review** (owner, and reviewer where stated):
+1. The agent first listed the false `database.py` docstring as a borderline `[présentable]` proposal, not a fix. The owner decided it is fixed in this branch, in its own commit.
+2. The owner decided where the compose-Postgres finding goes (a complement on #49), not a new roadmap line.
+3. The owner ruled on how to describe the `.env*`-excluded grep: the hook's prescribed form, not a workaround.
+4. The owner set the bounds of the ROADMAP pass (four edits, nothing else) and kept "finalisation `ai-workflow.md`" at 🟡.
+5. The reviewer (pass 1) caught two README pointers broken by the agent's own docstring commit; the agent then found a third. The pitfall was known and written down, and the agent did not apply it before editing.
+6. The reviewer (pass 2) caught an implicit pin in an earlier entry of this log.
+7. The owner dropped the GIF. The agent's first relay of that decision on #47 said the GIF was removed from the README and `docs/quality-bar.md`, which never mentioned it; the agent corrected the comment, which now says the GIF appeared only in the phase-11 row.
+**Open point flagged to the owner, not written in the repo**: the owner cited "critère V1 n°4 (« une capture ou un GIF »)". Neither `docs/grading-criteria.md` nor `docs/archive/grading-criteria-v1-2026-10-09.md` contains that wording; old-grid criterion 4 is "Frontend Implementation".
+**Screenshots**: made by the owner, in a browser, and committed in 55c6d80. They show no URL bar, so this entry does not say which deployment (production or compose) they were taken on.
+**Role split**:
+- Decided by the owner: the scope additions (FR-12, the phase-11 criterion, the CLAUDE.md freeze), proceeding without plan approval, the five decisions above, and the screenshots themselves.
+- Done by the agent: the state checks, the diagram and its source table, `backend/README.md`, the banner, phase-10 row, quality-bar row, FR-12 and ROADMAP edits, the docstring, the `[présentable]` and #49 comments, the review fixes and the triage.
+- Done by contract-guardian: two passes.
+- Pending: the final DoD, the push, a check that the Mermaid diagram renders on GitHub (owner's decision 5 in comment 6402032543, before the `gh pr create` command is handed over), then the owner opens and merges the PR.
+**Verification**:
+- contract-guardian ran `make contract` in each pass: 25 passed, exit 0 (as reported in the raw outputs).
+- `uv run python tools/check_links.py` after writing this entry.
+- The final DoD (`make lint`, `typecheck`, `test-unit`, `eval`, `dbt`, `contract`) has not run yet; no CI run exists, the branch is not pushed.
+**Spec/actual gaps** (issue #47 vs the branch):
+- The diagram does not draw "web (nginx) → API → Postgres" as the production path: that holds for compose only, and production is a Render static site and SQLite.
+- "A screenshot or GIF of the browser journey (generate, view, rate a session)": two screenshots, form and generated session. `run.png` shows the rating form, unfilled; no sent rating is shown.
+- Added by the owner beyond the issue: FR-12, the phase-11 criterion, the ROADMAP coherence pass and the `database.py` docstring.
+**Lesson**:
+- A diagram where every arrow needs a `file:line` cannot draw a path the code does not have: the compose-Postgres gap, already recorded on #49 during #54 for Airflow, showed up again as a missing arrow, with a second cause (no published port).
+- Editing a file that other docs point into by line number breaks those pointers in commits that are already written; the review caught what a grep before the edit would have.
+- Relaying a decision is a claim like any other: the first no-GIF comment described edits that never happened.
+**To capitalize in CLAUDE.md**: nothing now (CLAUDE.md is frozen until submission). Candidates for the post-submission CLAUDE.md cleanup:
+- "A doc comment that relays an owner decision describes only edits that are in the diff."
+- "An architecture diagram draws an arrow only where a `file:line` shows the data path; a path with no source is a finding, not an arrow."
+
 ## Session 2026-10-24/25 — Pre-submission (issue #60) — A small synthetic reference dataset through the real chain (lake → load → `dbt run` + `dbt test`), with reconciliations, hand-computed indicators, failing guard fixtures and per-indicator provenance; the v1 title fallback of `int_feedback_enriched` removed on the way
 
 **Loop**: prompt → issue read → branch cut from `origin/main` @ a16fabc → v1 fallback investigated (ADR-008, git history) → STOP → owner decision (option A) → plan commented on #60 → STOP → plan approved with two additions → CLAUDE.md commit → red unit tests → fix → reference dataset → first run → R2 gap → STOP → owner decision → rerun → guard fixtures → docs → dbt-reviewer → fixes → dbt-reviewer pass 2 → wording fixes → DoD
