@@ -32,6 +32,10 @@ BPM confidence and duration, and the form to rate the session:
 
 ![A generated 30-minute beginner endurance session, verdict safe, 8 tracks from Z1 to Z4](docs/screenshots/run.png)
 
+Then rate it, with an optional note:
+
+![The rating form of the same session, filled in: "Good", with the note "Great session", above the Send feedback button](docs/screenshots/rate.png)
+
 Screenshots taken by the owner, in a browser, on 25 October 2026.
 
 ## Why this project

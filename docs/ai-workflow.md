@@ -2,7 +2,7 @@
 
 ## Session 2026-10-25 — Pre-submission (issue #47) — Finishing touches: a sourced Mermaid architecture diagram, the owner's screenshots, `backend/README.md`, the stale README banner and phase-10 row, the browser proof in `docs/quality-bar.md`, plus a minimal ROADMAP coherence pass
 
-**Loop**: prompt → issue read → branch cut from `origin/main` @ 2b2b4f0 (merge of PR #62) → plan commented on #47 → edits commit by commit, no wait for approval (owner's decision) → `[présentable]` proposals posted → first report → owner decisions → docstring and ROADMAP commits → contract-guardian pass 1 → fixes → pass 2 → screenshots → this entry. Final DoD, push and PR: pending.
+**Loop**: prompt → issue read → branch cut from `origin/main` @ 2b2b4f0 (merge of PR #62) → plan commented on #47 → edits commit by commit, no wait for approval (owner's decision) → `[présentable]` proposals posted → first report → owner decisions → docstring and ROADMAP commits → contract-guardian pass 1 → fixes → pass 2 → screenshots → this entry → final DoD (dbt gate blocked by the hook) → owner decisions → third screenshot → push. The PR is opened by the owner, after this entry.
 **Tool/model**: Claude Code / Claude Opus 5.5
 **Initial prompt**: (faithful summary) work issue #47, "Finishing touches": one sourced Mermaid architecture diagram in the README, screenshots, `backend/README.md`, the stale README status banner, the phase-10 roadmap row, and the browser proof in `docs/quality-bar.md`. The owner added four instructions:
 - FR-12 of `product-spec.md`, as the first commit, cites the PRs that delivered #60. The agent read them with a command (`gh pr list --head test/60-reference-dataset`, per the plan comment): #60 shipped in two merged PRs, #61 and #62 (4de67fd).
@@ -41,20 +41,24 @@
 5. The reviewer (pass 1) caught two README pointers broken by the agent's own docstring commit; the agent then found a third. The pitfall was known and written down, and the agent did not apply it before editing.
 6. The reviewer (pass 2) caught an implicit pin in an earlier entry of this log.
 7. The owner dropped the GIF. The agent's first relay of that decision on #47 said the GIF was removed from the README and `docs/quality-bar.md`, which never mentioned it; the agent corrected the comment, which now says the GIF appeared only in the phase-11 row.
-**Open point flagged to the owner, not written in the repo**: the owner cited "critère V1 n°4 (« une capture ou un GIF »)". Neither `docs/grading-criteria.md` nor `docs/archive/grading-criteria-v1-2026-10-09.md` contains that wording; old-grid criterion 4 is "Frontend Implementation".
-**Screenshots**: made by the owner, in a browser, and committed in 55c6d80. They show no URL bar, so this entry does not say which deployment (production or compose) they were taken on.
+**Point flagged to the owner**: the owner cited "critère V1 n°4 (« une capture ou un GIF »)". Neither `docs/grading-criteria.md` nor `docs/archive/grading-criteria-v1-2026-10-09.md` contains that wording. The owner confirmed it comes from the acceptance criteria of issue #47, not from a grid, and that the criterion asks for "generate, view, rate", which led to `rate.png`.
+**Screenshots**: made by the owner, in a browser. `form.png` and `run.png` were committed in 55c6d80; `rate.png`, added by the owner after the issue's "generate, view, rate" was pointed out, in the push commit. They show no URL bar, so this entry does not say which deployment (production or compose) they were taken on. `rate.png` shows the rating filled in ("Good", note "Great session") before Send feedback; the owner's `rate_confirmation.png` (the "Thanks, your feedback was recorded." message) is left untracked, since the owner asked for `rate.png` only.
 **Role split**:
 - Decided by the owner: the scope additions (FR-12, the phase-11 criterion, the CLAUDE.md freeze), proceeding without plan approval, the five decisions above, and the screenshots themselves.
 - Done by the agent: the state checks, the diagram and its source table, `backend/README.md`, the banner, phase-10 row, quality-bar row, FR-12 and ROADMAP edits, the docstring, the `[présentable]` and #49 comments, the review fixes and the triage.
 - Done by contract-guardian: two passes.
-- Pending: the final DoD, the push, a check that the Mermaid diagram renders on GitHub (owner's decision 5 in comment 6402032543, before the `gh pr create` command is handed over), then the owner opens and merges the PR.
+- Pending at the time of writing: the push, a check that the Mermaid diagram renders on GitHub (owner's decision 5 in comment 6402032543, before the `gh pr create` command is handed over), then the owner opens and merges the PR.
 **Verification**:
 - contract-guardian ran `make contract` in each pass: 25 passed, exit 0 (as reported in the raw outputs).
 - `uv run python tools/check_links.py` after writing this entry.
-- The final DoD (`make lint`, `typecheck`, `test-unit`, `eval`, `dbt`, `contract`) has not run yet; no CI run exists, the branch is not pushed.
+- Final DoD on 09eca87, run alone (no subagent active), 25 October 2026: `make lint` 0 dead links; `make typecheck` no issues in 21 files; `make test-unit` 808 passed / 15 skipped / 2 xfailed; `make eval` 55 passed; `make contract` 25 passed.
+- **The dbt gate is not declared green by `make dbt`: it is covered another way, by owner decision** (#47, comment 6403929898). The agent planned a cold scratch warehouse built like CI's, as for #60. The PreToolUse hook refused two commands, and neither was retried in another form:
+  - the `data/`/`lake/` fingerprint (`find data lake -type f -exec sha256sum …`: "reaches data/ and lake/"). The owner ruled this refusal normal;
+  - `cyclebeat.cli ingest` (even `--help`), meant to run with `--lake` in the scratchpad: "cyclebeat.cli ingest writes lake/ and data/". The owner judged it a probable false positive. It is filed as a `[présentable]` proposal on #47 (comment 6403930249), for the post-submission hardening issue; the hook is untouched.
+  The owner decided that, for this diff (no `dbt/`, no SQL), the gate is covered by `tests/test_reference_warehouse.py`. That test is part of `make test-unit` (808 passed on 09eca87; its fixture setup ran, 16.13 s) and runs `dbt run`, then `dbt test`, on the whole project, on a cold warehouse under `tmp_path`. The CI `build` job also runs `make ingest` then `make dbt`. The 5 manual commands the agent proposed were not run.
 **Spec/actual gaps** (issue #47 vs the branch):
 - The diagram does not draw "web (nginx) → API → Postgres" as the production path: that holds for compose only, and production is a Render static site and SQLite.
-- "A screenshot or GIF of the browser journey (generate, view, rate a session)": two screenshots, form and generated session. `run.png` shows the rating form, unfilled; no sent rating is shown.
+- "A screenshot or GIF of the browser journey (generate, view, rate a session)": three screenshots, form, generated session and rating. The rating one shows the form filled in, before it is sent.
 - Added by the owner beyond the issue: FR-12, the phase-11 criterion, the ROADMAP coherence pass and the `database.py` docstring.
 **Lesson**:
 - A diagram where every arrow needs a `file:line` cannot draw a path the code does not have: the compose-Postgres gap, already recorded on #49 during #54 for Airflow, showed up again as a missing arrow, with a second cause (no published port).
