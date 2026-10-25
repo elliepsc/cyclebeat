@@ -54,9 +54,11 @@ def checked(result: subprocess.CompletedProcess[str]) -> subprocess.CompletedPro
     return result
 
 
-def write_lake(module: str, lake_root: Path, warehouse: Path, work: Path) -> None:
-    """Write a synthetic app-store lake with `python -m <module> <lake_root>`."""
-    checked(run([PYTHON, "-m", module, str(lake_root)], warehouse, work))
+def write_lake(
+    module: str, lake_root: Path, warehouse: Path, work: Path, *args: str
+) -> None:
+    """Write a synthetic app-store lake with `python -m <module> <lake_root> [args]`."""
+    checked(run([PYTHON, "-m", module, str(lake_root), *args], warehouse, work))
 
 
 def ingest_demo_tracks(lake_root: Path, warehouse: Path, work: Path) -> None:
