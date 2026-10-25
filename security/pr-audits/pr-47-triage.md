@@ -18,3 +18,11 @@ re-checked against the code before it was fixed.
 Fixed in 59cedd0. The agent had not run that grep before editing the docstring, which the
 "Known pitfalls" of CLAUDE.md ask for. The pointer in `docs/ai-workflow.md` (`database.py:74`)
 is pinned to commit 8689d4a and was left as is.
+
+## Second pass
+
+[pr-47-contract-guardian-pass2.md](pr-47-contract-guardian-pass2.md), on ddf96b9: APPROVED. Findings 1-5 are confirmed fixed.
+
+| # | Finding | Verdict | Where |
+|---|---|---|---|
+| 6 | `docs/ai-workflow.md:14` cites `database.py:74` "since 8689d4a". The line is right at that commit, but the docstring commits moved it to `:82` at HEAD, and nothing in the pointer says it is read at 8689d4a | fixed, option A: the pointer now says "at 8689d4a" | the commit that adds this section |

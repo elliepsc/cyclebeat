@@ -11,7 +11,7 @@
   - 8689d4a replaced `s.title` with `s.session_id` when `stg_sessions` lost the title column, but the value compared did not change;
   - so the model header ("title join is kept as a FALLBACK for v1 rows") described something that never ran. That made a delivered claim false, so the agent stopped and asked.
 - **Can a v1 row still exist?** Checked read-only (plan comment 6385358796, §0). None was found:
-  - `feedback.session_id` has been `NOT NULL` since 8689d4a (`api/repositories/database.py:74`);
+  - `feedback.session_id` has been `NOT NULL` since 8689d4a (`api/repositories/database.py:74` at 8689d4a);
   - `lake/` has no `raw/feedback` partition;
   - the working warehouse holds 0 feedback (opened `read_only=True`);
   - production Postgres was not checked (out of reach).
