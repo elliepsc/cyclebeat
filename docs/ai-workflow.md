@@ -1,5 +1,102 @@
 # AI workflow log
 
+## Session 2026-10-24/25 — Pre-submission (issue #60) — A small synthetic reference dataset through the real chain (lake → load → `dbt run` + `dbt test`), with reconciliations, hand-computed indicators, failing guard fixtures and per-indicator provenance; the v1 title fallback of `int_feedback_enriched` removed on the way
+
+**Loop**: prompt → issue read → branch cut from `origin/main` @ a16fabc → v1 fallback investigated (ADR-008, git history) → STOP → owner decision (option A) → plan commented on #60 → STOP → plan approved with two additions → CLAUDE.md commit → red unit tests → fix → reference dataset → first run → R2 gap → STOP → owner decision → rerun → guard fixtures → docs → dbt-reviewer → fixes → dbt-reviewer pass 2 → wording fixes → DoD
+**Tool/model**: Claude Code / Claude Opus 5.5
+**Initial prompt**: (faithful summary) "take issue #N", with the number left as a placeholder. The agent asked which issue. The owner answered #60 and added a brief: first establish whether the v1 fallback in `int_feedback_enriched` was intended, using ADR-008 and the git history.
+**Process followed**:
+- **The fallback was a defect, not a design** (relayed on #60, comment 6385311249). The join `f.session_id = s.session_id or (f.session_id is null and f.session_title = s.session_id)` compared a v1 display title with a `session_id`:
+  - v1 `feedback.session_title` received the session's display title (`db/runtime.py` @ 787e6ed, lines 128 and 145), and the original join was `f.session_title = s.title`;
+  - 8689d4a replaced `s.title` with `s.session_id` when `stg_sessions` lost the title column, but the value compared did not change;
+  - so the model header ("title join is kept as a FALLBACK for v1 rows") described something that never ran. That made a delivered claim false, so the agent stopped and asked.
+- **Can a v1 row still exist?** Checked read-only (plan comment 6385358796, §0). None was found:
+  - `feedback.session_id` has been `NOT NULL` since 8689d4a (`api/repositories/database.py:74`);
+  - `lake/` has no `raw/feedback` partition;
+  - the working warehouse holds 0 feedback (opened `read_only=True`);
+  - production Postgres was not checked (out of reach).
+  - Side effect: the `effort` scale is reachable only through v1 rows, because the API accepts only `up`/`down`. This became a `[présentable]` legacy proposal in `docs/ROADMAP.md` (b233a03), not a fix.
+- **Plan** (comment 6385358796): a dataset with 3 sessions and 8 feedback over two `dt` partitions, including two v1 rows. Hand values were written before any run, and six reconciliations each had a predicted value under a named mutation. The plan listed the data tests that cannot fail given the model SQL; they were reported, not deleted.
+**Owner decisions**:
+1. Option A (comment 6385311249): the join is on `session_id` only, the rule of `int_session_summary`. The fix goes in separate commits: CLAUDE.md first, then the fix, then the rest. The fix comes with two dbt unit tests:
+   - U1 (`int_feedback_enriched_v1_title_equal_to_a_session_id_is_not_attached`) must be red on the base;
+   - U2 (`..._v1_ordinary_title_has_no_session_context`) must be green on the base and red on a mutation.
+   - The issue's v1 criterion ("the two attachment rules give different counts") was dropped and replaced: the v1 fixture now proves a NULL session context and the same attachment rule in both models. The issue body was left as it is, as a record.
+2. Plan approved with two additions (comment 6396653852):
+   - `TZ=UTC` set explicitly in every subprocess of the chain, with a comment pointing to #57;
+   - one must-fail fixture per guard (rating, duration, effort).
+3. The R2 gap (comment 6396749622, below): session A changes between partitions, and a sort-direction test is added.
+**Notable iterations** (`git log origin/main..HEAD`, oldest first):
+- f9cfeb5: the three CLAUDE.md pitfalls proposed in the #54/#55 entries.
+- 3489113: the fix and U1/U2. Per the commit message, U1 was red on the base (`level` NULL expected, `beginner` got), and U2 was green on the base and after, and red on the mutation `or f.session_id is null`. The dbt-reviewer reproduced all three outcomes on a copy (pass 1, Q1).
+- a4d4d4f: `tests/reference_dataset.py`, `tests/chain.py`, `tests/test_reference_warehouse.py`.
+  - **The first run held every hand value**: `avg_satisfaction_pct` 62.5, `sessions_flagged_review` 1, `avg_duration_min` 31.7, satisfaction up 66.67 %, and the others written in the test.
+  - 0 of 78 data tests run over an empty model. The figure was 35 of 78 before, on a copy of the local warehouse.
+- **The gap, not hidden.** The plan predicted `total_sessions` = 4 under the mutation that removes `where recency = 1` in `stg_sessions`. The run gave 3, and R2 stayed green.
+  - The agent stopped and showed the gap without correcting it. It explained the result with queries on the mutated warehouse: A has 2 rows in `stg_sessions` but 1 in `int_session_summary`, because a `group by` over every column collapses two identical copies. The duplicate showed up as `feedback_count` 4 instead.
+  - The owner's decision is justified by the source: the store upserts a session (`api/repositories/session.py:30-41`). So A now has `duration_gap_s` +45.0 on D1 and +30.0 on D2.
+  - The consequences were written on the issue before the rerun: no hand value changes, and R2 becomes 4 under its mutation.
+  - Rerun: R2 = 4. A new test checks the sort direction: `fct_session` gap of A = 30.0, and 45.0 under `order by dt asc`.
+  - The other mutations matched their predictions: R1 11, R3 7, R4 (7, 6), R5 10, R6 11, the `sessions_flagged_review` filter removed → 3, `coalesce(satisfaction_pct, 0)` → 41.7.
+- The `TZ=UTC` addition (`tests/chain.py:28`): the agent reports the test passing from a `TZ=Europe/Paris` shell, and the dbt-reviewer reproduced that (pass 1, "Execution"). The agent also reports that removing the override makes `last_session_at` 10:00 instead of 08:00. That run is not in git.
+- 4f0e1a1: three guard fixtures through the real loaders:
+  - an unknown rating (lake + CLI load);
+  - a session of 9000 s > 7200;
+  - an unknown `effort` through `ingest_pipeline.run(patterns_path)`.
+  - Each exits non-zero with exactly its own FAIL line, and each was shown red on a `where false` mutation of its guard (per the commit message).
+- dcc1b3a: `docs/metrics.md` provenance and windows, cited with file:line (`Dockerfile:40-45`, `Dockerfile:61`, `render.yaml`, `api/services/warehouse_tools.py:58-60`).
+  - The production warehouse is built at image-build time from an empty store, so `fct_session` is empty in production. This is derived from the build, not measured on the deployed instance.
+  - The post-deploy sessions never reach a mart.
+- b233a03: ROADMAP. The "Entrepôt de démo semé…" line now points to #60, and the v1 legacy proposal is added.
+- 3aad233: `--durations=10` in pytest `addopts`, so that the CI log shows the duration #60 asks for.
+- 5ece6e6 and e820105 commit the raw reviewer outputs as soon as they returned. c142425 and d368f8e hold the fixes.
+**dbt-reviewer findings**:
+- Pass 1 (`security/pr-audits/pr-60-dbt-reviewer.md`, on `origin/main...b233a03`): CHANGES REQUIRED.
+  - B1, blocking and already on main: `int_feedback_enriched` had no grain sentence and no grain test. Fixed in c142425:
+    - a grain sentence;
+    - the singular test `dbt/tests/check_feedback_enriched_grain.sql` (singular because `session_id` is NULL on v1 rows);
+    - `test_grain_tests_fail_on_a_duplicated_feedback` now expects three FAIL lines. It failed with two before the test was added.
+    - Data tests go to 79, still 0 vacuous.
+  - N1-N9 were non-blocking: a wrong attribution of the 35/78 figure, the grain described three ways, line pointers without a SHA, the cause of the post-deploy loss, the `stg_sessions` filters missing from the window table, ✅ before merge, a guard assertion that ignored ERROR lines, and blind spots in the vacuity method. All were fixed in c142425 except two. N6 was kept: the ROADMAP line lands with the merge. N9 (SQL strings in `tests/`) was recorded only.
+- Pass 2 (`security/pr-audits/pr-60-dbt-reviewer-pass2.md`, delta `5ece6e6..c142425` plus 3aad233): APPROVED. The reviewer confirmed B1 with two mutations (M1, M2). It raised 4 non-blocking wording points, fixed in d368f8e.
+**Corrected by human review** (owner, and reviewer where stated):
+1. The issue's v1 criterion assumed the fallback worked. The owner's brief had the agent check it against the history before writing any plan, and the owner then replaced the criterion.
+2. The agent's R2 prediction was wrong. The owner decided how to fix the dataset (a changed copy of A, justified by the store's upsert), not the agent, and required the consequences to be written down before the rerun.
+3. The owner added `TZ=UTC` (#57) and the rating and duration fixtures. The plan had only the effort fixture.
+4. The agent pushed 3aad233 while dbt-reviewer pass 1 was running. The reviewer flagged that HEAD moved under it. This is the "two simultaneous commands mix their effects" pitfall, and the commit was reviewed in pass 2.
+5. Pass 1 caught a pre-existing blocking gap (B1) that the plan had not listed, and a wrong attribution in the agent's own docstring (N1).
+6. An ad-hoc R5 mutation by the agent (the sessions CTE reading the raw source) errored. It was discarded, and the plan's R5 mutation was used.
+**Refusals**: during pass 1, the hook refused a reviewer `grep -rn ... .` that would reach `.env`. The reviewer searched the named subfolders instead, as the hook message suggests. This was reported in the raw output, and the hook was not touched.
+**Role split**:
+- Decided by the owner: option A, the commit order, U1/U2 and how each is shown red, the replaced v1 criterion, `TZ=UTC`, the three guard fixtures, the R2 fix (A changes between partitions) and the sort-direction test.
+- Done by the agent: the history investigation, the read-only v1 check, the plan and its hand values and mutation predictions, all code, tests and docs, the mutation runs, the CI duration measurement, and the fixes to the review findings.
+- Done by the dbt-reviewer: two passes, with an independent recomputation of the hand values and the mutations.
+- Human actions still pending: opening the PR, then merging it.
+**Verification**:
+- U1/U2 red/green as above, reproduced by the reviewer.
+- CI run 40187674976 on 3aad233 (success):
+  - the reference fixture setup took 17.10 s;
+  - no call of `test_reference_warehouse.py` is in the 10 slowest, whose last entry is 0.98 s;
+  - the guard tests took 11.12 s, 6.17 s and 5.95 s.
+  - Under the 60 s stop threshold. That run was before c142425 added the grain test.
+- Locally, the reviewer measured 15 passed in 52.3 s (dedup, reference and guard tests, pass 2) and `make lint` exit 0.
+- `data/` and `lake/` were unchanged: the reviewer's fingerprint was identical before and after.
+- Final DoD on d368f8e, run alone (no subagent active), 25 October 2026: `make lint` 0 dead links; `make typecheck` no issues in 21 files; `make test-unit` 808 passed / 15 skipped / 2 xfailed (reference fixture setup 16.54 s); `make eval` 55 passed; `make contract` 25 passed; `make dbt` PASS=106 on a cold scratch warehouse built like CI's (demo tracks, real patterns, empty store), never on `data/`.
+**Spec/actual gaps** (issue #60 vs the branch):
+- The v1 criterion was replaced by an owner decision (above).
+- The effort scale exists only on v1 rows, so "both rating scales" rests on v1 fixture rows.
+- `product-spec.md` FR-12 evidence is not updated: a PR number is never guessed, so it goes in the next PR.
+- The tests that cannot fail given the model SQL are listed in the plan, not deleted.
+**Lesson**:
+- A mutation's predicted value is a hand value too and must be checked by a run. Here the prediction was wrong, and the run caught it before it became a claim.
+- An aggregate that groups by every column hides an identical duplicate. To see the deduplication, the dataset needs a copy that changed, which is also what the store really produces (upserts).
+- Going through the history before designing the v1 fixture turned a test of a working rule into the removal of a rule that never ran.
+- The agent again let a commit and a subagent run overlap, as in #55.
+**To capitalize in CLAUDE.md** (proposals, not applied):
+- "A mutation's expected value is a hand value: write it before the run, and treat a mismatch as a STOP, not a correction."
+- "A dedup test needs copies that differ: an aggregate that groups by every column collapses identical duplicates, so the dedup filter can be removed and nothing goes red."
+- "No commit or push while a subagent review is running: the reviewer's HEAD moves under it."
+
 ## Session 2026-10-24 — Pre-submission (issue #55) — Stop `stg_patterns` from putting unrecognised `effort` values into `medium`: an explicit mapping chosen by the owner, `unknown` plus a failing test for anything else, NULL resistance and BPM included
 
 **Loop**: issue read → branch cut from `origin/main` @ ac1f9c8 → investigation → plan commented on #55 → STOP → owner decisions relayed → CLAUDE.md commit → red dbt unit tests → fix → injected-row test → docs → dbt-reviewer → fixes → dbt-reviewer pass 2 → N5/N6 relayed → docs → DoD
