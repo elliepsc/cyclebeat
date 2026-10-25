@@ -278,7 +278,7 @@ models:
       One row represents one feedback, as held by the latest lake extraction (one insert
       into the app-store `feedback` table; `stg_feedback` reads only the most recent `dt`
       partition), among the 20 most recent by `feedback_at`, with the context of the session
-      it rates. Key: (session_id, session_title, feedback_at), asserted by
+      it rates when it carries a `session_id` (a v1 row has none, #60). Key: (session_id, session_title, feedback_at), asserted by
       `dbt/tests/check_recent_activity_grain.sql`. Ties on `feedback_at` are broken by
       `session_id`, then `session_title`, so the 20 rows are deterministic; a table keeps
       no row order, so a reader sorts by `feedback_at` itself.

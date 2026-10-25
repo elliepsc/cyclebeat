@@ -6,7 +6,8 @@
 --
 -- Grain: one row represents one feedback, as held by the latest lake extraction (one insert
 -- into the app-store `feedback` table; `stg_feedback` reads only the latest `dt`, #54), among
--- the 20 most recent by `feedback_at`, with the context of the session it rates. Its key is
+-- the 20 most recent by `feedback_at`, with the context of the session it rates when it
+-- carries a `session_id` (a v1 row has none, #60). Its key is
 -- (session_id, session_title, feedback_at), checked by `dbt/tests/check_recent_activity_grain.sql`.
 --
 -- The tie-break after `feedback_at desc` makes the 20 rows deterministic: the key holds over

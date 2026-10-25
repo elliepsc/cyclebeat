@@ -147,8 +147,9 @@ def test_feedback_indicators_count_each_feedback_once(tmp_path: Path) -> None:
 
 def test_grain_tests_fail_on_a_duplicated_feedback(tmp_path: Path) -> None:
     """The grain test is evidence only if it can fail: the same feedback twice in the latest
-    partition (what a store holding a doubled insert would extract) must turn both grain
-    tests red: the one over every feedback and the one over the mart's 20 rows."""
+    partition (what a store holding a doubled insert would extract) must turn the three grain
+    tests red: the one over every feedback, the one over the enriched feedback (#60) and the one
+    over the mart's 20 rows."""
     lake_root = tmp_path / "lake"
     warehouse = tmp_path / "warehouse.duckdb"
     s1 = _session("s1", datetime(2026, 10, 23, 7, 0, 0))
@@ -167,9 +168,17 @@ def test_grain_tests_fail_on_a_duplicated_feedback(tmp_path: Path) -> None:
     failing = [line for line in result.stdout.splitlines() if " FAIL " in line]
     names = sorted(
         name
-        for name in ("check_stg_feedback_grain", "check_recent_activity_grain")
+        for name in (
+            "check_stg_feedback_grain",
+            "check_feedback_enriched_grain",
+            "check_recent_activity_grain",
+        )
         for line in failing
         if name in line
     )
-    assert len(failing) == 2, result.stdout[-4000:]
-    assert names == ["check_recent_activity_grain", "check_stg_feedback_grain"]
+    assert len(failing) == 3, result.stdout[-4000:]
+    assert names == [
+        "check_feedback_enriched_grain",
+        "check_recent_activity_grain",
+        "check_stg_feedback_grain",
+    ]
