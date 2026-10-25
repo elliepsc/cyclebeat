@@ -30,24 +30,109 @@ into a session that is **coherent and safe**.
 
 ## Architecture
 
-```
-Deezer API (metadata + public 30 s preview)   CSV (manual BPM)
-              │                                     │
-              ▼                                     ▼
-   librosa BPM on preview ──► resolver: cross-validation + confidence score
-                                     │
-                                     ▼
-                  Parquet lake ──► DuckDB ──► dbt (staging → intermediate → marts)
-                                     │
-                                     ▼
-                planner (deterministic rules) ──► evaluator (safety & coherence)
-                                     │
-                                     ▼
-                     FastAPI, contract-first (openapi.yaml)
+```mermaid
+flowchart LR
+  subgraph CI["CI: GitHub Actions"]
+    tests["build · frontend ·<br/>integration · security"]
+    deploy["deploy<br/>main only"]
+  end
+  subgraph PROD["Production: Render, free tier"]
+    webp["cyclebeat-web<br/>static site, React bundle"]
+    apip["cyclebeat-api<br/>FastAPI: planner + evaluator<br/>runs uvicorn only"]
+    sqlitep[("SQLite inside the container<br/>sessions, feedback")]
+    duckp[("DuckDB<br/>baked into the image")]
+  end
+  build["API image build, once per deploy<br/>patterns + demo snapshot → lake<br/>→ DuckDB → dbt build"]
+  subgraph COMPOSE["Local: docker compose up --build"]
+    webc["web<br/>nginx, React bundle"]
+    apic["api<br/>same image"]
+    pg[("postgres<br/>sessions, feedback")]
+    duckc[("DuckDB<br/>baked into the image")]
+  end
+  subgraph PIPE["Local pipeline: make ingest · make dbt, or the compose profile pipeline"]
+    src["Deezer demo snapshot or live API<br/>· CSV · patterns JSON"]
+    store[("app store<br/>SQLite, or Postgres<br/>when DATABASE_URL is set")]
+    lake[("Parquet lake<br/>lake/")]
+    duckl[("DuckDB<br/>data/cyclebeat_runtime.duckdb")]
+    dbt["dbt<br/>staging → intermediate → marts"]
+    airflow["Airflow 3<br/>3 chained DAGs"]
+  end
+
+  tests -->|"A1"| deploy
+  deploy -->|"A2 deploy hooks"| webp
+  deploy -->|"A3 deploy hook"| apip
+  webp -->|"A4 HTTPS"| apip
+  apip -->|"A5"| sqlitep
+  apip -->|"A6 read-only"| duckp
+  build -->|"A7"| duckp
+  webc -->|"A8 HTTP"| apic
+  apic -->|"A9 DATABASE_URL"| pg
+  apic -->|"A10 read-only"| duckc
+  build -->|"A11"| duckc
+  src -->|"A12 cli ingest"| lake
+  src -->|"A13 dlt, patterns"| duckl
+  store -->|"A14 cli extract-app"| lake
+  lake -->|"A15 cli load"| duckl
+  dbt -->|"A16"| duckl
+  airflow -->|"A17"| lake
+  airflow -->|"A18"| dbt
 ```
 
-Orchestration: three chained Airflow DAGs (`dags/`). Monitoring: Prometheus + Grafana (`monitoring/`).
-Every KPI the marts expose, with its grain, formula and guarding tests: [docs/metrics.md](docs/metrics.md).
+**How the parts fit together.** The browser loads a React bundle that was built with the
+API's URL baked in. It then talks to a FastAPI service, which plans and checks a session
+from the track catalogue and stores the session and its feedback in a transactional store.
+The catalogue and the quality KPIs come from a DuckDB warehouse that the API opens read-only.
+**In production that warehouse is built once, when the API image is built,** from versioned
+files only. The container then runs uvicorn alone, so nothing re-extracts at runtime: the
+sessions created on the live site stay in the container's SQLite file, never reach a mart, and
+are lost at the next deploy ([docs/metrics.md](docs/metrics.md#where-the-data-comes-from-and-which-window-it-covers),
+[ADR-003](docs/adr/adr-003-render-no-disk.md)). Locally, `docker compose up --build` runs the
+same API image against Postgres, behind an nginx copy of the front. The compose API reads the
+warehouse baked into its image, not the host's. The pipeline (ingest → lake → DuckDB → dbt,
+orchestrated by Airflow) is a separate, opt-in path that writes the host's `lake/` and `data/`.
+CI runs the test jobs on every push. On `main`, once they are green, it triggers Render's
+deploy hooks and smoke-tests the live services; Render deploys nothing on its own.
+
+Every box and arrow above, with its source (line numbers as of this commit; they drift as the
+files change):
+
+| Box or arrow | What | Source |
+|---|---|---|
+| CI test jobs | `build`, `frontend`, `integration`, `security` | `.github/workflows/ci.yml:27`, `:119`, `:157`, `:182` |
+| deploy | runs on `main` only | `.github/workflows/ci.yml:198-200` |
+| A1 | `deploy` waits for the four test jobs | `.github/workflows/ci.yml:199` |
+| A2, A3 | `tools/deploy.py` calls the two deploy hooks, then smoke-tests health, generate, CORS and the web page; Render's auto-deploy is off | `.github/workflows/ci.yml:221-226`; `tools/deploy.py:115`, `:245-266`; `render.yaml:30`, `:48` |
+| cyclebeat-web | Render static site built by Vite | `render.yaml:42-47` |
+| cyclebeat-api | Render Docker service; the container runs uvicorn only | `render.yaml:23-26`; `Dockerfile:61` |
+| planner + evaluator | called by the generate service | `api/services/session.py:68`, `:78` |
+| A4 | the bundle calls the API URL fixed at build time; the API lets that origin in | `render.yaml:36-37`, `:55-56`; `frontend/src/api/client.ts:6` |
+| A5, SQLite | no `DATABASE_URL` in production, so the store is SQLite | `render.yaml:31-37`; `api/repositories/database.py:145-158` |
+| A6, A10 | the API reads the warehouse read-only | `api/repositories/warehouse.py:39`; `api/repositories/track.py:27` |
+| API image build, A7 | one `RUN` builds the warehouse from versioned files; the API reads it at `RUNTIME_DB_PATH` | `Dockerfile:40-45`; `render.yaml:32-33` |
+| web (compose) | nginx serves the built bundle | `docker-compose.yml:86-92`; `frontend/Dockerfile:24-28` |
+| api (compose), A11 | built from the same `Dockerfile` | `docker-compose.yml:60-61`, `:76` |
+| A8 | the compose bundle points at the compose API | `docker-compose.yml:90`; `frontend/src/api/client.ts:6` |
+| A9, postgres | `DATABASE_URL` set, so the store is Postgres | `docker-compose.yml:40-47`, `:69`; `api/repositories/database.py:145-150` |
+| DuckDB (compose) | the image's warehouse, not mounted over | `docker-compose.yml:58-59`, `:65` |
+| Local pipeline | `make ingest`, `make dbt`; compose profile `pipeline` | `Makefile:81-82`, `:92-96`; `docker-compose.yml:106-138`, `:148-191` |
+| sources | demo snapshot or live Deezer, optional CSV; patterns JSON | `cyclebeat/cli.py:48-67`; `ingest/ingest_pipeline.py:43` |
+| app store | engine picked by `DATABASE_URL` | `cyclebeat/app_store.py:61`, `:64-68` |
+| lake | Parquet partitions under `lake/` | `cyclebeat/lake.py:24`, `:84` |
+| DuckDB (local) | `RUNTIME_DB_PATH`, default `data/cyclebeat_runtime.duckdb` | `db/runtime.py:21-23`; `dbt/profiles.yml:8` |
+| A12 | `cli ingest` writes the lake | `cyclebeat/cli.py:69`; `Makefile:94` |
+| A13 | dlt loads the patterns into DuckDB | `ingest/ingest_pipeline.py:51-56`; `Makefile:93` |
+| A14 | `cli extract-app` copies sessions and feedback into the lake | `cyclebeat/cli.py:122`; `cyclebeat/app_store.py:157`; `Makefile:95` |
+| A15 | `cli load` loads the lake into DuckDB | `cyclebeat/cli.py:106`; `cyclebeat/warehouse.py:122`; `Makefile:96` |
+| A16 | dbt builds the marts in the same DuckDB | `dbt/profiles.yml:8`; `Makefile:82` |
+| Airflow | three DAGs chained on lake assets | `dags/dag_ingest.py:36`; `dags/dag_resolve_bpm.py:34`; `dags/dag_build_warehouse.py:32` |
+| A17 | `dag_ingest` and `dag_resolve_bpm` write the lake | `dags/dag_ingest.py:84`; `dags/dag_resolve_bpm.py:94` |
+| A18 | `dag_build_warehouse`: extract-app, load, then dbt build | `dags/dag_build_warehouse.py:44-77` |
+
+The BPM resolution (librosa on the Deezer preview, cross-validated with Deezer's `bpm`) is
+described in [ADR-005](docs/adr/adr-005-deezer-preview-backbone.md) and
+[ADR-010](docs/adr/adr-010-track-and-bpm-sources.md). Monitoring (Prometheus + Grafana,
+`monitoring/`) is the opt-in compose profile `monitoring`. Every KPI the marts expose, with its
+grain, formula and guarding tests: [docs/metrics.md](docs/metrics.md).
 
 ## Key design decisions
 
