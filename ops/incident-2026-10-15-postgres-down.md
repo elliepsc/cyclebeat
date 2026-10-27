@@ -47,7 +47,7 @@ a session was half-written.
    that the API can reach Postgres, so a stopped database leaves every service "healthy".
 2. **Generation writes to Postgres.** `SessionService.generate` stores the plan before returning
    it (`api/services/session.py:110`); the store opens a Postgres connection
-   (`api/repositories/session.py:34`, `api/repositories/database.py:150`). With the `postgres`
+   (`api/repositories/session.py:34`, `api/repositories/database.py:158`). With the `postgres`
    container stopped, its name no longer resolves on the compose network:
    `psycopg.OperationalError: failed to resolve host 'postgres'` (log:473, log:557), which the
    last-resort handler turns into the generic 500 (`api/errors.py:100-114`).
