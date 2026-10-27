@@ -36,6 +36,10 @@ Then rate it, with an optional note:
 
 ![The rating form of the same session, filled in: "Good", with the note "Great session", above the Send feedback button](docs/screenshots/rate.png)
 
+Once sent, the rating is recorded:
+
+![The same session after Send feedback: the message "Thanks, your feedback was recorded." and a "Plan another session" button](docs/screenshots/rate_confirmation.png)
+
 Screenshots taken by the owner, in a browser, on 25 October 2026.
 
 ## Why this project
