@@ -85,7 +85,11 @@ keeps:
 
 The timestamps these windows rest on are UTC whatever the time zone of the process that wrote
 the lake ([#57](https://github.com/elliepsc/cyclebeat/issues/57)). Partitions written before #57
-hold local wall time; the re-extraction for the same `dt` replaces them whole.
+hold local wall time. For tracks and resolutions of the demo snapshot (`dt` fixed), the
+re-extraction rewrites the same `dt` and replaces them whole; for sessions and feedback, the next
+extraction writes a newer `dt` that supersedes them in staging (`stg_sessions` keeps the latest
+`dt` per session, `stg_feedback` reads the latest `dt` only). A past-day live ingest or `resolve`
+partition is never rewritten and keeps its local wall time.
 
 ## Feedback is read from the latest lake partition only ([#54](https://github.com/elliepsc/cyclebeat/issues/54))
 
