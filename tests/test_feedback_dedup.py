@@ -22,7 +22,7 @@ import os
 import shutil
 import subprocess
 import sys
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import duckdb
@@ -62,11 +62,11 @@ def _feedback(session_id: str, rating: str, created_at: datetime) -> RawFeedback
 
 def _two_day_lake(root: Path) -> None:
     """What two daily `extract_to_lake` runs leave behind, each a full copy of the store."""
-    s1 = _session("s1", datetime(2026, 10, 22, 7, 0, 0))
-    s2 = _session("s2", datetime(2026, 10, 23, 7, 0, 0))
-    s1_up = _feedback("s1", "up", datetime(2026, 10, 22, 8, 0, 0, 123456))
-    s1_down = _feedback("s1", "down", datetime(2026, 10, 23, 8, 0, 0, 654321))
-    s2_up = _feedback("s2", "up", datetime(2026, 10, 23, 9, 0, 0, 1))
+    s1 = _session("s1", datetime(2026, 10, 22, 7, 0, 0, tzinfo=UTC))
+    s2 = _session("s2", datetime(2026, 10, 23, 7, 0, 0, tzinfo=UTC))
+    s1_up = _feedback("s1", "up", datetime(2026, 10, 22, 8, 0, 0, 123456, tzinfo=UTC))
+    s1_down = _feedback("s1", "down", datetime(2026, 10, 23, 8, 0, 0, 654321, tzinfo=UTC))
+    s2_up = _feedback("s2", "up", datetime(2026, 10, 23, 9, 0, 0, 1, tzinfo=UTC))
 
     lake.write_partition([s1], lake.SESSIONS, DAY_1, root=root)
     lake.write_partition([s1_up], lake.FEEDBACK, DAY_1, root=root)
@@ -152,8 +152,8 @@ def test_grain_tests_fail_on_a_duplicated_feedback(tmp_path: Path) -> None:
     over the mart's 20 rows."""
     lake_root = tmp_path / "lake"
     warehouse = tmp_path / "warehouse.duckdb"
-    s1 = _session("s1", datetime(2026, 10, 23, 7, 0, 0))
-    twice = _feedback("s1", "up", datetime(2026, 10, 23, 8, 0, 0, 123456))
+    s1 = _session("s1", datetime(2026, 10, 23, 7, 0, 0, tzinfo=UTC))
+    twice = _feedback("s1", "up", datetime(2026, 10, 23, 8, 0, 0, 123456, tzinfo=UTC))
     lake.write_partition([s1], lake.SESSIONS, DAY_2, root=lake_root)
     lake.write_partition([twice, twice], lake.FEEDBACK, DAY_2, root=lake_root)
     load_lake(db_path=warehouse, lake_root=lake_root)

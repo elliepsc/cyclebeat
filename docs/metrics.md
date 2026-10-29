@@ -83,8 +83,13 @@ keeps:
 | `mart_bpm_coverage`, `mart_data_quality`, `dim_track` | Every track in any partition, latest copy per track (`stg_tracks`, `stg_resolutions`) |
 | `mart_pattern_coverage` | The pattern file as last loaded (`save_patterns` deletes then inserts) |
 
-The timestamps these windows rest on are documented as UTC but are written in the time zone of
-the process that wrote the lake ([#57](https://github.com/elliepsc/cyclebeat/issues/57)).
+The timestamps these windows rest on are UTC whatever the time zone of the process that wrote
+the lake ([#57](https://github.com/elliepsc/cyclebeat/issues/57)). Partitions written before #57
+hold local wall time. For tracks and resolutions of the demo snapshot (`dt` fixed), the
+re-extraction rewrites the same `dt` and replaces them whole; for sessions and feedback, the next
+extraction writes a newer `dt` that supersedes them in staging (`stg_sessions` keeps the latest
+`dt` per session, `stg_feedback` reads the latest `dt` only). A past-day live ingest or `resolve`
+partition is never rewritten and keeps its local wall time.
 
 ## Feedback is read from the latest lake partition only ([#54](https://github.com/elliepsc/cyclebeat/issues/54))
 
@@ -114,8 +119,8 @@ The two staging models differ on purpose:
 - **a session has a key** (`session_id`), so a union over partitions, deduplicated on that key,
   is exact;
 - **a feedback has none**, so the only exact copy is one whole partition. A union deduplicated on
-  every column breaks when the same row is extracted under two timezones: `created_at` is written
-  as local wall time, and the same feedback then gives two rows.
+  every column broke when the same row was extracted under two timezones: `created_at` was
+  written as local wall time until #57, and the same feedback then gave two rows.
 
 ## `mart_session_kpis` — global session KPIs
 
@@ -166,9 +171,8 @@ three tests failing on a duplicated feedback.
 The key **assumes** that two inserts on one session never share a timestamp. API rows take
 `datetime.now(UTC)` at µs per insert. v1 rows took DuckDB `now()`, the transaction start, so two v1
 rows written in one transaction would collide; no current code path writes v1 rows. One blind
-spot: an unreadable `created_at` is replaced by the extraction time (`cyclebeat/app_store.py`,
-`_as_datetime`), so a doubled insert carrying one would get two stamps and pass the key; that
-fallback is #57. `rating`,
+spot closed by #57: an unreadable `created_at` used to be replaced by the extraction time; it
+now fails the extraction, naming the row (`cyclebeat/app_store.py`, `_as_datetime`). `rating`,
 `rating_scale` and `note` stay out of the key:
 - an exact duplicate is identical in every column, so including them would catch nothing more;
 - leaving them out makes the test stricter: it also flags a (session, instant) collision between

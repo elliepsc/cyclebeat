@@ -1,8 +1,7 @@
 """Run the real pipeline steps on a temporary warehouse, each in its own process (#60).
 
-Every step runs as a subprocess with `TZ=UTC` set explicitly: the lake writes an aware UTC
-timestamp in the DuckDB session time zone and drops the zone (#57), so on a host in
-Europe/Paris the same row would come out two hours later, and every expected time with it.
+Every step runs as a subprocess and inherits the caller's `TZ`: the lake stores UTC whatever
+the writer's time zone, so the chain gives the same marts on a host in Europe/Paris and in CI.
 The step is the real entry point (the CLI, the dlt pipeline, dbt), never a reimplementation.
 
 Nothing here touches the real `data/` or `lake/`: the lake, the warehouse, dbt's target, logs
@@ -25,7 +24,6 @@ PYTHON = sys.executable
 def env(warehouse: Path, work: Path) -> dict[str, str]:
     environment = {
         **os.environ,
-        "TZ": "UTC",
         "RUNTIME_DB_PATH": str(warehouse),
         "PYTHONPATH": str(REPO_ROOT),
         "DLT_DATA_DIR": str(work / "dlt"),

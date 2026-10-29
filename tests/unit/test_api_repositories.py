@@ -16,6 +16,8 @@ for reasons unrelated to the code.
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -61,6 +63,9 @@ class Store:
             return database.execute(sql).fetchall()
 
 
+NON_UTC_SESSION_TZ = "Europe/Paris"
+
+
 def _postgres_test_url() -> str:
     """`TEST_DATABASE_URL`, not `DATABASE_URL`.
 
@@ -98,9 +103,10 @@ def store(
     with psycopg.connect(base, autocommit=True) as admin:
         admin.execute(f"create schema {schema}")
     separator = "&" if "?" in base else "?"
-    monkeypatch.setenv(
-        "DATABASE_URL", f"{base}{separator}options={quote(f'-csearch_path={schema}')}"
-    )
+    # A non-UTC session time zone (#57): a `timestamp` column stores an aware value converted
+    # through the session zone, so every Postgres case runs where that conversion would show.
+    options = f"-csearch_path={schema} -ctimezone={NON_UTC_SESSION_TZ}"
+    monkeypatch.setenv("DATABASE_URL", f"{base}{separator}options={quote(options)}")
     try:
         assert db_module.is_postgres()
         yield Store(engine="postgres")
@@ -473,3 +479,56 @@ def test_the_analytical_side_is_read_only(warehouse: Path) -> None:
             and any(verb in name for verb in ("save", "add", "insert", "write", "delete"))
         ]
         assert writes == [], f"{repository.__name__} exposes {writes}"
+
+
+# ── Store -> lake (#57) ──────────────────────────────────────────────────────────────────
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_a_stored_row_reaches_the_lake_at_the_same_utc_instant(
+    store: Store, tmp_path: Path
+) -> None:
+    """A row written by the API repository comes out of `extract-app` at the same UTC instant.
+
+    The extraction runs as the real CLI, in a process under `TZ=Europe/Paris`, and on Postgres
+    the API's session is in Europe/Paris too (the `store` fixture): either zone leaking into
+    the value shows here.
+    """
+    instant = datetime(2026, 7, 10, 22, 30, 0, 123456, tzinfo=UTC)
+    SessionRepository().save(_plan("s1", created_at=instant.isoformat()))
+    added = FeedbackRepository().add(
+        session_id="s1", rating="up", note=None, session_title="session-s1"
+    )
+
+    if store.engine == "postgres":
+        import psycopg
+
+        with psycopg.connect(os.environ["DATABASE_URL"]) as raw:
+            zone = raw.execute("show timezone").fetchone()
+        assert zone == (NON_UTC_SESSION_TZ,), "the test needs a non-UTC session to mean anything"
+
+    lake_root = tmp_path / "lake"
+    result = subprocess.run(
+        [sys.executable, "-m", "cyclebeat.cli", "--lake", str(lake_root), "extract-app"],
+        cwd=REPO_ROOT,
+        env={**os.environ, "TZ": "Europe/Paris", "PYTHONPATH": str(REPO_ROOT)},
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert result.returncode == 0, (result.stdout + result.stderr)[-4000:]
+
+    with duckdb.connect() as con:
+        sessions = con.execute(
+            "select session_id, created_at from read_parquet(?)",
+            [(lake_root / "raw" / "sessions" / "**" / "*.parquet").as_posix()],
+        ).fetchall()
+        feedback = con.execute(
+            "select session_id, created_at from read_parquet(?)",
+            [(lake_root / "raw" / "feedback" / "**" / "*.parquet").as_posix()],
+        ).fetchall()
+
+    assert sessions == [("s1", instant.replace(tzinfo=None))]
+    assert feedback == [("s1", added["created_at"].astimezone(UTC).replace(tzinfo=None))]

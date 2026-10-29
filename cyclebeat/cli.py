@@ -116,10 +116,14 @@ def cmd_extract_app(args: argparse.Namespace) -> int:
     `dag_build_warehouse`: the CLI and the DAG should have the same shape, so a failure in
     one is diagnosable from the other.
     """
-    from cyclebeat.app_store import extract_to_lake
+    from cyclebeat.app_store import UnreadableDate, extract_to_lake
 
     root = Path(args.lake) if args.lake else None
-    counts = extract_to_lake(root=root)
+    try:
+        counts = extract_to_lake(root=root)
+    except UnreadableDate as error:
+        print(f"app store -> lake: refused, nothing written: {error}", file=sys.stderr)
+        return 1
     for dataset, count in counts.items():
         print(f"app store -> lake: {dataset} {count} rows")
     return 0

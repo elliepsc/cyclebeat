@@ -19,9 +19,9 @@
 -- Only the most recent `dt` partition is read (#54). `extract_to_lake` writes a FULL copy of
 -- the app-store table into each day's partition, so reading every partition counted a
 -- feedback once per day it was extracted. The table has no key to deduplicate on, and a
--- union deduplicated on every column breaks when the same row is extracted under two
--- timezones (`created_at` is written as local wall time). With no UPDATE or DELETE path in
--- the app store, the latest copy holds every feedback.
+-- union deduplicated on every column broke when the same row was extracted under two
+-- timezones (`created_at` was written as local wall time until #57). With no UPDATE or
+-- DELETE path in the app store, the latest copy holds every feedback.
 --
 -- Limit: after the store is reset or switched (file deleted, `APP_DB_PATH` or `DATABASE_URL`
 -- changed) between two extractions, the feedback of the older copy is gone from here, while

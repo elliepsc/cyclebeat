@@ -13,8 +13,7 @@ Every expected value is computed by hand from the dataset, with its arithmetic, 
 before the first run. The reconciliations compare a mart total to a count taken from the
 Python dataset itself, not from another model.
 
-`TZ=UTC` is set in every step's environment (`tests/chain.py`): the lake writes UTC time as
-local time (#57), and `last_session_at` below is the UTC value.
+`last_session_at` below is a UTC value under any host `TZ`: the lake stores UTC (#57).
 """
 
 from __future__ import annotations
@@ -161,7 +160,7 @@ def test_indicators_match_the_values_computed_by_hand(warehouse: Warehouse) -> N
             1,
             # avg_abs_duration_gap_s: (|30| + |-60| + |0|) / 3 = 90 / 3.
             30.0,
-            # last_session_at: C, 2026-10-23 08:00 UTC (a UTC value only because TZ=UTC, #57).
+            # last_session_at: C, 2026-10-23 08:00 UTC.
             datetime(2026, 10, 23, 8, 0),
             # avg_satisfaction_pct: round(avg(A 50.0, B 75.0), 1); C has no satisfaction
             # rating, its NULL is skipped (0 would give 41.7).

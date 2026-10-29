@@ -5,9 +5,9 @@ it produces and compares them to values computed by hand. The rows are what two 
 `extract_to_lake` runs leave behind: each `dt` partition is a FULL copy of the store at that
 day, so a row that already existed on day 1 is in both partitions.
 
-Timestamps are aware UTC values, as the store returns them (`datetime.now(UTC)` on insert).
-The lake writes them in the DuckDB session time zone (#57), so this module is run in a process
-whose `TZ` is UTC: `python -m tests.reference_dataset <lake_root>`.
+Timestamps are aware UTC values, as the store returns them (`datetime.now(UTC)` on insert), and
+the lake stores them as UTC whatever the process `TZ`: `python -m tests.reference_dataset
+<lake_root>`.
 
 Session ids are UUID-shaped like the API's; feedback titles follow the API's derived label
 (`session-<first 8 of the id>`, `api/services/session.py`, `_title_for`).
