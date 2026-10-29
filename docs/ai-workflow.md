@@ -1,5 +1,48 @@
 # AI workflow log
 
+## Session 2026-10-27 to 2026-10-29 — Pre-submission (issue #65) — Fix the cold audit's two blocking findings (README arrow A13, FR-06's dbt count) and its security finding (csv source reads arbitrary server paths)
+
+**Loop**: prompt → issue #65 created → plan comment refused by the classifier → STOP → light plan posted → STOP → branch cut from `origin/main` @ f17725c (merge of PR #63) → severity read from the code → B1 → B2 → csv replay finding → STOP → owner decisions → red tests on f17725c → fix → contract-guardian and security-auditor → follow-ups → this entry → final DoD. The PR is opened by the owner, after this entry.
+**Tool/model**: Claude Code / Claude Opus 5.5
+**Initial prompt**: (faithful summary) create an issue for the blocking findings of the cold audit (PR #64): B1, the README arrow A13 said dlt loads the patterns into the runtime DuckDB; B2, FR-06 cited `PASS=65`; plus security finding P1, the csv source reads arbitrary server paths. Post a plan, then STOP before coding. Issue #65 was created with milestone Submission and labels `docs` and `security`. The `security` label did not exist and was created.
+**Process followed**:
+- **Severity read from the code before any fix**: no file content (titles, artists) could reach a response. `read_csv` sets no track duration, and the planner excludes every such track before it builds a plan.
+- **B1** (eddc7f3): the dlt DuckDB destination docs were re-read (URL cited in row A13). dlt writes `<pipeline_name>.duckdb` in the working directory (dlt 0.5.4 locked), and `save_patterns` then copies the patterns into the runtime DuckDB. Arrow A13 and its source row now say that.
+- **B2** (81fe8e6): FR-06 now cites `PASS=106`, read with `gh run view 40583093914 --log` (job `build`, step "dbt build") on f17725c, instead of the unsourced `PASS=65`.
+- **P1** (ebc1acd): the csv source is refused without opening any file. Every non-empty path gets the same 422 `csv_not_found`; an empty value keeps `missing_csv_path`. No new reason, no enum change. The owner left the reason open between `source_unavailable_in_demo_mode` and `csv_not_found`; the agent chose `csv_not_found`, because the other name means demo mode and csv is refused outside it too. The `openapi.yaml` description and the generated `frontend/src/api/schema.d.ts` are updated in the same commit. FR-01 drops `csv` from its acceptance criteria and gets a dated note.
+- **Tests first**: three new tests, `test_a_csv_request_opens_no_file` (a spy on `builtins.open`/`io.open`), `test_every_csv_path_gets_the_same_response` and `test_no_csv_path_is_a_server_error`, were shown red on f17725c, then green on the fix. `test_a_real_csv_is_planned` was renamed `test_the_committed_csv_is_refused`, with a corrected docstring.
+- **Reported, not deleted**: `test_the_committed_csv_is_refused` and `test_a_missing_csv_is_a_422_not_a_crash` are now redundant with the category tests. `_from_csv` has no caller, and is kept for #66.
+- **Follow-up issue #66** (milestone Complete project, label `data`): remove `csv` from the contract, or make it work.
+**Notable iterations**:
+1. The first plan comment on #65 was refused by the Claude Code auto-mode classifier ("Excess Sensitive Detail"), because it named test paths and current response codes. The agent did not retry it in another form and reported it. The owner asked for a light version, with test categories only, and that version was posted.
+2. The owner asked what `test_a_real_csv_is_planned` actually proved: it only asserted a refusal. The agent replayed the committed CSV (20 tracks, artist and title only) on 909 combinations (3 levels × 3 goals × 20..120 min). That gave 0 plans, all `no_cooldown_candidate`. So through the API the csv source never produced a session: FR-01 "Delivered" and the `openapi.yaml` description claimed more than the code did. The agent stopped and asked, and did not fix it on its own.
+3. One version of the spy test first failed on an uncaught exception, not on its own assertion. It was tightened so that the red on f17725c comes from the assertion.
+**Reviews** (raw outputs committed in fba332b and b866c39, `security/pr-audits/issue-65-contract-guardian.md` and `security/pr-audits/issue-65-security-auditor.md`):
+- contract-guardian: APPROVED, nothing blocking. A, the wording "whatever the path" was too broad, and D, line-range pointers: both fixed in 5ff7db5. B, the reason name `csv_not_found` is loose for a refusal: moved to #66. C, dead code: the `_from_csv` point above.
+- security-auditor: Low, nothing blocking. L1, the spy test could pass vacuously: fixed in 5ff7db5. L2, `_from_csv`: a docstring note. L3, a commit message slightly too detailed: left as is.
+- No second pass, since neither review had a blocking finding.
+**Guardrail refusals** (all reported, none worked around):
+- The PreToolUse hook refused a `grep` over `.`, because it reaches `.env`. It was rerun on subfolders, the form the hook's message suggests.
+- The classifier refusal of the first plan comment (iteration 1).
+- security-auditor's `git archive` of the base into the scratchpad was refused by the hook, because the archive contains `data/spike`. It looks like a false positive. It was reported to the owner, and the hook is untouched.
+**Corrected by human review**:
+1. The owner withdrew their own first P1 design, an allowed directory (`CYCLEBEAT_CSV_DIR`), in favour of always refusing csv without opening any file, with one identical 422.
+2. The owner asked that the audit report be cited as "PR #64" only. The agent edited the #65 body to remove a branch link.
+3. The owner set the scope of the light plan comment (test categories only) after the classifier refusal.
+**Role split**: decided by the owner: the scope, the always-refuse design, the citation rule, issue #66 and its milestone. Done by the agent: issues #65 and #66, the code reading, the 909-combination replay, the tests, the fix, the doc edits and the review follow-ups. Done by subagents: contract-guardian and security-auditor, one pass each. Left to the owner after merge: deploy, then a csv generate call with two different paths, which should return two identical 422 bodies.
+**Verification**:
+- Red/green: the three new tests red on f17725c, green on the fix (ebc1acd), as described above.
+- `gh run view 40583093914 --log` for the `PASS=106` figure.
+- Final DoD: see the commit that follows.
+**Spec/actual gaps** (issue #65 vs the branch):
+- P1 grew past the issue: the replay showed that csv never worked through the API, so FR-01 and the `openapi.yaml` description were corrected too, and the decision on csv's future went to #66.
+- The issue's B1 and B2 are fixed as written.
+**Lesson**:
+- Reading the code before fixing turned a security finding into a scoping question. The path was reachable, no file content could leak, and the feature had never worked. Fixing first would have shipped a guarded directory for a feature with no output.
+- A test named for a success ("is planned") that asserts a refusal hides the gap. The replay over 909 combinations found it in minutes.
+- A plan comment that restates a vulnerability's details can be refused like any other sensitive output. Categories are enough for a plan.
+**To capitalize in CLAUDE.md**: nothing now (CLAUDE.md is frozen until submission). Candidates are listed in the scribe's report for the post-submission cleanup.
+
 ## Session 2026-10-25 — Pre-submission (issue #47) — Finishing touches: a sourced Mermaid architecture diagram, the owner's screenshots, `backend/README.md`, the stale README banner and phase-10 row, the browser proof in `docs/quality-bar.md`, plus a minimal ROADMAP coherence pass
 
 **Loop**: prompt → issue read → branch cut from `origin/main` @ 2b2b4f0 (merge of PR #62) → plan commented on #47 → edits commit by commit, no wait for approval (owner's decision) → `[présentable]` proposals posted → first report → owner decisions → docstring and ROADMAP commits → contract-guardian pass 1 → fixes → pass 2 → screenshots → this entry → final DoD (dbt gate blocked by the hook) → owner decisions → third screenshot → push. The PR is opened by the owner, after this entry.
