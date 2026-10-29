@@ -42,6 +42,44 @@
 - A test named for a success ("is planned") that asserts a refusal hides the gap. The replay over 909 combinations found it in minutes.
 - A plan comment that restates a vulnerability's details can be refused like any other sensitive output. Categories are enough for a plan.
 **To capitalize in CLAUDE.md**: nothing now (CLAUDE.md is frozen until submission). Candidates are listed in the scribe's report for the post-submission cleanup.
+## Session 2026-10-27 — Pre-submission (no issue) — Cold audit of a fresh clone against both grids, V2 (official) and V1 (old draft), changing nothing in the project
+
+**Loop**: prompt → branch `audit/cold-2026-10-27` cut from `origin/main` @ f17725c (merge of PR #63) → fresh clone in the agent scratchpad → README commands run, exit codes recorded → grids scored → public claims checked → report written → this entry → final DoD (main agent) → push. The PR is opened by the owner.
+**Tool/model**: Claude Code / Claude Opus 5.5
+**No issue**: no issue exists for this block of work, while CLAUDE.md asks that a block start from one. The agent flags it: no plan was commented on an issue, and the commits cite no `#N`. The report lists it as P9.
+**Initial prompt**: (faithful summary, pasted by the owner) act as a peer who wrote none of the files and cold-audit a fresh clone against `docs/grading-criteria.md` (V2, official) and `docs/archive/grading-criteria-v1-2026-10-09.md` (V1); change nothing; run the README commands (Run it locally, `make test`, `make ingest` then `make dbt`, `docker compose up --build` with the integration suite) and give their exit codes; for each criterion give the level, the evidence and what is missing, with two separate totals; check at least 10 random rows of the README architecture table, every Delivered status of `product-spec.md`, and the screenshot links; classify the findings as blocking or `[présentable]`; write the report in `docs/audit/`, named with the date read by a command, on branch `audit/cold-<date>`; run the DoD, push, write the PR description in a file, hand over the full `gh pr create` command; stop.
+**Report**: `docs/audit/cold-audit-2026-10-27.md`.
+- Scores: V2 19 / 24, V1 30 / 30, never added.
+- Blocking: B1, README arrow A13 ("dlt loads the patterns into DuckDB": dlt's `duckdb` destination gets no path, and the runtime DuckDB receives the patterns through `save_patterns`); B2, `product-spec.md` FR-06 says PASS=65 in CI, while CI on f17725c reports PASS=106.
+- `[présentable]`: P1-P10. P1 is a security finding: the `csv` source opens a path supplied by any HTTP caller, which gives an existence oracle and a 500 on a directory. It was executed on the local compose stack only; production was not tested.
+**What worked**:
+- The fresh clone lives in the agent scratchpad; the working copy's `data/` and `lake/` were never used.
+- `make setup` exit 0.
+- `make test` exit 0: 808 unit and 13 integration tests passed, 11 min 25 s wall clock.
+- `docker compose up --build` exit 0: 3 services healthy in 29 s, demo generate 200.
+- `make front-test` exit 0 (14 tests); `make front-gen` exit 0, no drift.
+- The grid copy diffed identical to the upstream file, last commit 526d9c1.
+- 12 architecture rows drawn with `shuf --random-source=<(yes 20261027)`, so the draw can be replayed: 11 hold, 1 does not (B1).
+- dlt's default DuckDB path checked against its documentation, <https://dlthub.com/docs/dlt-ecosystem/destinations/duckdb>, not from memory.
+**Refusals** (reported, not worked around):
+- The PreToolUse hook refused `make ingest` in the scratch clone: "make ingest writes lake/ and data/". `make dbt` was therefore not run on the host either. No other form of the command was tried. The report lists it as P10 and as owner check 1.
+- The auto-mode classifier refused GET requests to the public Render URLs. Not retried. Public reachability was taken from the deploy smoke tests of CI run 40583093914 instead.
+**Agent's own mistake**: the first local generate request had a wrong body (`source.value` missing) and got a 422. The agent corrected the body from `openapi.yaml`.
+**Corrected by human review**: pending. The owner has not reviewed the report or the branch at the time of writing.
+**Role split**:
+- Owner: the brief.
+- Pending for the owner: `make ingest` then `make dbt` in the fresh clone; a browser check of the live site; a decision on P1; opening and merging the PR.
+- Agent: everything else (clone, commands, scoring, claim checks, report, this entry through the subagent).
+**Verification**:
+- The command results are those listed under "What worked" and in the report's "Commands run from the fresh clone" table.
+- Final DoD: see the PR description.
+**Spec/actual gaps** (the brief vs the session):
+- `make ingest` then `make dbt` on the host: not run (hook refusal); the same steps passed in CI and inside the image build, per the report.
+- No issue to post a plan on, against CLAUDE.md (above).
+**Lesson**:
+- A hook rule that refuses `make ingest` unconditionally also blocks a scratch clone outside the working copy, so one README path of a cold audit cannot be reproduced by the agent and stays an owner check.
+- Building a request body from the contract before sending it would have avoided the 422.
+**To capitalize in CLAUDE.md**: nothing now (CLAUDE.md is frozen until submission). Candidate for the post-submission cleanup: "A request sent to the API during a check is built from `openapi.yaml`, not from memory."
 
 ## Session 2026-10-25 — Pre-submission (issue #47) — Finishing touches: a sourced Mermaid architecture diagram, the owner's screenshots, `backend/README.md`, the stale README banner and phase-10 row, the browser proof in `docs/quality-bar.md`, plus a minimal ROADMAP coherence pass
 
