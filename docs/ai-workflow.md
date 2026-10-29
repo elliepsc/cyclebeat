@@ -1,5 +1,33 @@
 # AI workflow log
 
+## Session 2026-10-29 — Phase 11 (closure) — Close the "Submission" milestone and roadmap phase 11: record that the cold audit's findings are fixed and deployed, and mark the phase done
+
+**Loop**: prompt → `git fetch` → branch `docs/close-phase-11` cut from `origin/main` @ 8d46319 (merge of PR #67, after the merge of PR #64) → issue, PR and milestone states read by command → dated note in the audit report → phase 11 closed in `docs/ROADMAP.md` → this entry → `make lint` and final DoD → push → PR description and `gh pr create` command handed to the owner → stop. The PR is opened by the owner.
+**Tool/model**: Claude Code / Claude Opus 5.5
+**Initial prompt**: (faithful summary, in French from the owner) cut `docs/close-phase-11` from `origin/main`, which holds the merges of PR #64 and PR #67; add a dated note at the top of `docs/audit/cold-audit-2026-10-27.md` saying that B1, B2 and P1 are fixed in PR #67 (issue #65), deployed by run 40894109013 on 8d46319, and that production was verified the same day by two csv requests with different paths (`a.csv`, `autre/dossier/b.csv`) that gave identical responses with no path in them; close phase 11 in `docs/ROADMAP.md` (the row to ✅, the exit criterion cites the report, "finalisation `ai-workflow.md`" to ✅); write this entry; run `make lint` and the final DoD; push; write the PR description and the `gh pr create` command; stop.
+**Facts read by command on 2026-10-29**:
+- Issues closed for the Submission milestone, with their closing PRs (`gh api graphql` on `closedByPullRequestsReferences`, `gh issue view`):
+  - #46, dbt semantic layer: closed 2026-10-23 by PR #56 (merge f6b0c9c).
+  - #54, `stg_feedback` duplicate feedback across `dt` partitions: closed 2026-10-24 by PR #58 (ac1f9c8).
+  - #55, `stg_patterns` unrecognised effort values: closed 2026-10-24 by PR #59 (a16fabc).
+  - #60, dbt reference dataset, reconciliation tests and indicator provenance: no closing PR reference. The issue events API shows it closed by hand by the owner at 2026-10-25T13:00:16Z. The work was merged through PR #61 (2026-10-25T11:25Z) and PR #62 (11:32Z), both from branch `test/60-reference-dataset`.
+  - #47, finishing touches: closed 2026-10-27 by PR #63 (f17725c).
+  - #65, pre-submission fixes from the cold audit: closed 2026-10-29 by PR #67 (8d46319).
+- PR #64, the cold audit report (`docs/audit/cold-audit-2026-10-27.md`), merged 2026-10-29 (d4c42af).
+- Deploy: run 40894109013 (workflow CI, event push, head SHA 8d46319); jobs `security`, `integration`, `build`, `frontend` and `deploy` all success. <https://github.com/elliepsc/cyclebeat/actions/runs/40894109013>
+- Production check: run by the owner, not by the agent. Output supplied by the owner and quoted in the audit note: `IDENTIQUES`, then one body, `{"type":"about:blank","title":"Unprocessable Entity","status":422,"detail":"The csv source is not available through the API; CSV playlists are imported by the offline pipeline.","reasons":["csv_not_found"]}`.
+- Scores: the cold audit of f17725c (27 October 2026) measured V2, the official grid, at 19 / 24 (pass mark 10), and V1, the old draft, at 30 / 30. The two totals are never added. V2 loses its 5 points on CI/CD level 3, Observability, Alerting and On-call agent. These scores were measured on f17725c, before PR #67; no re-audit was run.
+- Milestones (`gh api repos/elliepsc/cyclebeat/milestones?state=all`):
+  - "Submission": 9 closed, 0 open (`gh issue list --milestone Submission --state open` returns `[]`).
+  - "Complete project": 6 open, 0 closed: #48 observability and an alert on user impact; #49 dev environment and manual promotion to production; #50 on-call agent; #51 dbt semantic models (MetricFlow), optional; #57 lake timestamps, UTC written as local time, silent `now()` fallback; #66 csv source in the API, remove it from the contract or make it work.
+**Discrepancy found and fixed**: the owner described #57 as remaining in "Complete project". The first milestone read showed it still open and still attached to "Submission" (9 closed, 1 open). The owner moved it to "Complete project" and explained the move in a comment on #57 (posted 2026-10-29T15:19:36Z); the re-read above is the state after that move.
+**Corrected by human review**: the owner moved #57 to "Complete project"; the phase 11 row in `docs/ROADMAP.md` still showed "README (🟡 #47 …)" after #47 had closed on 2026-10-27 through PR #63; the owner had this item set to ✅ and the whole row re-read so that no delivered item kept a 🟡 or ⬜.
+**Role split**: decided and run by the owner: the scope of the closure, the production check (two csv requests) and its output, merging PR #64 and PR #67, opening and merging this PR, and the milestone of #57. Done by the agent: the branch, the state reads listed above, the audit note, the ROADMAP edit, this entry through the `ai-workflow-scribe` subagent.
+**Verification**: the facts above come from the commands named next to them. The production check was not run by the agent: its output is the owner's.
+**Lesson**: a closure claim ("milestone closed") is checked against the tracker, not against the owner's description: the milestone count showed #57 still in Submission. That check is what revealed the omission.
+**To capitalize in CLAUDE.md**: nothing now (CLAUDE.md is frozen until submission).
+**Gates**: final DoD run alone (no subagent active), 29 October 2026: `make lint` 0 dead links; `make typecheck` no issues in 21 files; `make test-unit` 811 passed / 15 skipped / 2 xfailed; `make eval` 55 passed; `make contract` 25 passed; `make dbt` PASS=106. The first `make dbt` failed (ERROR=5, `raw_tracks` missing) because the agent pointed `RUNTIME_DB_PATH` at a new empty file; rerun green on a copy, in the agent's scratchpad, of the scratch warehouse used by the #65 session's DoD, never on `data/`. The diff touches no `dbt/` and no SQL. After the owner's corrections (ROADMAP row, #57), the final DoD was run again alone, with `make dbt` on a fresh copy of the same warehouse: identical results (0 dead links, no typecheck issue, 811 / 15 / 2, 55, 25, PASS=106).
+
 ## Session 2026-10-27 to 2026-10-29 — Pre-submission (issue #65) — Fix the cold audit's two blocking findings (README arrow A13, FR-06's dbt count) and its security finding (csv source reads arbitrary server paths)
 
 **Loop**: prompt → issue #65 created → plan comment refused by the classifier → STOP → light plan posted → STOP → branch cut from `origin/main` @ f17725c (merge of PR #63) → severity read from the code → B1 → B2 → csv replay finding → STOP → owner decisions → red tests on f17725c → fix → contract-guardian and security-auditor → follow-ups → this entry → final DoD. The PR is opened by the owner, after this entry.
