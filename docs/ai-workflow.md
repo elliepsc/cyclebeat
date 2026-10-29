@@ -1,5 +1,56 @@
 # AI workflow log
 
+## Session 2026-10-29 — Complete project (issue #57) — The lake stores UTC whatever the host time zone, and an unreadable store date fails the extraction instead of becoming `now()`
+
+**Loop**: issue read → branch `fix/57-lake-utc` cut from `origin/main` @ b39a021 → measurements (writer, read-back, Airflow image time zone, existing partitions) → plan commented on #57 → STOP → owner decisions → red tests in their own commits → fixes → chain without forced UTC → docs → dbt-reviewer → follow-ups → contract-guardian → this entry → final DoD (run after this entry, alone) → push. The PR is opened by the owner; it is not open at the time of writing.
+**Tool/model**: Claude Code / Claude Opus 5.5
+**Initial prompt**: (faithful summary) work issue #57, "lake timestamps: UTC written as local time, silent now() fallback": list every date written to the lake, measure the effect on `session_date`, `feedback_date` and `last_session_at` before fixing, measure the Airflow container's time zone, decide what happens to partitions already written (with a test on a pre-fix partition), red test first, then make the lake store UTC whatever the host time zone and reject an unreadable date with a message naming the row.
+**The defect, as measured in the plan** (comment on #57, 2026-10-29): DuckDB converts an aware Python datetime into the session `TimeZone`, which follows the process `TZ`, then drops the zone at the INSERT into a `TIMESTAMP` column. Reading back does not depend on the time zone; only writing does. On the host (`Europe/Paris`), 22:30Z in July and 23:30Z in December were written as 00:30 the next day. Separately, `app_store._as_datetime` replaced an unreadable `created_at` with `datetime.now(UTC)`, with no signal.
+**Airflow image time zone, measured**: the hook refuses the compose `pipeline` profile, so the agent ran the profile's image with no mount and no network (`docker run --rm --network none --entrypoint sh cyclebeat-airflow:latest -c '…'`): `date` printed UTC, `TZ` empty, `/etc/localtime` → `Etc/UTC`, duckdb `Etc/UTC`. The host is `Europe/Paris`: one lake had two writers in two time zones. The compose command the criterion names was handed to the owner.
+**Process followed**:
+- **Red tests first, each in its own commit, red on b39a021**:
+  - d1e8aa5 (`tests/test_lake_utc.py`): under `TZ=Europe/Paris`, 22:30Z (summer) and 23:30Z (winter) came back as 00:30 the next day; a naive value was written instead of refused.
+  - ad5b803: a pre-#57 partition rewritten for the same `dt` by the demo ingest under `TZ=Europe/Paris` still held `17:43:42` rows instead of `15:43:42`.
+  - c2bf16a: `not-a-date`, `''`, `None` and `42` were replaced with `now()` (pytest "DID NOT RAISE", five cases), the sessions partition was written, and `extract-app` exited 0.
+  - 56fe6de (`tests/unit/test_api_repositories.py`): a row written by the API repository came out of `extract-app` as `2026-07-11 00:30:00.123456` instead of 22:30Z, on SQLite and on Postgres (Postgres session set to `Europe/Paris`).
+- **Fixes**:
+  - 047976b, `cyclebeat/lake.py`: `_utc_wall_time` converts every aware value to UTC in Python before the INSERT and refuses a naive one, naming the column; the partition directory is created only after conversion, so a refused row leaves nothing.
+  - d5c5821, `cyclebeat/app_store.py` and `cyclebeat/cli.py`: `UnreadableDate` names the row and the raw value; both tables are read before either partition is written (no partial write); `extract-app` exits 1. A naive store value is read as UTC at this boundary.
+  - d0afe61, `api/repositories/database.py`: `SET TIME ZONE 'UTC'` at connection time. After d5c5821 the SQLite case of 56fe6de was green and the Postgres case stayed red: the API's Paris session had already stored the shifted value. It turned green only with this fix.
+  - 2a3845a: the `test_feedback_dedup.py` fixtures use aware UTC values, since the writer now refuses naive ones; no expected value changed.
+  - 6c02338: the forced `TZ=UTC` is removed from `tests/chain.py`, with its notes in `tests/reference_dataset.py`, `tests/guard_fixtures.py` and `tests/test_reference_warehouse.py`. Under `TZ=Europe/Paris`: `test_reference_warehouse`, `test_data_guards_fail` and `test_feedback_dedup`, 15 passed. Counter-check on b39a021 with only the `TZ` line removed: `last_session_at` 10:00 instead of 08:00 (red).
+- **Pre-#57 fixture** (`tests/fixtures/pre_57_lake/`): the two real partitions `lake/raw/{tracks,resolutions}/dt=2026-07-29` were copied by the owner, because the agent may not read-copy out of `lake/`. Their README records provenance and sha256.
+- **Docs** (ab371a8, 49a886d, 73dc62a): `docs/metrics.md` and the `stg_feedback.sql` comment state that the lake holds UTC; `docs/ROADMAP.md` gets the `[présentable]` lines the owner accepted.
+**Owner decisions that corrected or bounded the agent** (relayed on #57 on 2026-10-29):
+1. Existing partitions: re-extraction (the agent had recommended it, option A); the owner runs `make ingest`, then `make dbt`, after the merge. The documented-mix option was rejected.
+2. Naive store dates are read as UTC at the `app_store` boundary, with a required proof on Postgres with a non-UTC session. The agent's plan had left read-as-UTC versus refuse open; the owner chose, and required the `database.py` pin if the proof failed, which it did.
+3. An unreadable date fails the whole extraction with a non-zero exit and the row's identifier. The agent's plan proposed skipping the bad rows and returning a `*_rejected` counter; the owner ruled that a counter is not enough.
+4. `TZ=UTC` is removed from `tests/chain.py`, and the chain run under `TZ=Europe/Paris` is shown.
+5. FR-12 becomes Delivered in a last commit pushed after the PR is created (not done at the time of writing).
+6. The four `[présentable]` proposals are accepted as ROADMAP lines, not fixed here.
+**Hook refusals and the owner's bounded exception**: three refusals of the same family, each a STOP reported to the owner, none retried in another form:
+- `ls -la data/*.db data/*.duckdb`, a read, refused as a write to `data/`.
+- A path pattern (`dt=2026-07-29`) in the text of a commit message refused the commit; the owner made commit ad5b803.
+- `make ingest` matched inside a Python heredoc and a commit message; the command only edited two files under `docs/` and committed.
+- **Owner decision**: an exception to the hook bounded to #57, because its refusals were about text and not about the commands run. Documentation edits go through the Edit tool, not a heredoc in Bash; a commit message citing a refused pattern is written to a file and passed with `git commit -F`, without rewording; any refusal of a real command remains a STOP. The expected structural fix (analyse the executed command, not string contents) is on the ROADMAP hook line and is to be the next issue.
+**Reviews** (raw outputs: `security/pr-audits/pr-57-dbt-reviewer.md`, ef4cdd3; `security/pr-audits/pr-57-contract-guardian.md`, 0417ebb):
+- dbt-reviewer: APPROVE, nothing blocking. N1, `dt` on the two DAG paths is the day in the value's own offset, not the UTC day, and plan §2 was wrong on that point: proposed on #57 as `[présentable]`, with the correction of plan §2 in the same comment. N2 (the re-extraction only rewrites the fixed-`dt` demo partitions in place) and N3 (`demo._stamp` failure mode): applied in 73dc62a. N4 (one test is red only from a non-UTC shell) and N5 (Postgres rows written before the pin): to go in the PR body. N6: reminder of this entry and of FR-12.
+- contract-guardian: APPROVE. `openapi.yaml` and `frontend/` unchanged. Finding 2 (on Postgres, `GET /v1/sessions` serves a naive `created_at`, without the offset `format: date-time` requires) predates the branch: proposed on #57 as `[présentable]`. The reviewer states it did not reproduce the Postgres half of the round-trip test itself.
+**Corrected by human review**: the skip-and-count design for unreadable dates (decision 3); the open choice on naive store dates (decision 2); the agent's plan §2 claim that `dt` always comes from aware UTC values (dbt-reviewer N1); the over-broad sentence in `docs/metrics.md` that the re-extraction replaces every pre-#57 partition whole (dbt-reviewer N2, fixed in 73dc62a).
+**Role split**: decided by the owner: the partition strategy, the naive-date rule, fail-whole on unreadable dates, the chain change, the FR-12 timing, the ROADMAP lines, the hook exception; copying the two real partitions; commit ad5b803. Done by the agent: the measurements, the plan, the red tests, the fixes, the docs, the issue comments. Done by subagents: dbt-reviewer and contract-guardian, one pass each. Left to the owner after merge: `make ingest`, then `make dbt`.
+**Verification**: red/green per commit as listed above (the commit messages carry the red outputs). The final DoD (`make lint`, `typecheck`, `test-unit`, `eval`, `dbt`, `contract`) is run after this entry, alone, with `make dbt` on a copy of the working warehouse; its results are not recorded here because it has not run yet.
+**Spec/actual gaps** (issue #57 and plan vs the branch):
+- The plan's skip-and-count design (§5.4) was replaced by fail-whole (decision 3).
+- The `database.py` pin was not in the plan; decision 2 made it conditional, and the Postgres red test made it necessary.
+- The acceptance criterion names the compose `pipeline` container; the agent measured its image without mounts, and handed the compose command to the owner.
+**Lesson**:
+- The time-zone dependency sat at the write, not the read, so the `TZ=UTC` that #60 forced in the test chain (with a note citing #57) kept the chain green on any host while the host's own lake was shifted.
+- The plan's measurement table (`Europe/Paris` vs `UTC`, summer vs winter) made the owner's decisions quick; the skipped-row counter it proposed was the weak part.
+- The hook's text matching cost three STOPs for commands that wrote nothing protected.
+**To capitalize in CLAUDE.md** (proposals only; the owner said no line is added to CLAUDE.md in this issue):
+- A DuckDB `TIMESTAMP` insert of an aware datetime depends on the process `TZ`: convert to UTC in Python before the insert.
+- A test that writes in-process is red only from a non-UTC shell; force `TZ` in a subprocess to make it red everywhere, CI included.
+
 ## Session 2026-10-29 — Phase 11 (closure) — Close the "Submission" milestone and roadmap phase 11: record that the cold audit's findings are fixed and deployed, and mark the phase done
 
 **Loop**: prompt → `git fetch` → branch `docs/close-phase-11` cut from `origin/main` @ 8d46319 (merge of PR #67, after the merge of PR #64) → issue, PR and milestone states read by command → dated note in the audit report → phase 11 closed in `docs/ROADMAP.md` → this entry → `make lint` and final DoD → push → PR description and `gh pr create` command handed to the owner → stop. The PR is opened by the owner.
