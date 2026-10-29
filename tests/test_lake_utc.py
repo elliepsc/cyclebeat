@@ -12,10 +12,12 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
 import duckdb
+import pytest
 
 from cyclebeat import lake
 from cyclebeat.app_store import RawFeedback
@@ -144,3 +146,68 @@ def test_a_pre_57_partition_rewritten_for_the_same_dt_keeps_no_old_row(tmp_path:
         values = _values(partition / "part.parquet", column)
         assert len(values) == before[dataset]
         assert set(values) == {SNAPSHOT_UTC}, f"{dataset}: an old-format row is left"
+
+
+# ── An unreadable date fails the extraction ─────────────────────────────────────────────
+
+_GOOD_SESSION = ("s1", "advanced", "intervals", 45, "safe", 1, -12.0, "2026-10-23T07:00:00+00:00")
+
+
+Row = tuple[object, ...]
+
+
+def _store_rows(sessions: list[Row], feedback: list[Row]) -> Callable[[str], list[Row]]:
+    """Stand-in for `app_store._rows`: what each SELECT of the store would return."""
+
+    def rows(sql: str) -> list[Row]:
+        return list(sessions) if "from sessions" in sql else list(feedback)
+
+    return rows
+
+
+@pytest.mark.parametrize("value", ["not-a-date", "", None, 42])
+def test_an_unreadable_session_date_fails_the_extraction(
+    value: object, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cyclebeat import app_store
+
+    bad = ("s2", "advanced", "intervals", 45, "safe", 1, 0.0, value)
+    monkeypatch.setattr(app_store, "_rows", _store_rows([_GOOD_SESSION, bad], []))
+
+    with pytest.raises(ValueError) as error:
+        app_store.extract_to_lake(dt=date(2026, 10, 23), root=tmp_path)
+    assert "s2" in str(error.value)
+    assert repr(value) in str(error.value)
+    assert not (tmp_path / lake.SESSIONS).exists()
+
+
+def test_an_unreadable_feedback_date_writes_no_partition_at_all(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sessions are readable, the feedback is not: nothing is written, not even sessions."""
+    from cyclebeat import app_store
+
+    bad = ("s1", "session-s1", "up", None, "not-a-date")
+    monkeypatch.setattr(app_store, "_rows", _store_rows([_GOOD_SESSION], [bad]))
+
+    with pytest.raises(ValueError) as error:
+        app_store.extract_to_lake(dt=date(2026, 10, 23), root=tmp_path)
+    assert "s1" in str(error.value)
+    assert "'not-a-date'" in str(error.value)
+    assert not (tmp_path / lake.SESSIONS).exists()
+    assert not (tmp_path / lake.FEEDBACK).exists()
+
+
+def test_the_cli_exits_non_zero_and_names_the_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from cyclebeat import app_store, cli
+
+    bad = ("s2", "advanced", "intervals", 45, "safe", 1, 0.0, "not-a-date")
+    monkeypatch.setattr(app_store, "_rows", _store_rows([_GOOD_SESSION, bad], []))
+
+    code = cli.main(["--lake", str(tmp_path), "extract-app"])
+
+    assert code != 0
+    assert "s2" in capsys.readouterr().err
+    assert not (tmp_path / lake.SESSIONS).exists()
