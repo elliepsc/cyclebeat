@@ -155,7 +155,13 @@ def _connect() -> Database:
     if is_postgres():
         import psycopg  # imported lazily: a bare clone never installs a server to talk to
 
-        return Database(psycopg.connect(url), postgres=True)
+        connection_pg = psycopg.connect(url)
+        # The `timestamp` columns have no zone: Postgres stores an aware value converted
+        # through the session time zone, which a DSN or the server can set to anything. Pinned
+        # to UTC so the column holds UTC wall time, which the pipeline reads as UTC (#57).
+        connection_pg.execute("SET TIME ZONE 'UTC'")
+        connection_pg.commit()
+        return Database(connection_pg, postgres=True)
 
     path = sqlite_path()
     path.parent.mkdir(parents=True, exist_ok=True)
