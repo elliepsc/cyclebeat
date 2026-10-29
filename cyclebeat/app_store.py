@@ -99,15 +99,32 @@ def _rows(sql: str) -> list[tuple[Any, ...]]:
         connection_sqlite.close()
 
 
-def _as_datetime(value: Any) -> datetime:
+class UnreadableDate(ValueError):
+    """A store row whose `created_at` is not a date. It fails the extraction (#57)."""
+
+
+def _as_datetime(value: Any, row: str) -> datetime:
+    """The store's `created_at` as an aware UTC datetime.
+
+    A naive value is read as UTC: the API writes `datetime.now(UTC)`, SQLite keeps it as an ISO
+    string with its offset, and a Postgres `timestamp` column holds it as UTC wall time because
+    the API's session is pinned to UTC (`api/repositories/database.py`). Anything that is not a
+    date raises, naming the row: replacing it with the current time would give the row a new
+    timestamp at every extraction (#57).
+    """
+    parsed: datetime | None = None
     if isinstance(value, datetime):
-        return value
-    if isinstance(value, str) and value:
+        parsed = value
+    elif isinstance(value, str) and value:
         try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError:
-            pass
-    return datetime.now(UTC)
+            parsed = None
+    if parsed is None:
+        raise UnreadableDate(f"{row}: unreadable created_at {value!r}")
+    if parsed.utcoffset() is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def read_sessions() -> list[RawSession]:
@@ -128,7 +145,7 @@ def read_sessions() -> list[RawSession]:
             verdict=str(r[4]),
             n_segments=int(r[5]),
             duration_gap_s=float(r[6]),
-            created_at=_as_datetime(r[7]),
+            created_at=_as_datetime(r[7], f"sessions row session_id={r[0]!r}"),
         )
         for r in rows
     ]
@@ -148,7 +165,9 @@ def read_feedback() -> list[RawFeedback]:
             session_title=None if r[1] is None else str(r[1]),
             rating=str(r[2]),
             note=None if r[3] is None else str(r[3]),
-            created_at=_as_datetime(r[4]),
+            created_at=_as_datetime(
+                r[4], f"feedback row session_id={r[0]!r} session_title={r[1]!r}"
+            ),
         )
         for r in rows
     ]
@@ -161,6 +180,8 @@ def extract_to_lake(dt: date | None = None, root: Path | None = None) -> dict[st
     behave — re-running the same day overwrites instead of appending, which is the E.5
     idempotency the DAG tests already assert.
 
+    A row whose `created_at` is not a date raises `UnreadableDate` before anything is written.
+
     An empty table writes no partition rather than an empty one: `write_partition` needs a row
     to infer its schema, and an absent partition reads back as "nothing new today" while a
     previous day's data stays queryable.
@@ -170,12 +191,15 @@ def extract_to_lake(dt: date | None = None, root: Path | None = None) -> dict[st
     stamp = dt or datetime.now(UTC).date()
     counts: dict[str, int] = {}
 
+    # Both tables are read before either is written: an unreadable row raises here, and no
+    # partition of this extraction is left half-done (#57).
     sessions = read_sessions()
+    feedback = read_feedback()
+
     if sessions:
         lake.write_partition(sessions, lake.SESSIONS, stamp, root=root)
     counts["sessions"] = len(sessions)
 
-    feedback = read_feedback()
     if feedback:
         lake.write_partition(feedback, lake.FEEDBACK, stamp, root=root)
     counts["feedback"] = len(feedback)
