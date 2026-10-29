@@ -196,6 +196,9 @@ def _from_csv(tracks: list[Any], resolutions: list[Any]) -> list[PlannerTrack]:
     The manual BPM in the CSV is a single E.2 source, so it is passed through `e2.resolve`
     rather than trusted directly — the same rule the warehouse applies, applied once here too
     instead of a second variant.
+
+    No caller since #65 refused the csv source; kept for issue #66 to decide. If csv comes
+    back, its input is an upload or a server-chosen id, never a caller-supplied path.
     """
     from cyclebeat import e2
 

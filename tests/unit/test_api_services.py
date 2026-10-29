@@ -9,7 +9,6 @@ Repository behaviour against a real database is covered separately, in
 
 from __future__ import annotations
 
-import contextlib
 from datetime import UTC, datetime
 from typing import Any
 
@@ -304,10 +303,10 @@ def test_a_csv_request_opens_no_file(
     monkeypatch.setattr(io, "open", spy)
 
     for path in csv_paths.values():
-        # Any outcome is collected: this test is about what was opened, the two below about
-        # what the caller gets back.
-        with contextlib.suppress(Exception):
+        # The reason is asserted too, so the loop cannot pass by failing before the csv branch.
+        with pytest.raises(UnprocessableError) as raised:
             service.generate(request(source={"type": "csv", "value": path}))
+        assert raised.value.reasons == ["csv_not_found"]
 
     assert opened == []
 
