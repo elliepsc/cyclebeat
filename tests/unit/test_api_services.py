@@ -9,6 +9,7 @@ Repository behaviour against a real database is covered separately, in
 
 from __future__ import annotations
 
+import contextlib
 from datetime import UTC, datetime
 from typing import Any
 
@@ -242,8 +243,13 @@ def test_a_missing_csv_is_a_422_not_a_crash(service: SessionService) -> None:
     assert "csv_not_found" in raised.value.reasons
 
 
-def test_a_real_csv_is_planned(service: SessionService) -> None:
-    """The committed spike CSV — the `manual` E.2 source, resolved through e2 not trusted."""
+def test_the_committed_csv_is_refused(service: SessionService) -> None:
+    """The committed spike CSV: 20 tracks, columns `artist` and `title`, no BPM, no duration.
+
+    Through the API the csv source never produced a session: with no BPM and no duration the
+    planner excluded every track (#65). The service now refuses csv before opening anything;
+    the point is a structured 422 rather than a parse error.
+    """
     from pathlib import Path
 
     csv = Path("data/spike/playlist_mixed.csv")
@@ -251,9 +257,101 @@ def test_a_real_csv_is_planned(service: SessionService) -> None:
         pytest.fail(f"expected the committed CSV fixture at {csv}")
 
     with pytest.raises(UnprocessableError):
-        # 5 tracks cannot fill 45 minutes with a warmup and a cooldown; the point is that it
-        # refuses with a structured reason rather than raising a parse error.
         service.generate(request(source={"type": "csv", "value": str(csv)}))
+
+
+# ── The csv source is refused without reading the server's files (#65) ─────────────────
+
+
+@pytest.fixture()
+def csv_paths(tmp_path: Any) -> dict[str, str]:
+    """One path per category the refusal must not tell apart. All under `tmp_path`."""
+    import os
+
+    outside = tmp_path / "outside.csv"
+    outside.write_text("artist,title,bpm\nA,Song,120\n", encoding="utf-8")
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    link = tmp_path / "link.csv"
+    os.symlink(outside, link)
+    unreadable = tmp_path / "binary.csv"
+    unreadable.write_bytes(b"\xff\xfe\x00\x81")
+    return {
+        "missing": str(tmp_path / "missing.csv"),
+        "outside": str(outside),
+        "parent": f"{sub}/../outside.csv",
+        "symlink": str(link),
+        "directory": str(sub),
+        "unreadable": str(unreadable),
+        "existing": "data/spike/playlist_mixed.csv",
+    }
+
+
+def test_a_csv_request_opens_no_file(
+    service: SessionService, csv_paths: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import builtins
+    import io
+
+    opened: list[str] = []
+    real_open = builtins.open
+
+    def spy(file: Any, *args: Any, **kwargs: Any) -> Any:
+        opened.append(str(file))
+        return real_open(file, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", spy)
+    monkeypatch.setattr(io, "open", spy)
+
+    for path in csv_paths.values():
+        # Any outcome is collected: this test is about what was opened, the two below about
+        # what the caller gets back.
+        with contextlib.suppress(Exception):
+            service.generate(request(source={"type": "csv", "value": path}))
+
+    assert opened == []
+
+
+def _csv_responses(
+    service: SessionService, csv_paths: dict[str, str]
+) -> dict[str, tuple[int, str]]:
+    from fastapi.testclient import TestClient
+
+    from api.dependencies import get_session_service
+    from api.main import create_app
+
+    app = create_app()
+    app.dependency_overrides[get_session_service] = lambda: service
+    client = TestClient(app, raise_server_exceptions=False)
+    body = request().model_dump(mode="json")
+    responses = {}
+    for category, path in csv_paths.items():
+        body["source"] = {"type": "csv", "value": path}
+        response = client.post("/v1/sessions/generate", json=body)
+        responses[category] = (response.status_code, response.text)
+    return responses
+
+
+def test_every_csv_path_gets_the_same_response(
+    service: SessionService, csv_paths: dict[str, str]
+) -> None:
+    responses = _csv_responses(service, csv_paths)
+
+    assert len(set(responses.values())) == 1, responses
+    status, text = next(iter(responses.values()))
+    assert status == 422
+    assert "csv_not_found" in text
+    assert all(path not in text for path in csv_paths.values())
+
+
+def test_no_csv_path_is_a_server_error(
+    service: SessionService, csv_paths: dict[str, str]
+) -> None:
+    responses = _csv_responses(service, csv_paths)
+
+    assert {category: status for category, (status, _) in responses.items()} == {
+        category: 422 for category in csv_paths
+    }
 
 
 # ── Replay, history, feedback ────────────────────────────────────────────────────────────

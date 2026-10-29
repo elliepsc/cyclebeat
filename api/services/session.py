@@ -13,7 +13,6 @@ from __future__ import annotations
 import os
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 from api.errors import NotFoundError, UnprocessableError
@@ -117,20 +116,21 @@ class SessionService:
             return self._tracks.planner_catalogue()
 
         if kind == "csv":
-            from cyclebeat.sources.csv_source import read_csv
-
-            path = request.source.value
-            if not path:
+            if not request.source.value:
                 raise UnprocessableError(
                     "A csv source needs a path in `source.value`.", reasons=["missing_csv_path"]
                 )
-            try:
-                tracks, resolutions = read_csv(Path(path))
-            except FileNotFoundError as exc:
-                raise UnprocessableError(
-                    f"CSV not found: {path}", reasons=["csv_not_found"]
-                ) from exc
-            return _from_csv(tracks, resolutions)
+            # Refused without opening anything (#65). Through the API a CSV never produced a
+            # session (no track duration, so the planner excluded every track), while reading
+            # a caller-supplied path exposed the server's files. One response for every path,
+            # which never repeats it, so it tells nothing about what exists. CSV playlists are
+            # imported by the offline pipeline (`cyclebeat/cli.py`, `dags/dag_ingest.py`);
+            # whether the API drops csv or makes it work is issue #66.
+            raise UnprocessableError(
+                "The csv source is not available through the API; "
+                "CSV playlists are imported by the offline pipeline.",
+                reasons=["csv_not_found"],
+            )
 
         # deezer_url. Live network, so it is refused in DEMO_MODE -- which is the default and
         # what CI runs (E.8: no API quota consumed in review).

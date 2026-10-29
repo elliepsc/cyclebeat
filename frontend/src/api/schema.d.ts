@@ -171,6 +171,9 @@ export interface components {
             type: "deezer_url" | "csv" | "demo";
             /**
              * @description Playlist URL, CSV path, or `""` for `demo` (which reads the committed catalogue).
+             *     `csv` is refused with 422 `csv_not_found` whatever the path, and no file is opened:
+             *     through the API it never produced a session. CSV playlists are imported by the
+             *     offline pipeline (issues #65, #66).
              *     `deezer_url` needs live network and is refused with 422 under `DEMO_MODE` (E.8).
              */
             value: string;
