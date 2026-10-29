@@ -33,7 +33,7 @@
 **Verification**:
 - Red/green: the three new tests red on f17725c, green on the fix (ebc1acd), as described above.
 - `gh run view 40583093914 --log` for the `PASS=106` figure.
-- Final DoD: see the commit that follows.
+- Final DoD on 3400559, run alone (no subagent active), 29 October 2026: `make lint` 0 dead links; `make typecheck` no issues in 21 files; `make test-unit` 811 passed / 15 skipped / 2 xfailed; `make eval` 55 passed; `make contract` 25 passed; `make dbt` PASS=106 on a copy, in the agent's scratchpad, of a scratch warehouse left by an earlier session on 24 October 2026 (`RUNTIME_DB_PATH=` prefix), never on `data/`. The diff touches no `dbt/` and no SQL.
 **Spec/actual gaps** (issue #65 vs the branch):
 - P1 grew past the issue: the replay showed that csv never worked through the API, so FR-01 and the `openapi.yaml` description were corrected too, and the decision on csv's future went to #66.
 - The issue's B1 and B2 are fixed as written.
