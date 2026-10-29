@@ -105,3 +105,42 @@ def test_an_aware_non_utc_timestamp_is_written_as_its_utc_instant(tmp_path: Path
     assert _values(part, "created_at") == [
         datetime(2026, 7, 29, 15, 43, 42, tzinfo=UTC).replace(tzinfo=None)
     ]
+
+
+# ── A partition written before #57 ──────────────────────────────────────────────────────
+
+PRE_57_LAKE = REPO_ROOT / "tests" / "fixtures" / "pre_57_lake"
+PRE_57_WALL_TIME = datetime(2026, 7, 29, 17, 43, 42)  # 15:43:42Z written as Paris time
+SNAPSHOT_UTC = datetime(2026, 7, 29, 15, 43, 42)
+
+
+def test_a_pre_57_partition_rewritten_for_the_same_dt_keeps_no_old_row(tmp_path: Path) -> None:
+    """The re-extraction the owner runs on the real lake, on a copy of the real partitions.
+
+    The demo ingest rewrites `dt=2026-07-29` under a non-UTC `TZ`. The replacement must be
+    whole: one file per partition, every row at the UTC instant, none left at the old value.
+    """
+    import shutil
+
+    lake_root = tmp_path / "lake"
+    shutil.copytree(PRE_57_LAKE / "raw", lake_root / "raw")
+    before = {
+        dataset: len(_values(lake.partition_dir(dataset, "2026-07-29", lake_root)
+                             / "part.parquet", column))
+        for dataset, column in ((lake.TRACKS, "ingested_at"), (lake.RESOLUTIONS, "resolved_at"))
+    }
+    assert set(_values(
+        lake.partition_dir(lake.TRACKS, "2026-07-29", lake_root) / "part.parquet", "ingested_at"
+    )) == {PRE_57_WALL_TIME}
+
+    result = _run_under(
+        PARIS, [sys.executable, "-m", "cyclebeat.cli", "--lake", str(lake_root), "ingest"]
+    )
+    assert result.returncode == 0, (result.stdout + result.stderr)[-4000:]
+
+    for dataset, column in ((lake.TRACKS, "ingested_at"), (lake.RESOLUTIONS, "resolved_at")):
+        partition = lake.partition_dir(dataset, "2026-07-29", lake_root)
+        assert [path.name for path in partition.iterdir()] == ["part.parquet"]
+        values = _values(partition / "part.parquet", column)
+        assert len(values) == before[dataset]
+        assert set(values) == {SNAPSHOT_UTC}, f"{dataset}: an old-format row is left"
