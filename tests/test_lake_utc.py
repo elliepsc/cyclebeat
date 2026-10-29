@@ -10,6 +10,7 @@ a subprocess: DuckDB reads the zone when it loads, not when a test changes `os.e
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable
@@ -122,8 +123,6 @@ def test_a_pre_57_partition_rewritten_for_the_same_dt_keeps_no_old_row(tmp_path:
     The demo ingest rewrites `dt=2026-07-29` under a non-UTC `TZ`. The replacement must be
     whole: one file per partition, every row at the UTC instant, none left at the old value.
     """
-    import shutil
-
     lake_root = tmp_path / "lake"
     shutil.copytree(PRE_57_LAKE / "raw", lake_root / "raw")
     before = {

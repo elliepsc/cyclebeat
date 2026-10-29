@@ -7,6 +7,9 @@ The lake is also the permanent cache E.8 asks for: once a track and a source's o
 written, no re-fetch is ever needed to rebuild the warehouse. ADR-005 leans on this — if
 Deezer tightened preview access tomorrow, everything already resolved stays resolved.
 
+Every `TIMESTAMP` column holds UTC wall time, whatever the time zone of the writing process
+(#57): `_utc_wall_time` converts each aware value and refuses a naive one.
+
 Parquet is written through DuckDB's `COPY ... TO ... (FORMAT PARQUET)` rather than pyarrow:
 duckdb is already a declared dependency, so this adds none (E.0.5).
 """
@@ -14,7 +17,7 @@ duckdb is already a declared dependency, so this adds none (E.0.5).
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -68,16 +71,38 @@ def _sql_type(annotation: Any) -> str:
     return "VARCHAR"
 
 
+def _utc_wall_time(value: Any, column: str) -> Any:
+    """An aware `datetime` as its naive UTC wall time; any other value unchanged.
+
+    A lake `TIMESTAMP` holds UTC (#57). The conversion is done here, in Python, because handing
+    DuckDB an aware value converts it through the session time zone, which DuckDB takes from
+    the process `TZ`: on a host in Europe/Paris the lake held local time. A naive `datetime`
+    has no zone to convert from, so it is refused rather than assumed to be UTC; the boundary
+    that knows what a naive value means (`app_store` for the transactional store) makes it
+    aware before it gets here.
+    """
+    if not isinstance(value, datetime):
+        return value
+    if value.utcoffset() is None:
+        raise ValueError(f"naive datetime in column {column!r}: {value.isoformat()}")
+    return value.astimezone(UTC).replace(tzinfo=None)
+
+
 def _rows_to_relation(con: duckdb.DuckDBPyConnection, rows: Sequence[BaseModel]) -> None:
     """Materialize the pydantic rows as a DuckDB temp table named `payload`."""
     fields = type(rows[0]).model_fields
     columns = list(fields.keys())
     ddl = ", ".join(f'"{name}" {_sql_type(field.annotation)}' for name, field in fields.items())
+
+    # Converted before anything is created, so a refused value leaves no file behind.
+    tuples = [
+        tuple(_utc_wall_time(row.model_dump()[column], column) for column in columns)
+        for row in rows
+    ]
     con.execute(f"CREATE OR REPLACE TEMP TABLE payload ({ddl})")
 
     placeholders = ", ".join("?" for _ in columns)
     column_list = ", ".join(f'"{column}"' for column in columns)
-    tuples = [tuple(row.model_dump()[column] for column in columns) for row in rows]
     con.executemany(f"INSERT INTO payload ({column_list}) VALUES ({placeholders})", tuples)
 
 
@@ -97,12 +122,12 @@ def write_partition(
         return None
 
     directory = partition_dir(dataset, dt, root)
-    directory.mkdir(parents=True, exist_ok=True)
     destination = directory / filename
 
     con = duckdb.connect()
     try:
         _rows_to_relation(con, rows)
+        directory.mkdir(parents=True, exist_ok=True)
         con.execute(
             f"COPY payload TO '{destination.as_posix()}' (FORMAT PARQUET, OVERWRITE_OR_IGNORE 1)"
         )
