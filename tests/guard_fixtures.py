@@ -1,7 +1,7 @@
 """Lakes that a data guard must reject (#60), one per guard.
 
-Run as `python -m tests.guard_fixtures <lake_root> <fixture>` in a process whose `TZ` is UTC,
-like `tests/reference_dataset.py`. Each fixture is a valid store except for one row, so the
+Run as `python -m tests.guard_fixtures <lake_root> <fixture>`, like
+`tests/reference_dataset.py`. Each fixture is a valid store except for one row, so the
 guard it targets is the only test that can fail on it.
 """
 
