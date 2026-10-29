@@ -115,8 +115,8 @@ The two staging models differ on purpose:
 - **a session has a key** (`session_id`), so a union over partitions, deduplicated on that key,
   is exact;
 - **a feedback has none**, so the only exact copy is one whole partition. A union deduplicated on
-  every column breaks when the same row is extracted under two timezones: `created_at` is written
-  as local wall time, and the same feedback then gives two rows.
+  every column broke when the same row was extracted under two timezones: `created_at` was
+  written as local wall time until #57, and the same feedback then gave two rows.
 
 ## `mart_session_kpis` — global session KPIs
 
