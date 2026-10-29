@@ -1,5 +1,16 @@
 # Cold audit — CycleBeat, 27 October 2026
 
+> **Note 2026-10-29:** B1, B2 and P1 are fixed in PR #67 (issue #65), deployed to production by
+> [run 40894109013](https://github.com/elliepsc/cyclebeat/actions/runs/40894109013) on `8d46319`.
+> Production was verified the same day by two `csv` requests with different paths (`a.csv` and
+> `autre/dossier/b.csv`): the two responses are identical and neither contains a path. Output of
+> the check:
+>
+> ```text
+> IDENTIQUES
+> {"type":"about:blank","title":"Unprocessable Entity","status":422,"detail":"The csv source is not available through the API; CSV playlists are imported by the offline pipeline.","reasons":["csv_not_found"]}
+> ```
+
 - **Audited reference:** `origin/main` = `f17725c` (Merge PR #63), cloned fresh from GitHub into a
   scratch directory outside the working copy. The date was read with `date +%F` (2026-10-27).
 - **Stance:** a peer who wrote none of the files, following the README. The audit measures and
