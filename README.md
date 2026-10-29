@@ -91,7 +91,7 @@ flowchart LR
   apic -->|"A10 read-only"| duckc
   build -->|"A11"| duckc
   src -->|"A12 cli ingest"| lake
-  src -->|"A13 dlt, patterns"| duckl
+  src -->|"A13 save_patterns, patterns"| duckl
   store -->|"A14 cli extract-app"| lake
   lake -->|"A15 cli load"| duckl
   dbt -->|"A16"| duckl
@@ -141,7 +141,7 @@ files change):
 | lake | Parquet partitions under `lake/` | `cyclebeat/lake.py:24`, `:84` |
 | DuckDB (local) | `RUNTIME_DB_PATH`, default `data/cyclebeat_runtime.duckdb` | `db/runtime.py:21-23`; `dbt/profiles.yml:8` |
 | A12 | `cli ingest` writes the lake | `cyclebeat/cli.py:69`; `Makefile:94` |
-| A13 | dlt loads the patterns into DuckDB | `ingest/ingest_pipeline.py:51-56`; `Makefile:93` |
+| A13 | dlt stages the patterns in its own DuckDB file, `cyclebeat_ingestion.duckdb` in the working directory ([dlt docs](https://dlthub.com/docs/dlt-ecosystem/destinations/duckdb)); `save_patterns` then copies them into the runtime DuckDB | `ingest/ingest_pipeline.py:51-56` (dlt, no path given), `:59-61`; `db/runtime.py:63`; `Makefile:93` |
 | A14 | `cli extract-app` copies sessions and feedback into the lake | `cyclebeat/cli.py:122`; `cyclebeat/app_store.py:157`; `Makefile:95` |
 | A15 | `cli load` loads the lake into DuckDB | `cyclebeat/cli.py:106`; `cyclebeat/warehouse.py:122`; `Makefile:96` |
 | A16 | dbt builds the marts in the same DuckDB | `dbt/profiles.yml:8`; `Makefile:82` |
