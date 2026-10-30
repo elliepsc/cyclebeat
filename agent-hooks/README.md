@@ -17,14 +17,17 @@ It refuses, with exit code 2 and a one-line reason:
 | no PR creation or merge | `gh pr create`, `gh pr merge 999999`, the merge API | `gh pr view`, `gh run list` |
 | no Render | deploy hooks, `api.render.com`, `$RENDER_*`, `python -m tools.deploy` | `pytest tests/unit/test_deploy.py` |
 | the guardrails are the owner's | edits to `agent-hooks/` and `.claude/settings*.json` | reading them, `git add` |
-| no issue state change (#44, #71) | `gh issue close`, `reopen`, `delete`, `transfer`, `gh api -X PATCH .../issues/N -f state=closed` (or `-fstate=`, `--input`), GraphQL `closeIssue`/`reopenIssue`/`deleteIssue`/`transferIssue` | `gh issue comment`, `edit --add-label`, `gh api .../issues/N/comments` |
+| no issue state change (#44, #71) | `gh issue close`, `reopen`, `delete`, `transfer`, `gh api -X PATCH .../issues/N -f state=closed` (or `-fstate=`, `--input`), GraphQL `closeIssue`/`reopenIssue`/`deleteIssue`/`transferIssue`, `updateIssue` with `state:`, a query from a file | `gh issue comment`, `edit --add-label`, `gh api .../issues/N/comments` |
 | no secret in a commit (#71) | `git commit` adding a private key header, a GitHub or AWS key prefix, or staging `.env`, `*.pem`, `*.key`, `id_*` | a clean commit, `id_ed25519.pub` |
 
-It reads what bash executes, not what bash passes as data (#71): the script of `bash -c` and
-`eval`, `$(...)` and backticks (inside double quotes and `${...}` too), a heredoc fed to a
-shell, `find -exec`, `ssh` and `watch`, echo piped into `xargs` or a shell, and `python -c`
-code (read with `ast`, never run) are checked; a commit message, a heredoc fed to `cat` or
-`git commit -F -`, and a `for` list are not. It stops mistakes, not an adversary: a
+It reads what bash executes, not what bash passes as data (#71), and what is not proven to be
+data is analysed as executable: the script of `bash -c` and `eval`, `$(...)` and backticks
+(inside double quotes and `${...}` too), a heredoc fed to a shell, `find -exec`, `ssh` and
+`watch`, `python -c` code (read with `ast`, never run), and any heredoc or multi-line argument
+given to a program the hook does not model are checked. Only a closed list is data: a commit
+message, a heredoc fed to a program that executes nothing (`cat`, `jq`, `gh`, `git commit -F
+-`, ...), echo and printf words whose output goes nowhere, and a `for` list. A value read by
+`read` is unknown, refused where a command writes. It stops mistakes, not an adversary: a
 path built at runtime, `exec` or `getattr` in python gets through. What it can and cannot do,
 and the two other layers, are in [docs/permissions.md](../docs/permissions.md).
 
