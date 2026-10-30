@@ -58,14 +58,14 @@ Bash the hook answered first.
 
 | Action | Layer 1 (deny) | Layer 2 (hook) |
 |---|---|---|
-| Write to `data/` or `lake/` | `Edit(/data/**)`, `Edit(/lake/**)` | file tools and shell, including `make ingest`, `make dbt` on the real warehouse, `dbt build`, `cyclebeat.cli ingest/resolve/extract-app/load` (allowed: `--help`, `ingest --lake <dir outside the repo zones>` without `--live`, `load --db <path outside data/>`), the compose `pipeline` profile, a heredoc fed to a shell, a `python -c` or python heredoc that writes a protected path |
+| Write to `data/` or `lake/` | `Edit(/data/**)`, `Edit(/lake/**)` | file tools and shell, including `make ingest`, `make dbt` on the real warehouse, `dbt build`, `cyclebeat.cli ingest/resolve/extract-app/load` (allowed: `--help`, `ingest --lake <dir outside data/, lake/ and agent-hooks/>` without `--live`, `load --db <path outside them>`; a unique prefix of a long option counts, as argparse reads it: `--la`, `--liv`, `--d`), the compose `pipeline` profile, a heredoc fed to a shell, a `python -c` or python heredoc that writes a protected path |
 | Read or write a secrets file | `Read`/`Edit` of `.env`, `.env.*`, `.ENV`, `.ENV.*` | the same plus private keys, `.netrc`, `.pgpass`, globs such as `cat .env*` |
 | Force push | `git push *--force*`, `git push -f*`, `git push * -f*` | every form: `--force`, `-f` combined (`-uf`), `--force-with-lease`, `--force-if-includes`, `--mirror`, `+refspec`, option after the branch |
 | Push to `main` | — | `git push origin main`, `HEAD:main`, `--all`, a bare `git push` from `main` |
 | Merge into `main` | — | `git merge` on `main`, or after `git checkout/switch main` in the same command |
 | Create or merge a PR | `gh pr create*`, `gh pr merge*` | the same plus the GitHub merge API |
-| Change an issue's state (the merged PR closes it with `Closes #N`) | — | `gh issue close`, `reopen`, `delete`, `transfer`; `gh issue edit --state` (an option gh 2.45 does not have, kept for a later gh); `gh api` with a non-GET method on `repos/<o>/<r>/issues/<N>` and a `state` or `state_reason` field. Labels, titles, bodies and comments stay allowed |
-| Commit a secret | — | a `git commit` whose change (the index, plus what `-a` or pathspecs add) adds a private key header (RFC 7468, OpenSSH, PGP) or a GitHub (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) or AWS (`AKIA`, `ASIA`) key prefix. Secrets files are left out of that read by pathspec: the hook never reads `.env` |
+| Change an issue's state (the merged PR closes it with `Closes #N`) | — | `gh issue close`, `reopen`, `delete`, `transfer`; `gh issue edit --state` (an option gh 2.45 does not have, kept for a later gh); `gh api` with a non-GET method on `repos/<o>/<r>/issues/<N>` (a query string ignored) and a `state` or `state_reason` field (`-f`, `-F`, attached `-fstate=`) or any `--input` body; the GraphQL mutations `closeIssue`, `reopenIssue`, `deleteIssue`, `transferIssue`. Labels, titles, bodies and comments stay allowed |
+| Commit a secret | — | a `git commit` whose change (the index, plus what `-a`, pathspecs, on an unborn branch too, or a `git add` earlier in the same command add) adds a private key header (RFC 7468, OpenSSH, PGP) or a GitHub (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) or AWS (`AKIA`, `ASIA`) key prefix, or stages a secrets file by its name (`.env`, `*.pem`, `*.key`, `id_*` but not `*.pub`). Secrets files are named, never read: the hook never reads `.env`. The refusal names the pattern and the file, never a line of content; a git error or the 6 s budget refuses the commit |
 | Call Render | `curl *render.com*`, `WebFetch(domain:api.render.com)` | deploy hooks, `api.render.com`, any `$RENDER_*` variable, `python -m tools.deploy` |
 | Loosen its own guardrails | `Edit(/agent-hooks/**)`, `Edit(/.claude/settings.json)`, `Edit(/.claude/settings.local.json)` | writes to `agent-hooks/` and to any `.claude/settings*.json` |
 
@@ -77,11 +77,17 @@ matches it); `cat .env.example` works.
 
 - **The hook reads what bash executes, not what it passes as data** (issue #71). It lexes the
   whole command, quotes spanning lines included, and checks every string bash runs: the script
-  of `bash -c` and `eval`, a `$(...)` or backtick outside single quotes (inside double quotes
-  too), a heredoc or here-string fed to a shell. It skips what is only data: a `git commit -m`
-  message, a heredoc fed to a program that is neither a shell nor python, a `for` list (checked
-  through the loop variable in the body); a search pattern and echo/printf arguments are not
-  taken for secrets files. An unbalanced quote is refused. A script built at runtime
+  of `bash -c` and `eval` (with shell options such as `-o pipefail`), a `$(...)` or backtick
+  outside single quotes (inside double quotes and `${...}` too), a heredoc fed to a shell, the
+  command of `find -exec`, what `ssh HOST` and `watch` hand to a shell, and echo/printf words
+  piped into `xargs` or a shell. It skips what is only data: a `git commit -m` message, a
+  heredoc fed to a program that is neither a shell nor python, a `for` list (checked through
+  the loop variable in the body, every value up to 4096 combinations, refused past that); a
+  search pattern and echo/printf arguments that feed no executor are not taken for secrets
+  files. An unbalanced quote is refused, and so is a nesting too deep for the parser (fail
+  closed, with a generic message). Not seen either: ANSI-C escapes (`$'\x2eenv'`), `$"..."`,
+  a `${x:-...}` default value used as a path; a `cd` or an assignment inside a pipeline is taken
+  as applied, though bash runs it in a subshell. A script built at runtime
   (`bash -c "$(curl ...)"`, or one a script writes and then runs) is not seen. The deny rules
   have the same limit for Bash: they cover `cat`, `sed`, redirections and the like, *"They don't
   apply to a command that reads files without naming them"* ([permissions](https://code.claude.com/docs/en/permissions)).
@@ -89,9 +95,10 @@ matches it); `cat .env.example` works.
 - **`python -c` is read by a heuristic.** The code is parsed with `ast`, never run: a secrets
   file name, a protected path given to a write call, or a `subprocess`/`os.system` call whose
   literal command the shell rules refuse, is refused. It does not see a path built at runtime,
-  `exec`, `getattr` or an encoding (owner decision, #71).
+  `exec`, `getattr` or an encoding (owner decision, #71), nor code attached to `-c`
+  (`"-cimport ..."`) or a module imported under an alias (`import shutil as s`).
 - **The secret check at commit is narrow.** It looks for high-confidence patterns only (private
-  key headers, known token prefixes), in the lines the commit adds. gitleaks, over the whole
+  key headers, known token prefixes) in the lines the commit adds, and for secrets file names. gitleaks, over the whole
   history in CI and in `make audit`, stays the safety net: it runs after the push, so a secret
   outside these patterns reaches the remote first.
 - **A subagent's Bash list is an instruction.** The closed list of Bash commands in each
