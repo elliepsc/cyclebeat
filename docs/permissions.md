@@ -64,8 +64,8 @@ Bash the hook answered first.
 | Push to `main` | — | `git push origin main`, `HEAD:main`, `--all`, a bare `git push` from `main` |
 | Merge into `main` | — | `git merge` on `main`, or after `git checkout/switch main` in the same command |
 | Create or merge a PR | `gh pr create*`, `gh pr merge*` | the same plus the GitHub merge API |
-| Change an issue's state (the merged PR closes it with `Closes #N`) | — | `gh issue close`, `reopen`, `delete`, `transfer`; `gh issue edit --state` (an option gh 2.45 does not have, kept for a later gh); `gh api` with a non-GET method on `repos/<o>/<r>/issues/<N>` (a query string ignored) and a `state` or `state_reason` field (`-f`, `-F`, attached `-fstate=`) or any `--input` body; the GraphQL mutations `closeIssue`, `reopenIssue`, `deleteIssue`, `transferIssue`. Labels, titles, bodies and comments stay allowed |
-| Commit a secret | — | a `git commit` whose change (the index, plus what `-a`, pathspecs, on an unborn branch too, or a `git add` earlier in the same command add) adds a private key header (RFC 7468, OpenSSH, PGP) or a GitHub (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) or AWS (`AKIA`, `ASIA`) key prefix, or stages a secrets file by its name (`.env`, `*.pem`, `*.key`, `id_*` but not `*.pub`). Secrets files are named, never read: the hook never reads `.env`. The refusal names the pattern and the file, never a line of content; a git error or the 6 s budget refuses the commit |
+| Change an issue's state (the merged PR closes it with `Closes #N`) | — | `gh issue close`, `reopen`, `delete`, `transfer`; `gh issue edit --state` (an option gh 2.45 does not have, kept for a later gh); `gh api` with a non-GET method on `repos/<o>/<r>/issues/<N>` (a query string ignored) and a `state` or `state_reason` field (`-f`, `-F`, attached `-fstate=`) or any `--input` body; the GraphQL mutations `closeIssue`, `reopenIssue`, `deleteIssue`, `transferIssue`, and `updateIssue` with a `state:` argument; a GraphQL query read from a file or stdin (`query=@file`, `--input`), which cannot be checked. Labels, titles, bodies and comments stay allowed |
+| Commit a secret | — | a `git commit` whose change (the index, plus what `-a`, pathspecs, on an unborn branch too, or a `git add` earlier in the same command add) adds a private key header (RFC 7468, OpenSSH, PGP) or a GitHub (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) or AWS (`AKIA`, `ASIA`) key prefix, or stages a secrets file by its name (`.env`, `*.pem`, `*.key`, `id_*` but not `*.pub`). Secrets files are named, never read: the hook never reads `.env`. The refusal names the pattern and the file, never a line of content nor a file name that holds a token; a git error refuses the commit, and so does the 6 s budget, which counts per commit (four commits in one command can take four budgets). The hook's git calls run no code of the repository: `core.fsmonitor` off, no pager, no submodule, no textconv or external diff, and a clean or process filter in the repository's own config refuses the commit unrun |
 | Call Render | `curl *render.com*`, `WebFetch(domain:api.render.com)` | deploy hooks, `api.render.com`, any `$RENDER_*` variable, `python -m tools.deploy` |
 | Loosen its own guardrails | `Edit(/agent-hooks/**)`, `Edit(/.claude/settings.json)`, `Edit(/.claude/settings.local.json)` | writes to `agent-hooks/` and to any `.claude/settings*.json` |
 
@@ -75,19 +75,26 @@ matches it); `cat .env.example` works.
 
 ## Limits — what this does not stop
 
-- **The hook reads what bash executes, not what it passes as data** (issue #71). It lexes the
+- **The hook reads what bash executes, not what it passes as data** (issue #71), and what is
+  not proven to be data is analysed as executable (owner decision, #71 round 3). It lexes the
   whole command, quotes spanning lines included, and checks every string bash runs: the script
   of `bash -c` and `eval` (with shell options such as `-o pipefail`), a `$(...)` or backtick
   outside single quotes (inside double quotes and `${...}` too), a heredoc fed to a shell, the
-  command of `find -exec`, what `ssh HOST` and `watch` hand to a shell, and echo/printf words
-  piped into `xargs` or a shell. It skips what is only data: a `git commit -m` message, a
-  heredoc fed to a program that is neither a shell nor python, a `for` list (checked through
-  the loop variable in the body, every value up to 4096 combinations, refused past that); a
-  search pattern and echo/printf arguments that feed no executor are not taken for secrets
-  files. An unbalanced quote is refused, and so is a nesting too deep for the parser (fail
-  closed, with a generic message). Not seen either: ANSI-C escapes (`$'\x2eenv'`), `$"..."`,
-  a `${x:-...}` default value used as a path; a `cd` or an assignment inside a pipeline is taken
-  as applied, though bash runs it in a subshell. A script built at runtime
+  command of `find -exec`, and what `ssh HOST` and `watch` hand to a shell. The data positions
+  are a closed list: the message of `git commit -m` / `-F`; a heredoc fed to a program known to
+  execute nothing (`cat`, `tee`, `jq`, `gh`, `git commit -F -`, ...); the arguments of echo and
+  printf only when their output goes into no pipe, redirection or substitution (so `echo .env |
+  wc -c` is refused); a `for` list, checked through the loop variable in the body in every
+  expansion form (`$d`, `${d%/}`, `${d:-x}`), every value up to 4096 combinations, refused past
+  that. Everything else is read with caution: a heredoc or a multi-line argument given to a
+  program the hook does not model (`stdbuf`, `flock -c`, `su -c`, `tmux`, `parallel`, `git
+  rebase -x`, `sed`, ...) is read as a script, whole when it parses, line by line otherwise,
+  skipping the lines that do not parse; a value set by `read` is unknown, so it is refused
+  where a command writes, and a `cd` to it is taken as a `cd` into a protected zone. A search
+  pattern is not taken for a secrets file; a pattern file (`grep -f`, `-f.env`) is. An
+  unbalanced quote is refused, and so is a nesting too deep for the parser (fail closed, with a
+  generic message). Not seen either: ANSI-C escapes (`$'\x2eenv'`), `$"..."`; a `cd` or an
+  assignment inside a pipeline is taken as applied, though bash runs it in a subshell. A script built at runtime
   (`bash -c "$(curl ...)"`, or one a script writes and then runs) is not seen. The deny rules
   have the same limit for Bash: they cover `cat`, `sed`, redirections and the like, *"They don't
   apply to a command that reads files without naming them"* ([permissions](https://code.claude.com/docs/en/permissions)).
@@ -98,7 +105,13 @@ matches it); `cat .env.example` works.
   `exec`, `getattr` or an encoding (owner decision, #71), nor code attached to `-c`
   (`"-cimport ..."`) or a module imported under an alias (`import shutil as s`).
 - **The secret check at commit is narrow.** It looks for high-confidence patterns only (private
-  key headers, known token prefixes) in the lines the commit adds, and for secrets file names. gitleaks, over the whole
+  key headers, known token prefixes) in the lines the commit adds, and for secrets file names.
+  It does not see a file git treats as binary, an untracked file past its first 1 MB, nor some
+  ways of staging in the same command: `git stage`, `git add` inside `bash -c`, `git add -A`
+  run from a subdirectory, `--git-dir`/`--work-tree`/`GIT_DIR=`, `--pathspec-from-file` (N1 of
+  the [second audit pass](../security/pr-audits/pr-71-security-auditor-2.md)). A `git init`
+  followed by a commit in the same command is refused: the repository does not exist yet when
+  the hook decides, so the git error fails closed (owner decision: accepted). gitleaks, over the whole
   history in CI and in `make audit`, stays the safety net: it runs after the push, so a secret
   outside these patterns reaches the remote first.
 - **A subagent's Bash list is an instruction.** The closed list of Bash commands in each
