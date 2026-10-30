@@ -56,4 +56,4 @@ Each case goes through `decide()` only; no command is run. Produced by a replay 
 | M3b | `git commit -m x` | allowed | refused | **refused** |
 | L6 | `git add certs/ && git commit -m x  [already staged]` | allowed | allowed | **refused** |
 
-Cases 69b032e refused that the fixed copy lets through: 0.
+Cases 69b032e refused that the fixed copy lets through: 0, of these 51 cases. The second auditor pass found 21 more ([pr-71-security-auditor-2.md](pr-71-security-auditor-2.md)); all 72 are replayed in [pr-71-hook-3-replay.md](pr-71-hook-3-replay.md).
