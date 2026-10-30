@@ -86,6 +86,7 @@ This list is an instruction, not an enforcement: the `tools` field takes bare to
 - `make audit`
 - `uv run pytest tests/unit/test_copilot_guards.py -v` and `uv run pytest tests/unit/test_agent_hook.py -q`
 - `uv export --frozen` piped into `uv run pip-audit -r /dev/stdin`, and `npm audit` in `frontend/`
+- `uv run python <script>` on a script in its own scratchpad that imports `agent-hooks/pre_tool_use.py` and calls its decision function (`decide`) on commands, without ever executing those commands (owner decision, #71)
 
 ## Report format
 
