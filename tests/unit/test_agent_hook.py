@@ -3,8 +3,15 @@
 Two lists of real tool calls: what must pass and what must be refused. The owner asked for at
 least as many "allowed" cases as "refused" ones, because a hook that blocks normal work gets
 switched off; `test_the_allowed_list_is_not_shorter` holds that. The branch is injected, so no
-case depends on what this checkout has checked out. The last tests run the script as Claude
-Code does: JSON on stdin, exit code 2 and a reason on stderr.
+case depends on what this checkout has checked out, and so is the read of the change to commit
+(issue #71, candidate 7), except in the tests that build a git repository for it. The last tests
+run the script as Claude Code does: JSON on stdin, exit code 2 and a reason on stderr.
+
+Issue #71: the six recorded false positives are replayed verbatim from
+`tests/fixtures/hook_false_positives.json`; every case added for #71 was first run against the
+hook at 69b032e: an added allowed case was refused there and an added refused case went through.
+A case named "pin: ..." holds a verdict the old hook already gave (a guard the new parsing must
+not lose); it was shown red on a mutation of the new hook instead (docs/ai-workflow.md, #71).
 """
 
 from __future__ import annotations
@@ -21,6 +28,9 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "agent-hooks" / "pre_tool_use.py"
+FALSE_POSITIVES = json.loads(
+    (ROOT / "tests" / "fixtures" / "hook_false_positives.json").read_text()
+)["cases"]
 
 
 def _load() -> ModuleType:
@@ -146,6 +156,89 @@ ALLOWED: list[tuple[str, dict[str, Any], str]] = [
     ("gh issue edit, remove a label", bash("gh issue edit 44 --remove-label docs"), "feature"),
     ("gh issue edit, a title", bash("gh issue edit 44 --title 'Product spec'"), "feature"),
     ("gh issue list --state closed", bash("gh issue list --state closed"), "feature"),
+    # ── issue #71: the six recorded false positives, verbatim ─────────────────────────────
+    *[(fp["id"], bash(fp["command"]), "feature") for fp in FALSE_POSITIVES],
+    # ── issue #71: what bash hands over as data is not read as paths or commands ─────────
+    ("a one-line message that starts with lake/", bash("git commit -m 'lake/raw is fixed'"), "f"),
+    (
+        "a multi-line -am message",
+        bash('git commit -am "docs: data/ and lake/\n\nmake ingest is unchanged"'),
+        "feature",
+    ),
+    (
+        "pin: a heredoc message inside $( )",
+        bash("git commit -m \"$(cat <<'EOF'\nfix: make ingest (lake/) stays\nEOF\n)\""),
+        "feature",
+    ),
+    ("pin: a heredoc fed to cat", bash("cat <<'EOF'\nmake ingest\nrm -rf lake\nEOF"), "feature"),
+    ("pin: an unquoted heredoc fed to cat", bash("cat <<EOF\nrm -rf lake\nEOF"), "feature"),
+    ("a quoted grep pattern naming .env", bash("grep -n '.env' README.md"), "feature"),
+    ("a grep -e pattern naming .env", bash("grep -n -e .env.local docs/permissions.md"), "f"),
+    ("git log --grep naming .env", bash("git log --oneline --grep=.env"), "feature"),
+    ("git grep for .env", bash("git grep -n .env -- docs"), "feature"),
+    ("printf naming .env", bash("printf '%s\\n' .env"), "feature"),
+    ("pin: a read in a double-quoted $( )", bash('echo "$(git rev-parse --short HEAD)"'), "f"),
+    ("pin: a comment with an apostrophe", bash("ls docs  # don't list data/"), "feature"),
+    ("a subshell cd does not leak", bash("(cd data && ls) && rm demo_session.json"), "f"),
+    ("pin: a variable outside data/", bash("S=/tmp/scratch-x && echo x > $S/probe"), "feature"),
+    (
+        "a for loop that reads",
+        bash('for f in data/a.json lake/b; do wc -c "$f"; done'),
+        "feature",
+    ),
+    # python -c (owner decision P1): reads and writes elsewhere pass
+    ("pin: python -c reads lake/", bash("python3 -c \"print(open('lake/x.json').read())\""), "f"),
+    (
+        "pin: python -c reads data/ with pathlib",
+        bash("python3 -c \"from pathlib import Path; print(Path('data/x.json').read_text())\""),
+        "feature",
+    ),
+    (
+        "pin: python -c duckdb read_only on data/",
+        bash(
+            "uv run python -c \"import duckdb; "
+            "duckdb.connect('data/cyclebeat_runtime.duckdb', read_only=True)\""
+        ),
+        "feature",
+    ),
+    ("pin: python -c writes /tmp", bash("python3 -c \"open('/tmp/x.txt','w').write('1')\""), "f"),
+    (
+        "pin: python heredoc edits a doc",
+        bash("python3 - <<'EOF'\np='docs/x.md'\nopen(p,'w').write('lake/ data/')\nEOF"),
+        "feature",
+    ),
+    (
+        "pin: python -c runs a read",
+        bash("python3 -c \"import subprocess; subprocess.run(['ls','data'])\""),
+        "feature",
+    ),
+    # cyclebeat.cli: help, and a lake outside the repo
+    ("cyclebeat.cli ingest --help", bash("uv run python -m cyclebeat.cli ingest --help"), "f"),
+    ("cyclebeat.cli load --help", bash("uv run python -m cyclebeat.cli load --help"), "f"),
+    (
+        "pin: cyclebeat.cli ingest, scratch lake",
+        bash("uv run python -m cyclebeat.cli --lake /tmp/scratch-x/lake ingest"),
+        "feature",
+    ),
+    (
+        "cyclebeat.cli ingest, --lake=",
+        bash("uv run python -m cyclebeat.cli --lake=/tmp/scratch-x/lake ingest"),
+        "feature",
+    ),
+    (
+        "pin: cyclebeat.cli load, scratch db",
+        bash("uv run python -m cyclebeat.cli --lake /tmp/l load --db /tmp/scratch-x/w.duckdb"),
+        "feature",
+    ),
+    # the tracker stays usable
+    ("pin: gh issue edit a body", bash("gh issue edit 71 --body-file /tmp/b.md"), "feature"),
+    ("pin: gh api read an issue", bash("gh api repos/o/r/issues/71"), "feature"),
+    ("pin: gh api comment on an issue", bash("gh api repos/o/r/issues/71/comments -f body=x"), "f"),
+    (
+        "pin: gh api edit an issue title",
+        bash("gh api -X PATCH repos/o/r/issues/71 -f title=t"),
+        "feature",
+    ),
 ]
 
 DENIED: list[tuple[str, dict[str, Any], str]] = [
@@ -261,6 +354,89 @@ DENIED: list[tuple[str, dict[str, Any], str]] = [
     ("gh -R issue close", bash("gh -R elliepsc/cyclebeat issue close 44"), "feature"),
     ("gh issue edit --state", bash("gh issue edit 44 --state closed"), "feature"),
     ("gh issue edit --state=", bash("gh issue edit 44 --state=closed"), "feature"),
+    # ── issue #71: every string bash runs is checked ────────────────────────────────────
+    ("a heredoc fed to bash", bash("bash <<'EOF'\nrm -rf lake\nEOF"), "feature"),
+    ("a heredoc fed to bash -s", bash("bash -s <<'EOF'\nmake ingest\nEOF"), "feature"),
+    ("a here-string fed to sh", bash("sh <<< 'make ingest'"), "feature"),
+    ("a heredoc fed to xargs rm", bash("xargs rm -rf <<'EOF'\nlake\nEOF"), "feature"),
+    ("a substitution in an unquoted heredoc", bash("cat <<EOF\n$(make ingest)\nEOF"), "f"),
+    ("a backtick in a double-quoted message", bash('git commit -m "fix `make ingest`"'), "f"),
+    ("a $( ) in double quotes", bash('echo "$(make ingest)"'), "feature"),
+    ("pin: a $( ) in an argument", bash("ls $(rm -rf lake)"), "feature"),
+    ("a variable into data/", bash("S=data && echo x > $S/probe"), "feature"),
+    ("an exported variable into lake/", bash("export D=lake && touch $D/x"), "feature"),
+    ("pin: a for loop that removes in data/", bash('for f in data/*.json; do rm "$f"; done'), "f"),
+    ("pin: a subshell does not hide the cd", bash("cd data && (ls) && rm x.json"), "feature"),
+    (
+        "pin: a commit message is skipped, not its pathspec",
+        bash("git commit -m msg data/x.json"),
+        "feature",
+    ),
+    ("pin: commit -F .env", bash("git commit -F .env"), "feature"),
+    ("an unbalanced quote", bash("echo 'oops"), "feature"),
+    ("pin: an unclosed $(", bash("echo $(make ingest"), "feature"),
+    # python -c and python heredocs (owner decision P1)
+    ("python -c writes data/", bash("python3 -c \"open('data/x.json','w').write('1')\""), "f"),
+    ("python -c rmtree lake", bash("python3 -c \"import shutil; shutil.rmtree('lake')\""), "f"),
+    (
+        "python -c write_text into data/",
+        bash("python3 -c \"from pathlib import Path; Path('data/x.json').write_text('1')\""),
+        "feature",
+    ),
+    (
+        "python -c a name bound to lake/",
+        bash("python3 -c \"p = 'lake/raw/x.parquet'\nimport os\nos.remove(p)\""),
+        "feature",
+    ),
+    (
+        "python -c duckdb read-write on data/",
+        bash("python3 -c \"import duckdb; duckdb.connect('data/cyclebeat_runtime.duckdb')\""),
+        "feature",
+    ),
+    ("python -c reads .env", bash("python3 -c \"print(open('.env').read())\""), "feature"),
+    (
+        "python -c runs make ingest",
+        bash("python3 -c \"import subprocess; subprocess.run(['make', 'ingest'])\""),
+        "feature",
+    ),
+    ("python -c os.system rm", bash("python3 -c \"import os; os.system('rm -rf lake')\""), "f"),
+    (
+        "python heredoc rmtree lake",
+        bash("python3 - <<'EOF'\nimport shutil\nshutil.rmtree('lake')\nEOF"),
+        "feature",
+    ),
+    ("python -c that does not parse", bash("python3 -c 'def ('"), "feature"),
+    ("pin: python -c redirected into data/", bash("python3 -c 'print(1)' > data/x.txt"), "f"),
+    ("pin: python -c given a data/ path", bash("python3 -c 'import sys' data/x.json"), "f"),
+    # cyclebeat.cli
+    (
+        "cyclebeat.cli --lake lake ingest",
+        bash("uv run python -m cyclebeat.cli --lake lake ingest"),
+        "feature",
+    ),
+    ("pin: cyclebeat.cli ingest", bash("uv run python -m cyclebeat.cli ingest"), "feature"),
+    (
+        "cyclebeat.cli ingest --live, scratch lake",
+        bash("uv run python -m cyclebeat.cli --lake /tmp/scratch-x/lake ingest --live"),
+        "feature",
+    ),
+    (
+        "cyclebeat.cli resolve, scratch lake",
+        bash("uv run python -m cyclebeat.cli --lake /tmp/scratch-x/lake resolve"),
+        "feature",
+    ),
+    ("pin: cyclebeat.cli load", bash("uv run python -m cyclebeat.cli load"), "feature"),
+    # M1b: an issue's state is the merged PR's job
+    ("gh issue reopen", bash("gh issue reopen 44"), "feature"),
+    ("gh issue delete", bash("gh issue delete 44 --yes"), "feature"),
+    ("gh issue transfer", bash("gh issue transfer 44 elliepsc/other"), "feature"),
+    ("gh api PATCH state", bash("gh api -X PATCH repos/o/r/issues/44 -f state=closed"), "f"),
+    ("gh api implicit POST state", bash("gh api repos/o/r/issues/44 -F state=open"), "f"),
+    (
+        "gh api --method= state_reason",
+        bash("gh api --method=PATCH /repos/o/r/issues/44 -f state_reason=completed"),
+        "feature",
+    ),
 ]
 
 
@@ -268,14 +444,94 @@ def test_the_allowed_list_is_not_shorter() -> None:
     assert len(ALLOWED) >= len(DENIED)
 
 
+def decide(event: dict[str, Any], branch: str) -> str | None:
+    """The hook's verdict with the branch injected and nothing staged."""
+    return hook.decide(event, branch_of=lambda _cwd: branch, staged_of=lambda _cwd, _args: "")
+
+
 @pytest.mark.parametrize(("case", "event", "branch"), ALLOWED, ids=[c[0] for c in ALLOWED])
 def test_allowed(case: str, event: dict[str, Any], branch: str) -> None:
-    assert hook.decide(event, branch_of=lambda _cwd: branch) is None
+    assert decide(event, branch) is None
 
 
 @pytest.mark.parametrize(("case", "event", "branch"), DENIED, ids=[c[0] for c in DENIED])
 def test_denied(case: str, event: dict[str, Any], branch: str) -> None:
-    assert hook.decide(event, branch_of=lambda _cwd: branch)
+    assert decide(event, branch)
+
+
+def test_the_six_false_positives_are_all_replayed() -> None:
+    assert [fp["issue_71_item"] for fp in FALSE_POSITIVES] == [1, 2, 3, 4, 5, 6]
+
+
+# ── issue #71, candidate 7: a commit that adds a secret (owner decision A) ──────────────
+# Built by concatenation so that no literal key sits in this file (gitleaks scans it in CI).
+FAKE = "0123456789abcdefABCDEF0123456789abcd"
+STAGED = [
+    ("private key", "RSA key header", "-----BEGIN " + "RSA PRIVATE KEY-----"),
+    ("private key", "OpenSSH key header", "-----BEGIN " + "OPENSSH PRIVATE KEY-----"),
+    ("private key", "PKCS#8 key header", "-----BEGIN " + "PRIVATE KEY-----"),
+    ("private key", "PGP key header", "-----BEGIN " + "PGP PRIVATE KEY BLOCK-----"),
+    ("GitHub token", "ghp_", "gh" + "p_" + FAKE),
+    ("GitHub token", "gho_", "gh" + "o_" + FAKE),
+    ("GitHub token", "ghu_", "gh" + "u_" + FAKE),
+    ("GitHub token", "ghs_", "gh" + "s_" + FAKE),
+    ("GitHub token", "ghr_", "gh" + "r_" + FAKE),
+    ("GitHub fine-grained token", "github_pat_", "github" + "_pat_" + FAKE),
+    ("AWS access key ID", "AKIA", "AK" + "IA" + "Q7" * 8),
+    ("AWS access key ID", "ASIA", "AS" + "IA" + "Z3" * 8),
+]
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
+        check=True, capture_output=True,
+    )
+
+
+def _repo(tmp_path: Path, content: str, name: str = "config.py") -> Path:
+    _git(tmp_path, "init", "-q")
+    (tmp_path / name).write_text(f"value = '{content}'\n")
+    _git(tmp_path, "add", "-f", name)
+    return tmp_path
+
+
+def _commit(repo: Path, command: str = "git commit -m add") -> str | None:
+    event = {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(repo)}
+    return hook.decide(event, branch_of=lambda _cwd: "feature")
+
+
+@pytest.mark.parametrize(("rule", "kind", "secret"), STAGED, ids=[s[1] for s in STAGED])
+def test_a_commit_that_adds_a_secret_is_refused(
+    tmp_path: Path, rule: str, kind: str, secret: str
+) -> None:
+    reason = _commit(_repo(tmp_path, secret))
+    assert reason and rule in reason and "config.py:1" in reason
+    assert secret not in reason  # the value is never echoed
+
+
+def test_a_clean_commit_is_allowed(tmp_path: Path) -> None:
+    assert _commit(_repo(tmp_path, "nothing to see")) is None
+
+
+def test_a_secret_that_only_resembles_a_prefix_is_allowed(tmp_path: Path) -> None:
+    assert _commit(_repo(tmp_path, "ghp_short and AKIA-not-a-key")) is None
+
+
+def test_commit_a_reads_the_tracked_changes(tmp_path: Path) -> None:
+    repo = _repo(tmp_path, "nothing")
+    _git(repo, "commit", "-q", "-m", "base")
+    (repo / "config.py").write_text("value = '" + "gh" + "p_" + FAKE + "'\n")
+    assert _commit(repo, "git commit -m x") is None  # not staged, not committed
+    assert _commit(repo, "git commit -am x")
+    assert _commit(repo, "git commit -m x config.py")
+
+
+def test_the_change_to_commit_never_includes_env(tmp_path: Path) -> None:
+    repo = _repo(tmp_path, "nothing")
+    (repo / ".env").write_text("GROQ_API_KEY=" + "gh" + "p_" + FAKE + "\n")
+    _git(repo, "add", "-f", ".env")
+    assert FAKE not in hook._commit_diff(repo, [])
 
 
 @pytest.mark.parametrize(

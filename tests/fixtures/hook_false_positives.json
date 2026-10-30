@@ -1,0 +1,47 @@
+{
+  "source": "The six false positives of issue #71, verbatim from the Claude Code session transcripts that hit them (session id prefix and date per case). Only change: a leading `cd ~/projets/cyclebeat && ` (or its absolute form) is dropped, since the tests run from the repo root. Each was refused by agent-hooks/pre_tool_use.py at 69b032e.",
+  "cases": [
+    {
+      "id": "fp1-subshell-cd-and-variable",
+      "issue_71_item": 1,
+      "session": "205e710c",
+      "date": "2026-10-22",
+      "command": "S=/tmp/claude-1000/-home-ellie-projets-cyclebeat/205e710c-ed42-452b-b776-8359dc55aa91/scratchpad && ls -la data/ && (cd data && sha256sum $(find . -type f | sort)) > $S/data-fp-before.txt; (cd lake && find . -type f | sort | xargs -r sha256sum) > $S/lake-fp-before.txt; wc -l $S/*fp-before.txt; cp data/cyclebeat_runtime.duckdb $S/runtime.duckdb && echo copied"
+    },
+    {
+      "id": "fp2-multiline-python-c-then-ls",
+      "issue_71_item": 2,
+      "session": "0093eb01",
+      "date": "2026-10-29",
+      "command": "uv run python -c \"\nimport duckdb\nc=duckdb.connect()\nfor ds,col in [('tracks','ingested_at'),('resolutions','resolved_at')]:\n    p=f'lake/raw/{ds}/dt=2026-07-29/part.parquet'\n    print(ds, c.execute(f\\\"select logical_type from parquet_schema('{p}') where name='{col}'\\\").fetchone())\n    print(c.execute(f\\\"select count(*), count(distinct {col}), min({col}), max({col}) from read_parquet('{p}')\\\").fetchall())\nprint(c.execute(\\\"select source, count(*), min(resolved_at) from read_parquet('lake/raw/resolutions/dt=2026-07-29/part.parquet') group by 1\\\").fetchall())\n\"; ls -la data/*.db data/*.duckdb 2>/dev/null"
+    },
+    {
+      "id": "fp3-cli-help",
+      "issue_71_item": 3,
+      "session": "3b2179ca",
+      "date": "2026-10-25",
+      "command": "S=/tmp/claude-1000/-home-ellie-projets-cyclebeat/3b2179ca-915b-48c2-a94e-0061c3f9438c/scratchpad/dod && grep -h \"dead link\" $S/lint.log; grep -h \"Success\\|error\" $S/typecheck.log | tail -2; grep -hE \"^[0-9]+ passed|passed\" $S/test-unit.log | tail -1; grep -hE \"passed|failed\" $S/eval.log | tail -1; grep -hE \"passed|failed\" $S/contract.log | tail -1; uv run python -m cyclebeat.cli ingest --help | head -12; uv run python -m cyclebeat.cli load --help | head -12"
+    },
+    {
+      "id": "fp4-multiline-commit-message-path",
+      "issue_71_item": 4,
+      "session": "0093eb01",
+      "date": "2026-10-29",
+      "command": "python3 - <<'EOF'\np='tests/test_lake_utc.py'\ns=open(p).read()\ns=s.replace(\"import os\\nimport subprocess\\n\",\"import os\\nimport shutil\\nimport subprocess\\n\")\ns=s.replace('    \"\"\"\\n    import shutil\\n\\n    lake_root','    \"\"\"\\n    lake_root')\nopen(p,'w').write(s)\nEOF\nuv run ruff check tests/test_lake_utc.py && git add tests/test_lake_utc.py tests/fixtures/pre_57_lake && git commit -q -m \"test(lake): a pre-#57 partition rewritten for the same dt keeps no old row, red (#57)\n\nThe fixture is the real lake/raw/{tracks,resolutions}/dt=2026-07-29, copied by\nthe owner (provenance and sha256 in its README). Red on b39a021: the demo ingest\nunder TZ=Europe/Paris writes 17:43:42 again instead of 15:43:42.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\" && git log --oneline -1"
+    },
+    {
+      "id": "fp5-multiline-commit-message-make-ingest",
+      "issue_71_item": 5,
+      "session": "0093eb01",
+      "date": "2026-10-29",
+      "command": "python3 - <<'EOF'\ndef sub(p, old, new):\n    s=open(p).read(); assert old in s, (p, old); open(p,'w').write(s.replace(old,new))\nsub('docs/metrics.md','''the lake ([#57](https://github.com/elliepsc/cyclebeat/issues/57)). Partitions written before #57\nhold local wall time; the re-extraction for the same `dt` replaces them whole.''','''the lake ([#57](https://github.com/elliepsc/cyclebeat/issues/57)). Partitions written before #57\nhold local wall time. For tracks and resolutions of the demo snapshot (`dt` fixed), the\nre-extraction rewrites the same `dt` and replaces them whole; for sessions and feedback, the next\nextraction writes a newer `dt` that supersedes them in staging (`stg_sessions` keeps the latest\n`dt` per session, `stg_feedback` reads the latest `dt` only). A past-day live ingest or `resolve`\npartition is never rewritten and keeps its local wall time.''')\nsub('docs/ROADMAP.md','''`demo._stamp` (`cyclebeat/demo.py`) remplace un `generated_at` illisible du snapshot par une date fixe, sans signal. Repli déterministe, mais muet : refuser la valeur. Relevé pendant #57 |''','''`demo._stamp` (`cyclebeat/demo.py`) remplace un `generated_at` illisible du snapshot par une date fixe, sans signal. Repli déterministe, mais muet : refuser la valeur. Depuis #57, un `generated_at` sans fuseau fait échouer `make ingest` par une trace Python (l'écriture du lac refuse une date sans fuseau) au lieu d'un message nommé. Relevé pendant #57 (`dbt-reviewer`, N3) |''')\nEOF\nmake lint >/dev/null 2>&1; echo lint=$?; git add docs/metrics.md docs/ROADMAP.md && git commit -q -m \"docs: which pre-#57 partitions the re-extraction replaces; _stamp failure mode (#57)\n\ndbt-reviewer N2 and N3: only the fixed-dt demo partitions are rewritten in\nplace; session and feedback partitions are superseded in staging; past-day\nlive or resolve partitions keep local time. A naive generated_at now fails\nmake ingest with a traceback.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\" && git log --oneline -1"
+    },
+    {
+      "id": "fp6-for-list-item",
+      "issue_71_item": 6,
+      "session": "329a2530",
+      "date": "2026-10-29",
+      "command": "P=/tmp/claude-1000/-home-ellie-projets-cyclebeat/329a2530-1b4e-4993-bd3b-158719ae80d5/scratchpad/peers\nfor f in .github/workflows/on-call.yml scripts/oncall_gather.py scripts/oncall_agent.py ops/diagnosis/2026-10-21-oncall-drill.md backend/tests/test_telemetry_signals.py backend/tests/test_telemetry_exceptions.py .claude/agents/api-contract-reviewer.md .claude/skills/eval-run/SKILL.md agent-hooks/guard.py README.md; do printf '%s ' \"$f\"; git -C $P/anti-scope-creep ls-files --error-unmatch \"$f\" >/dev/null 2>&1 && echo OK || echo MISSING; done\necho ---; git -C $P/anti-scope-creep ls-files | grep -iE 'oncall|on_call|on-call' \necho --- openseat\nfor f in _docs/team/qa.md .opencode/skills/ai-shipping/SKILL.md; do printf '%s ' \"$f\"; git -C $P/openseat ls-files --error-unmatch \"$f\" >/dev/null 2>&1 && echo OK || echo MISSING; done\ngit -C $P/openseat ls-files .opencode/skills/ai-shipping/\necho --- chessdesk\nfor f in observability/alerts.yaml on-call-engineer/poll_alerts.py; do printf '%s ' \"$f\"; git -C $P/chessdesk ls-files --error-unmatch \"$f\" >/dev/null 2>&1 && echo OK || echo MISSING; done\ngit -C $P/chessdesk ls-files | grep -iE 'alert|on-call|observ' | head -30"
+    }
+  ]
+}
