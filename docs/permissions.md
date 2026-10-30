@@ -58,12 +58,14 @@ Bash the hook answered first.
 
 | Action | Layer 1 (deny) | Layer 2 (hook) |
 |---|---|---|
-| Write to `data/` or `lake/` | `Edit(/data/**)`, `Edit(/lake/**)` | file tools and shell, including `make ingest`, `make dbt` on the real warehouse, `dbt build`, `cyclebeat.cli ingest/load`, the compose `pipeline` profile |
+| Write to `data/` or `lake/` | `Edit(/data/**)`, `Edit(/lake/**)` | file tools and shell, including `make ingest`, `make dbt` on the real warehouse, `dbt build`, `cyclebeat.cli ingest/resolve/extract-app/load` (allowed: `--help`, `ingest --lake <dir outside the repo zones>` without `--live`, `load --db <path outside data/>`), the compose `pipeline` profile, a heredoc fed to a shell, a `python -c` or python heredoc that writes a protected path |
 | Read or write a secrets file | `Read`/`Edit` of `.env`, `.env.*`, `.ENV`, `.ENV.*` | the same plus private keys, `.netrc`, `.pgpass`, globs such as `cat .env*` |
 | Force push | `git push *--force*`, `git push -f*`, `git push * -f*` | every form: `--force`, `-f` combined (`-uf`), `--force-with-lease`, `--force-if-includes`, `--mirror`, `+refspec`, option after the branch |
 | Push to `main` | — | `git push origin main`, `HEAD:main`, `--all`, a bare `git push` from `main` |
 | Merge into `main` | — | `git merge` on `main`, or after `git checkout/switch main` in the same command |
 | Create or merge a PR | `gh pr create*`, `gh pr merge*` | the same plus the GitHub merge API |
+| Change an issue's state (the merged PR closes it with `Closes #N`) | — | `gh issue close`, `reopen`, `delete`, `transfer`; `gh issue edit --state` (an option gh 2.45 does not have, kept for a later gh); `gh api` with a non-GET method on `repos/<o>/<r>/issues/<N>` and a `state` or `state_reason` field. Labels, titles, bodies and comments stay allowed |
+| Commit a secret | — | a `git commit` whose change (the index, plus what `-a` or pathspecs add) adds a private key header (RFC 7468, OpenSSH, PGP) or a GitHub (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) or AWS (`AKIA`, `ASIA`) key prefix. Secrets files are left out of that read by pathspec: the hook never reads `.env` |
 | Call Render | `curl *render.com*`, `WebFetch(domain:api.render.com)` | deploy hooks, `api.render.com`, any `$RENDER_*` variable, `python -m tools.deploy` |
 | Loosen its own guardrails | `Edit(/agent-hooks/**)`, `Edit(/.claude/settings.json)`, `Edit(/.claude/settings.local.json)` | writes to `agent-hooks/` and to any `.claude/settings*.json` |
 
@@ -73,16 +75,35 @@ matches it); `cat .env.example` works.
 
 ## Limits — what this does not stop
 
-- **The hook reads command text.** A `python -c` that builds a path at runtime, or a script
-  that writes `data/` without naming it on the command line, gets through. The deny rules have
-  the same limit for Bash: they cover `cat`, `sed`, redirections and the like, *"They don't
+- **The hook reads what bash executes, not what it passes as data** (issue #71). It lexes the
+  whole command, quotes spanning lines included, and checks every string bash runs: the script
+  of `bash -c` and `eval`, a `$(...)` or backtick outside single quotes (inside double quotes
+  too), a heredoc or here-string fed to a shell. It skips what is only data: a `git commit -m`
+  message, a heredoc fed to a program that is neither a shell nor python, a `for` list (checked
+  through the loop variable in the body); a search pattern and echo/printf arguments are not
+  taken for secrets files. An unbalanced quote is refused. A script built at runtime
+  (`bash -c "$(curl ...)"`, or one a script writes and then runs) is not seen. The deny rules
+  have the same limit for Bash: they cover `cat`, `sed`, redirections and the like, *"They don't
   apply to a command that reads files without naming them"* ([permissions](https://code.claude.com/docs/en/permissions)).
   This is a guardrail against mistakes, not against an adversary.
+- **`python -c` is read by a heuristic.** The code is parsed with `ast`, never run: a secrets
+  file name, a protected path given to a write call, or a `subprocess`/`os.system` call whose
+  literal command the shell rules refuse, is refused. It does not see a path built at runtime,
+  `exec`, `getattr` or an encoding (owner decision, #71).
+- **The secret check at commit is narrow.** It looks for high-confidence patterns only (private
+  key headers, known token prefixes), in the lines the commit adds. gitleaks, over the whole
+  history in CI and in `make audit`, stays the safety net: it runs after the push, so a secret
+  outside these patterns reaches the remote first.
+- **A subagent's Bash list is an instruction.** The closed list of Bash commands in each
+  reviewer's file (`.claude/agents/`) is not enforced: the `tools` field takes bare tool names,
+  and per-command control is a `PreToolUse` hook or a Bash deny rule
+  ([subagents](https://code.claude.com/docs/en/sub-agents)).
 - **A mod can override a hook.** A Claude Code mod handling `tool.check` can approve a call a
   hook blocked, unless the hook is in managed settings (same page). None is installed for this
   project.
 - **A `cd` is followed, an alias is not.** The hook tracks `cd <dir>` within one command line,
-  not shell aliases or functions.
+  scoped to its `( ... )` subshell, and the variables set there (`NAME=value`, `export`); not
+  shell aliases or functions.
 - **Docker.** `docker compose up` (default profile) is allowed: it mounts no `data/` (verified
   in `docker-compose.yml`). The `pipeline` profile, which writes `data/` and `lake/`, is refused.
 
