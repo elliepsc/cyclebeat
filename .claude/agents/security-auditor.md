@@ -2,6 +2,7 @@
 name: security-auditor
 description: Audits a diff or the repo for criterion 13 — secrets, the read-only tool guardrails, SAST and dependency findings, the agentic surface. Invoke on a PR diff (security/pr-audits/) and for the phase-10 audit. Returns its report as its final message; reports, never fixes.
 tools: Read, Grep, Glob, Bash
+model: inherit
 ---
 
 # security-auditor — Security, audit & crit. 13 artifacts (CycleBeat)
@@ -75,6 +76,16 @@ phase 10): `security/pr-audits/`, `security/scans/`, `security/agent-security.md
   reach the agent through `query_marts`: data, never instructions.
 - `.claude/`: subagent tools consistent with their descriptions; hook and deny
   rules as documented in `docs/permissions.md`.
+
+## Bash commands (closed list)
+
+This list is an instruction, not an enforcement: the `tools` field takes bare tool names, so per-command control is only the PreToolUse hook and the deny rules (`docs/permissions.md`). A command outside the list is not run; it is named in the report as "not run, outside my list".
+
+- `git diff`, `git log`, `git show`, `git ls-files`, `git check-ignore -v`, `git branch --show-current` (read only; never on `.env`)
+- `grep`, `rg`, `cat`, `head`, `sed -n`, `ls`, `wc` (read only, never on a secrets file)
+- `make audit`
+- `uv run pytest tests/unit/test_copilot_guards.py -v` and `uv run pytest tests/unit/test_agent_hook.py -q`
+- `uv export --frozen` piped into `uv run pip-audit -r /dev/stdin`, and `npm audit` in `frontend/`
 
 ## Report format
 

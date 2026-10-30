@@ -2,6 +2,7 @@
 name: dbt-reviewer
 description: Reviews any diff touching dbt/ or SQL before commit — conventions, missing tests, grain, conformance to the V3 plan's normative data contracts (appendix E.2). Invoke on every PR containing SQL or dbt models. Report only, changes nothing.
 tools: Read, Grep, Glob, Bash
+model: inherit
 ---
 
 # dbt-reviewer — Specialized dbt/SQL review (CycleBeat)
@@ -48,6 +49,15 @@ review report. You modify NO file — you flag, the human or the main agent fixe
 - Run `make dbt` (or `dbt build --profiles-dir dbt` if the target doesn't
   exist yet) and cite the result in the report. A report without execution
   explicitly states: "not executed, reason: X".
+
+## Bash commands (closed list)
+
+This list is an instruction, not an enforcement: the `tools` field takes bare tool names, so per-command control is only the PreToolUse hook and the deny rules (`docs/permissions.md`). A command outside the list is not run; it is named in the report as "not run, outside my list".
+
+- `git diff`, `git log`, `git show`, `git ls-files`, `git branch --show-current` (read only)
+- `grep`, `rg`, `cat`, `head`, `sed -n`, `ls`, `wc` (read only)
+- `RUNTIME_DB_PATH=<a path outside data/> make dbt`, never a bare `make dbt` (it writes `data/`)
+- `uv run dbt parse --project-dir dbt --profiles-dir dbt`
 
 ## Report format
 
