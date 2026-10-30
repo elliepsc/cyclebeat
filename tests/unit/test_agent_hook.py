@@ -253,8 +253,6 @@ ALLOWED: list[tuple[str, dict[str, Any], str]] = [
     ("pin: echo into xargs echo", bash("echo hello | xargs echo"), "feature"),
     ("pin: printf into xargs -I", bash("printf '%s\\n' a b | xargs -I{} echo {}"), "feature"),
     ("pin: echo a command into sh", bash("echo ls | sh"), "feature"),
-    ("pin: echo .env into wc", bash("echo .env | wc -c"), "feature"),
-    ("pin: printf .env into grep", bash("printf '%s\\n' .env | grep -c env"), "feature"),
     ("pin: bash -o pipefail -c", bash("bash -o pipefail -c 'make lint'"), "feature"),
     ("pin: bash -euo pipefail -c reads", bash("bash -euo pipefail -c 'ls lake'"), "feature"),
     ("pin: find -exec wc", bash("find cyclebeat -name '*.py' -exec wc -l {} +"), "feature"),
@@ -297,6 +295,89 @@ ALLOWED: list[tuple[str, dict[str, Any], str]] = [
         bash("uv run python -m cyclebeat.cli load --d /tmp/x.duckdb"),
         "f",
     ),
+    # ── issue #71, round 3: what is proven data, and normal work, stays allowed ──
+    (
+        "pin: a heredoc to gh is data",
+        bash("gh issue comment 71 --body-file - <<'EOF'\nPosted by the coding agent (Claude Code)."
+             "\nThe hook never reads .env; make ingest writes lake/.\nEOF"),
+        "feature",
+    ),
+    (
+        "pin: a heredoc to git commit -F is data",
+        bash("git commit -F - <<'EOF'\nfix: x\n\nmentions .env and make ingest\nEOF"),
+        "feature",
+    ),
+    (
+        "pin: a heredoc to cat is data",
+        bash("cat > /tmp/notes.md <<'EOF'\nnever run make ingest, never cat .env\nEOF"),
+        "feature",
+    ),
+    ("pin: a heredoc to tee is data", bash("tee /tmp/a.md <<'EOF'\nrm -rf lake\nEOF"), "f"),
+    ("pin: a heredoc to jq is data", bash("jq -R . <<'EOF'\ncat .env\nEOF"), "f"),
+    ("pin: a heredoc to sort is data", bash("sort <<'EOF'\nmake ingest\nrm -rf lake\nEOF"), "f"),
+    (
+        "pin: a multi-line commit message is data",
+        bash('git commit -q -m "fix: y (#71)\n\nBody mentions .env and rm -rf lake."'),
+        "feature",
+    ),
+    ("pin: echo alone is data", bash("echo .env is never read"), "feature"),
+    ("pin: printf alone is data", bash("printf '%s\\n' .env"), "feature"),
+    (
+        "pin: prose that does not parse is skipped",
+        bash("gh issue comment 71 --body \"Posted by the coding agent (Claude Code).\n"
+             "Plan: don't touch .env.\""),
+        "feature",
+    ),
+    (
+        "pin: a multi-line body that parses and is harmless",
+        bash('gh issue comment 71 --body "Posted by the coding agent (Claude Code).\nAll green."'),
+        "feature",
+    ),
+    (
+        "pin: a multi-line script to stdbuf that reads",
+        bash("stdbuf -oL bash -c '\nmake lint\nmake typecheck\n'"),
+        "feature",
+    ),
+    ("pin: a multi-line script to tmux that reads", bash("tmux new -d '\nls lake\nls\n'"), "f"),
+    ("pin: read then echo", bash('while read l; do echo "$l"; done < README.md'), "feature"),
+    (
+        "pin: a pipe into a read loop that reads",
+        bash('git log --format=%s -5 | while read s; do echo "$s"; done'),
+        "feature",
+    ),
+    ("pin: read a word then echo it", bash("read -r x <<< hello; echo $x"), "feature"),
+    (
+        "pin: read file names then count",
+        bash('while read f; do wc -l "$f"; done < <(git ls-files docs)'),
+        "feature",
+    ),
+    ("pin: ${f%/} outside the zones", bash("for f in /tmp/a/; do rm -rf ${f%/}; done"), "f"),
+    ("pin: ${f:-x} outside the zones", bash("for f in /tmp/x; do rm -f ${f:-/tmp/y}; done"), "f"),
+    (
+        "pin: cd ${d%/} outside the zones",
+        bash("for d in /tmp/x/; do cd ${d%/} && rm -f a; done"),
+        "f",
+    ),
+    ("pin: case fall-through that echoes", bash("case x in a) echo a;& b) echo b;; esac"), "f"),
+    ("pin: a captured rev-parse", bash('echo "$(git rev-parse HEAD)"'), "feature"),
+    ("pin: a captured file list", bash("cat $(git ls-files tests | head -1)"), "feature"),
+    ("pin: grep -f a pattern file", bash("grep -f patterns.txt README.md"), "feature"),
+    ("pin: grep -if a pattern file", bash("grep -if words.txt docs/metrics.md"), "feature"),
+    (
+        "pin: a GraphQL updateIssue on the title",
+        bash("gh api graphql -f query='mutation{updateIssue(input:{id:\"I\",title:\"t\"})"
+             "{clientMutationId}}'"),
+        "feature",
+    ),
+    ("pin: zip -x keeps .env out", bash("zip -r /tmp/a.zip docs -x '.env*'"), "feature"),
+    ("pin: a captured rev-parse redirected", bash('echo "$(git rev-parse HEAD)" > /tmp/h'), "f"),
+    ("pin: printf into xargs -n1 echo", bash("printf '%s\\n' a b | xargs -n1 echo"), "feature"),
+    ("pin: bash -O extglob -c", bash("bash -O extglob -c 'ls'"), "feature"),
+    ("pin: ssh -p -i then a command", bash("ssh -p 22 -i ~/.ssh/k host uptime"), "feature"),
+    ("pin: watch -n 1 ls", bash("watch -n 1 ls"), "feature"),
+    ("pin: echo .env.example into xargs", bash("echo .env.example | xargs cat"), "feature"),
+    ("pin: python -X importtime -c", bash("python3 -X importtime -c 'import json'"), "feature"),
+    ("pin: printf with a carriage return", bash("printf 'a\rb\n' > /tmp/x"), "feature"),
 ]
 
 DENIED: list[tuple[str, dict[str, Any], str]] = [
@@ -623,6 +704,56 @@ DENIED: list[tuple[str, dict[str, Any], str]] = [
         bash("git hash-object -w agent-hooks/pre_tool_use.py"),
         "f",
     ),
+    # ── issue #71, round 3: the second pass (R1-R4), red on f618410, refused by 69b032e ──
+    ("R1 echo .env through tee then xargs", bash("echo .env | tee /dev/null | xargs cat"), "f"),
+    ("R1 echo .env through cat then xargs", bash("echo .env | cat | xargs cat"), "feature"),
+    ("R1 printf through sed then xargs", bash("printf '%s' .env | sed s/x/x/ | xargs cat"), "f"),
+    ("R1 echo .env into /usr/bin/xargs", bash("echo .env | /usr/bin/xargs cat"), "feature"),
+    ("R1 echo .env into a read loop", bash('echo .env | while read f; do cat "$f"; done'), "f"),
+    ("R1 echo .env into a file", bash("echo .env > /tmp/l; xargs cat < /tmp/l"), "feature"),
+    ("R1 echo .env into wc", bash("echo .env | wc -c"), "feature"),
+    ("R1 printf .env into grep", bash("printf '%s\\n' .env | grep -c env"), "feature"),
+    ("R2 stdbuf", bash("stdbuf -oL bash -c '\nrm -rf lake\n'"), "feature"),
+    ("R2 flock -c", bash("flock /tmp/l -c '\nrm -rf lake\n'"), "feature"),
+    ("R2 script -qc", bash("script -qc '\nrm -rf lake\n' /dev/null"), "feature"),
+    ("R2 su -c", bash("su -c '\nrm -rf lake\n'"), "feature"),
+    ("R2 setsid", bash("setsid bash -c '\nrm -rf lake\n'"), "feature"),
+    ("R2 tmux new", bash("tmux new -d '\nrm -rf lake\n'"), "feature"),
+    ("R2 parallel", bash("parallel ::: '\nrm -rf lake\n'"), "feature"),
+    ("R2 git rebase -x", bash("git rebase -x '\nrm -rf lake\n' HEAD~1"), "feature"),
+    ("R2 git bisect run", bash("git bisect run sh -c '\nrm -rf lake\n'"), "feature"),
+    ("R3 ${d%/}", bash("for d in lake/raw; do rm -rf ${d%/}; done"), "feature"),
+    ("R3 ${d:-x}", bash("for d in lake/raw; do rm -rf ${d:-x}; done"), "feature"),
+    (
+        "R3 read from a process substitution",
+        bash("while read d; do rm -rf $d; done < <(echo lake/raw)"),
+        "f",
+    ),
+    ("R4 ;& in a subshell", bash("(cd lake; case x in a) :;& b) rm -f a.parquet;; esac)"), "f"),
+    (
+        "R4 ;& in a substitution",
+        bash("echo $(cd lake; case x in a) :;& *) rm -f a.parquet;; esac)"),
+        "f",
+    ),
+    ("R rg --files .env", bash("rg --files .env"), "feature"),
+    # ── issue #71, round 3: the other findings and the caution rule, red on f618410 ──
+    (
+        "N5 updateIssue with a state",
+        bash(
+            "gh api graphql -f query='mutation{updateIssue(input:{id:\"I\",state:CLOSED}){clientMut"
+            "ationId}}'"
+        ),
+        "f",
+    ),
+    ("N5 a GraphQL query from a file", bash("gh api graphql -F query=@m.graphql"), "feature"),
+    ("N5 a GraphQL body from --input", bash("gh api graphql --input q.json"), "feature"),
+    ("N6 grep -f.env", bash("grep -f.env x"), "feature"),
+    ("N6 grep -if.env", bash("grep -if.env x"), "feature"),
+    ("N6 git grep -f.env", bash("git grep -f.env"), "feature"),
+    ("read then rm", bash('IFS= read -r d <<< lake/raw; rm -rf "$d"'), "feature"),
+    ("read then cd and rm", bash("while read d; do cd $d && rm -f a; done < <(echo lake)"), "f"),
+    ("a heredoc to make", bash("make -f /dev/stdin <<'X'\nall:\n\trm -rf lake\nX"), "feature"),
+    ("echo .env captured by a substitution", bash("cat $(echo .env)"), "feature"),
 ]
 
 
@@ -817,3 +948,64 @@ def test_a_staged_env_is_refused_without_being_read(tmp_path: Path) -> None:
     reason = _commit(repo)
     assert reason and "secrets file is staged (.env)" in reason
     assert FAKE not in hook._commit_diff(repo, [], [])
+
+
+# ── issue #71, round 3: the commit check runs no code of the repository (N3) ─────────────
+def _marker_program(tmp_path: Path) -> tuple[Path, Path]:
+    marker = tmp_path / "ran"
+    program = tmp_path / "program.sh"
+    program.write_text(f"#!/bin/sh\ntouch {marker}\nexit 1\n")
+    program.chmod(0o755)
+    return program, marker
+
+
+def test_the_commit_check_runs_no_fsmonitor_of_the_repo(tmp_path: Path) -> None:
+    program, marker = _marker_program(tmp_path)
+    (tmp_path / "repo").mkdir()
+    repo = _repo(tmp_path / "repo", "nothing")
+    _git(repo, "config", "core.fsmonitor", str(program))
+    marker.unlink(missing_ok=True)
+    _commit(repo)
+    assert not marker.exists()
+
+
+def test_a_filter_driver_of_the_repo_refuses_the_commit_unrun(tmp_path: Path) -> None:
+    program, marker = _marker_program(tmp_path)
+    (tmp_path / "repo").mkdir()
+    repo = _repo(tmp_path / "repo", "nothing")
+    _git(repo, "commit", "-q", "-m", "base")
+    _git(repo, "config", "filter.x.clean", str(program))
+    (repo / ".gitattributes").write_text("* filter=x\n")
+    (repo / "config.py").write_text("value = 'changed'\n")
+    marker.unlink(missing_ok=True)
+    reason = _commit(repo, "git commit -am x")
+    assert reason and "could not be read" in reason
+    assert not marker.exists()
+
+
+# ── issue #71, round 3: no secret in a refusal, no forged header (N2) ────────────────────
+def _staged_bytes(tmp_path: Path, name: str, content: bytes) -> Path:
+    _git(tmp_path, "init", "-q")
+    (tmp_path / name).write_bytes(content)
+    _git(tmp_path, "add", "-f", name)
+    return tmp_path
+
+
+def test_a_forged_header_never_puts_the_token_in_the_refusal(tmp_path: Path) -> None:
+    forged = f"x\x0cdiff --git a/q b/z{TOKEN}\n\x0c@@\n{TOKEN}\n".encode()
+    reason = _commit(_staged_bytes(tmp_path, "c.txt", forged))
+    assert reason and FAKE not in reason
+
+
+@pytest.mark.parametrize(
+    "content",
+    [f"a\r{TOKEN}\r", f"x\x0cdiff --git a/q b/q\n{TOKEN}\n"],
+    ids=["CR-only line endings", "a form feed before a header"],
+)
+def test_content_split_on_other_line_breaks_is_read(tmp_path: Path, content: str) -> None:
+    assert _commit(_staged_bytes(tmp_path, "c.txt", content.encode()))
+
+
+def test_a_file_name_holding_a_token_is_not_printed(tmp_path: Path) -> None:
+    reason = _commit(_staged_bytes(tmp_path, "id_" + TOKEN, b"x\n"))
+    assert reason and FAKE not in reason
