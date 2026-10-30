@@ -17,10 +17,15 @@ It refuses, with exit code 2 and a one-line reason:
 | no PR creation or merge | `gh pr create`, `gh pr merge 999999`, the merge API | `gh pr view`, `gh run list` |
 | no Render | deploy hooks, `api.render.com`, `$RENDER_*`, `python -m tools.deploy` | `pytest tests/unit/test_deploy.py` |
 | the guardrails are the owner's | edits to `agent-hooks/` and `.claude/settings*.json` | reading them, `git add` |
+| no issue state change (#44, #71) | `gh issue close`, `reopen`, `delete`, `transfer`, `gh api -X PATCH .../issues/N -f state=closed` | `gh issue comment`, `edit --add-label`, `gh api .../issues/N/comments` |
+| no secret in a commit (#71) | `git commit` adding a private key header, a GitHub or AWS key prefix | a clean commit |
 
-It reads command text. It stops mistakes, not an adversary: a `python -c` that builds a path at
-runtime gets through. What it can and cannot do, and the two other layers, are in
-[docs/permissions.md](../docs/permissions.md).
+It reads what bash executes, not what bash passes as data (#71): the script of `bash -c` and
+`eval`, `$(...)` and backticks (inside double quotes too), a heredoc fed to a shell, and
+`python -c` code (read with `ast`, never run) are checked; a commit message, a heredoc fed to
+`cat` or `git commit -F -`, and a `for` list are not. It stops mistakes, not an adversary: a
+path built at runtime, `exec` or `getattr` in python gets through. What it can and cannot do,
+and the two other layers, are in [docs/permissions.md](../docs/permissions.md).
 
 Tests: [`tests/unit/test_agent_hook.py`](../tests/unit/test_agent_hook.py), with at least as many
 allowed calls as refused ones (owner rule: a hook that blocks normal work gets switched off).
