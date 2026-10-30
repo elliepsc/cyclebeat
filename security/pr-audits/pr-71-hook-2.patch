@@ -1,0 +1,947 @@
+diff --git a/agent-hooks/README.md b/agent-hooks/README.md
+index 677b0c5..63fa43b 100644
+--- a/agent-hooks/README.md
++++ b/agent-hooks/README.md
+@@ -17,13 +17,14 @@ It refuses, with exit code 2 and a one-line reason:
+ | no PR creation or merge | `gh pr create`, `gh pr merge 999999`, the merge API | `gh pr view`, `gh run list` |
+ | no Render | deploy hooks, `api.render.com`, `$RENDER_*`, `python -m tools.deploy` | `pytest tests/unit/test_deploy.py` |
+ | the guardrails are the owner's | edits to `agent-hooks/` and `.claude/settings*.json` | reading them, `git add` |
+-| no issue state change (#44, #71) | `gh issue close`, `reopen`, `delete`, `transfer`, `gh api -X PATCH .../issues/N -f state=closed` | `gh issue comment`, `edit --add-label`, `gh api .../issues/N/comments` |
+-| no secret in a commit (#71) | `git commit` adding a private key header, a GitHub or AWS key prefix | a clean commit |
++| no issue state change (#44, #71) | `gh issue close`, `reopen`, `delete`, `transfer`, `gh api -X PATCH .../issues/N -f state=closed` (or `-fstate=`, `--input`), GraphQL `closeIssue`/`reopenIssue`/`deleteIssue`/`transferIssue` | `gh issue comment`, `edit --add-label`, `gh api .../issues/N/comments` |
++| no secret in a commit (#71) | `git commit` adding a private key header, a GitHub or AWS key prefix, or staging `.env`, `*.pem`, `*.key`, `id_*` | a clean commit, `id_ed25519.pub` |
+ 
+ It reads what bash executes, not what bash passes as data (#71): the script of `bash -c` and
+-`eval`, `$(...)` and backticks (inside double quotes too), a heredoc fed to a shell, and
+-`python -c` code (read with `ast`, never run) are checked; a commit message, a heredoc fed to
+-`cat` or `git commit -F -`, and a `for` list are not. It stops mistakes, not an adversary: a
++`eval`, `$(...)` and backticks (inside double quotes and `${...}` too), a heredoc fed to a
++shell, `find -exec`, `ssh` and `watch`, echo piped into `xargs` or a shell, and `python -c`
++code (read with `ast`, never run) are checked; a commit message, a heredoc fed to `cat` or
++`git commit -F -`, and a `for` list are not. It stops mistakes, not an adversary: a
+ path built at runtime, `exec` or `getattr` in python gets through. What it can and cannot do,
+ and the two other layers, are in [docs/permissions.md](../docs/permissions.md).
+ 
+diff --git a/agent-hooks/pre_tool_use.py b/agent-hooks/pre_tool_use.py
+index 144f166..2c935cf 100644
+--- a/agent-hooks/pre_tool_use.py
++++ b/agent-hooks/pre_tool_use.py
+@@ -42,9 +42,12 @@ the text inside its strings.
+ 
+ * The command is lexed whole, quotes spanning lines included; a newline outside quotes ends a
+   command. An unbalanced quote, `$(` or backtick is refused: bash would refuse it too.
+-* Every string bash runs goes through the same rules: the script of `bash -c` and `eval`, a
+-  command substitution `$(...)` or backtick outside single quotes (inside double quotes too),
+-  a heredoc or here-string fed to a shell, and the substitutions of an unquoted heredoc body.
++* Every string bash runs goes through the same rules: the script of `bash -c` and `eval`
++  (shell options with a value, `-o pipefail`, are skipped), a command substitution `$(...)` or
++  backtick outside single quotes (inside double quotes and `${...}` too), a heredoc fed to a
++  shell, the substitutions of an unquoted heredoc body, the command of `find -exec`, the words
++  `ssh HOST` and `watch` hand to a shell, and echo/printf words piped into `xargs` or a shell.
++* A `case` pattern's `)` does not close a subshell; a carriage return stays inside its word.
+ * `python -c` code and a heredoc fed to python are read with `ast`, never run. Refused: a
+   secrets file name; a protected path given to a write call (`open` for writing, pathlib, `os`
+   and `shutil` writes, `duckdb.connect` without `read_only=True`, ...); a `subprocess` or
+@@ -53,17 +56,26 @@ the text inside its strings.
+ * What bash hands over as data is not read as paths or commands: the message of `git commit
+   -m`, a heredoc body fed to a program that is neither a shell nor python (fed to `xargs`, it
+   is checked as the arguments it becomes), a `for` list (its items are checked through the
+-  loop variable in the body). The pattern of grep, rg and `git
+-  log --grep`, and the arguments of echo and printf, are not read as secrets files.
++  loop variable in the body, every value, up to 4096 combinations; past that the command is
++  refused; after the loop the variable holds its last value). The pattern of grep, rg and `git
++  log --grep` (`-e PAT`, `-e.`, `-ie PAT`), and the arguments of echo and printf that feed no
++  executor, are not read as secrets files. `git hash-object` without `-w` is a read.
+ * `( ... )` scopes `cd` and variables; `NAME=value` and `export NAME=value` are expanded in
+   paths.
+-* `python -m cyclebeat.cli`: `--help` passes; `ingest --lake <dir outside data/ and lake/>`
+-  passes (not `--live`, which fills `data/spike/.cache`); `load --db <path outside data/>`
+-  passes; `--lake lake` no longer hides the subcommand.
+-* `gh issue reopen`, `delete` and `transfer`, and an issue state change through `gh api`.
++* `python -m cyclebeat.cli`: `--help` passes; `ingest --lake <dir outside the protected
++  zones>` passes (not `--live`, which fills `data/spike/.cache`); `load --db <path outside
++  them>` passes; `--lake lake` no longer hides the subcommand. Long options are read as
++  argparse reads them: a unique prefix counts (`--la`, `--liv`, `--d`).
++* `gh issue reopen`, `delete` and `transfer`; through `gh api`, a non-GET call on
++  `repos/O/R/issues/N` with a `state` or `state_reason` field (`-f`, `-F`, attached `-fkey=`)
++  or any `--input` body, and the GraphQL mutations `closeIssue`, `reopenIssue`, `deleteIssue`
++  and `transferIssue`.
+ * `git commit` when the change it records adds a private key header or a known token prefix
+-  (GitHub, AWS). Secrets files are left out of that read by pathspec: the hook never reads
+-  `.env`. gitleaks in CI stays the net for everything else.
++  (GitHub, AWS), or stages a secrets file by its name (`.env`, `*.pem`, `*.key`, `id_*` but
++  not `*.pub`). What it records includes the index, `-a`, pathspecs (on an unborn branch too)
++  and a `git add` earlier in the same command. Secrets files are named, never read: the hook
++  never reads `.env`. A refusal names the pattern and the file, never a line of content. A git
++  error or the 6 s budget refuses the commit. gitleaks in CI stays the net for everything else.
+ 
+ It stops mistakes, not an adversary. The deny rules of `.claude/settings.json` and the
+ auto-mode classifier are the other layers. Standard library only, so it runs before any
+@@ -80,6 +92,7 @@ import re
+ import shlex
+ import subprocess
+ import sys
++import time
+ from collections.abc import Callable, Iterator
+ from pathlib import Path
+ 
+@@ -97,8 +110,22 @@ KEY_SUFFIXES = (".pem", ".key", ".p12", ".pfx")
+ OPERATORS = {";", "&&", "||", "|", "&", "|&", "(", ")", ";;"}
+ REDIRECTS = {">", ">>", ">|", "&>", "&>>", "<", "<<", "<<-", "<<<", "<>", ">&", "<&"}
+ WRAPPERS = {"sudo", "env", "command", "time", "nohup", "nice", "exec", "xargs", "timeout"}
++# Wrapper options that take a value (`sudo -u postgres sh -c ...`), so the value is not the
++# command (issue #71, H4).
++WRAPPER_VALUED = {
++    "sudo": {"-u", "-g", "-C", "-D", "-U", "-h", "-p", "-r", "-t", "--user", "--group"},
++    "env": {"-u", "-C", "--unset", "--chdir"},
++    "timeout": {"-k", "-s", "--kill-after", "--signal"},
++    "nice": {"-n", "--adjustment"},
++    "xargs": {"-I", "-L", "-n", "-P", "-s", "-d", "-E", "-a", "--max-args", "--delimiter",
++              "--arg-file", "--max-procs"},
++}
+ # Shell reserved words that can open a command; the real command follows them.
+-RESERVED = {"do", "done", "then", "else", "elif", "fi", "if", "while", "until", "!", "{", "}"}
++RESERVED = {"do", "done", "then", "else", "elif", "fi", "if", "while", "until", "!", "{", "}",
++            "esac"}
++LOOPS = {"for", "select", "while", "until"}
++# More loop values than this are not expanded one by one: the command is refused.
++MAX_LOOP_VARIANTS = 4096
+ 
+ # Commands allowed to NAME a protected path because they only read it.
+ READ_ONLY = {
+@@ -128,6 +155,14 @@ CLI_WRITES_LAKE = {"ingest", "resolve", "extract-app"}
+ CLI_WRITES_DB = {"load"}
+ PIPELINE_SERVICES = {"pipeline", "ingest", "dbt", "airflow"}
+ SHELLS = {"bash", "sh", "zsh", "dash", "ksh"}
++# Shell and python options whose value is the next word (`bash -o pipefail -c ...`, #71 H4).
++SHELL_VALUED = {"-o", "+o", "-O", "+O", "--rcfile", "--init-file"}
++PY_VALUED = {"-W", "-X"}
++# ssh options that take a value (ssh(1)); the first other word is the host.
++SSH_VALUED = set("BbcDEeFIiJLlmOopQRSWw")
++WATCH_VALUED = {"-n", "--interval", "-q", "--equexit"}
++# find actions that run a command, which ends at `;` or `+`.
++FIND_RUNS = {"-exec", "-execdir", "-ok", "-okdir"}
+ PYTHON = re.compile(r"python(\d+(\.\d+)?)?")
+ MAX_NESTING = 3
+ GREP_HEADS = {"grep", "egrep", "fgrep"}
+@@ -144,6 +179,14 @@ GH_API_VALUED = {"-X", "--method", "-f", "-F", "--field", "--raw-field", "-H", "
+ GH_GRAPHQL_WRITES = re.compile(
+     r"mergePullRequest|createPullRequest|createCommitOnBranch|enablePullRequestAutoMerge"
+ )
++# Issue #71, M4 (owner decision): the GraphQL mutations that change an issue's state.
++GH_GRAPHQL_ISSUE_STATE = re.compile(r"\b(?:closeIssue|reopenIssue|deleteIssue|transferIssue)\b")
++# argparse long options of `python -m cyclebeat.cli` (cyclebeat/cli.py): a unique prefix counts.
++CLI_GLOBAL = ("--help", "--lake")
++CLI_SUB_OPTIONS = {
++    "ingest": ("--help", "--live", "--limit", "--csv"),
++    "load": ("--help", "--db"),
++}
+ GIT_LOG_PATTERNS = {"--grep", "-S", "-G"}
+ COMMIT_VALUED = {"-m", "--message", "-F", "--file", "-C", "--reuse-message", "-c",
+                  "--reedit-message", "--author", "--date", "--fixup", "--squash", "--cleanup",
+@@ -176,7 +219,13 @@ STAGED_SECRETS = (
+ )
+ 
+ BranchOf = Callable[[Path], str | None]
+-StagedOf = Callable[[Path, list[str]], str]
++# (git dir, `git commit` arguments, paths `git add` staged earlier in the same command)
++StagedOf = Callable[[Path, list[str], list[str]], str]
++# A line `_commit_diff` adds for each staged file name; git diff never starts a line so.
++STAGED_NAME = "staged-name "
++# Total time the read of the change to commit may take (the hook has 10 s in all).
++STAGED_BUDGET_S = 6.0
++UNTRACKED_READ_LIMIT = 1_000_000
+ 
+ 
+ # ── Paths ───────────────────────────────────────────────────────────────────────────────
+@@ -308,11 +357,12 @@ class _Lexer:
+         s = self.s
+         out: list[_Tok] = []
+         depth = 0
++        cases: list[str] = []  # per open `case`: "subject", "pattern" or "body" (#71, L1)
+         while self.i < len(s):
+             ch = s[self.i]
+             if s.startswith("\\\n", self.i):
+                 self.i += 2
+-            elif ch in " \t\r":
++            elif ch in " \t":  # not \r: bash keeps it in the word (#71, L2)
+                 self.i += 1
+             elif ch == "\n":
+                 self.i += 1
+@@ -324,6 +374,15 @@ class _Lexer:
+             elif ch in OP_CHARS:
+                 op = next(o for o in OPS if s.startswith(o, self.i))
+                 self.i += len(op)
++                if cases and cases[-1] == "pattern":
++                    if op == ")":  # the end of a case pattern, not of a subshell
++                        cases[-1] = "body"
++                        out.append(_Tok(";", op=True))
++                    continue
++                if cases and cases[-1] == "body" and op == ";;":
++                    cases[-1] = "pattern"
++                    out.append(_Tok(";", op=True))
++                    continue
+                 if op == ")" and nested and depth == 0:
+                     return out
+                 depth += {"(": 1, ")": -1}.get(op, 0)
+@@ -336,7 +395,17 @@ class _Lexer:
+                     self.pending.append(word)
+                     out.append(word)
+             else:
+-                out.append(self._word()[0])
++                tok = self._word()[0]
++                start = not out or (out[-1].op and out[-1].text in OPERATORS) or (
++                    not out[-1].op and out[-1].text in RESERVED
++                )
++                if tok.text == "case" and start:
++                    cases.append("subject")
++                elif tok.text == "in" and cases and cases[-1] == "subject":
++                    cases[-1] = "pattern"
++                elif tok.text == "esac" and cases and (cases[-1] == "pattern" or start):
++                    cases.pop()
++                out.append(tok)
+         if nested:
+             raise Unparsable("unclosed $(")
+         self._bodies()
+@@ -367,7 +436,7 @@ class _Lexer:
+         quoted = False
+         while self.i < len(s):
+             ch = s[self.i]
+-            if ch in " \t\r\n" or ch in OP_CHARS:
++            if ch in " \t\n" or ch in OP_CHARS:
+                 break
+             if ch == "\\":
+                 if s.startswith("\\\n", self.i):
+@@ -399,11 +468,7 @@ class _Lexer:
+             elif s.startswith("$(", self.i):
+                 buf.append(self._dollar_paren(tok))
+             elif s.startswith("${", self.i):
+-                end = s.find("}", self.i)
+-                if end < 0:
+-                    raise Unparsable("unclosed ${")
+-                buf.append(s[self.i : end + 1])
+-                self.i = end + 1
++                buf.append(self._param(tok))
+             elif ch == "`":
+                 buf.append(self._backtick(tok))
+             else:
+@@ -433,6 +498,40 @@ class _Lexer:
+                 self.i += 1
+         raise Unparsable('unclosed "')
+ 
++    def _param(self, tok: _Tok) -> str:
++        """`${...}` with the substitutions bash runs inside it (`${x:-$(cmd)}`, #71 H1)."""
++        s = self.s
++        start = self.i
++        self.i += 2
++        depth = 1
++        while self.i < len(s):
++            ch = s[self.i]
++            if ch == "\\":
++                self.i += 2
++            elif ch == "'":
++                end = s.find("'", self.i + 1)
++                if end < 0:
++                    raise Unparsable("unclosed '")
++                self.i = end + 1
++            elif ch == '"':
++                self.i += 1
++                self._double([], tok)
++            elif s.startswith("$(", self.i):
++                self._dollar_paren(tok)
++            elif ch == "`":
++                self._backtick(tok)
++            elif s.startswith("${", self.i):
++                self.i += 2
++                depth += 1
++            elif ch == "}":
++                self.i += 1
++                depth -= 1
++                if depth == 0:
++                    return s[start : self.i]
++            else:
++                self.i += 1
++        raise Unparsable("unclosed ${")
++
+     def _dollar_paren(self, tok: _Tok) -> str:
+         start = self.i
+         self.i += 2
+@@ -474,7 +573,7 @@ def _heredoc_subs(body: str) -> list[str]:
+ class _Seg:
+     """One simple command: its words, redirections, stdin bodies and substitutions."""
+ 
+-    __slots__ = ("words", "redirects", "stdin", "subs", "mark")
++    __slots__ = ("words", "redirects", "stdin", "subs", "mark", "piped")
+ 
+     def __init__(self, mark: str = "") -> None:
+         self.words: list[str] = []
+@@ -482,6 +581,7 @@ class _Seg:
+         self.stdin: list[str] = []
+         self.subs: list[str] = []
+         self.mark = mark  # "(" or ")" for a subshell boundary
++        self.piped = False  # its output feeds the next command (`echo .env | xargs cat`)
+ 
+ 
+ def _segments(tokens: list[_Tok]) -> list[_Seg]:
+@@ -493,6 +593,7 @@ def _segments(tokens: list[_Tok]) -> list[_Seg]:
+         tok = tokens[i]
+         if tok.op and tok.text in OPERATORS:
+             if seg.words or seg.redirects:
++                seg.piped = tok.text in ("|", "|&")
+                 segments.append(seg)
+             seg = _Seg()
+             if tok.text in ("(", ")"):
+@@ -529,9 +630,10 @@ def _command(words: list[str]) -> tuple[dict[str, str], list[str]]:
+         i += 1
+     rest = words[i:]
+     while rest and rest[0] in WRAPPERS:
++        valued = WRAPPER_VALUED.get(rest[0], set())
+         rest = rest[1:]
+         while rest and (rest[0].startswith("-") or re.fullmatch(r"[0-9.]+[smhd]?", rest[0])):
+-            rest = rest[1:]
++            rest = rest[2:] if rest[0] in valued else rest[1:]
+         while rest and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", rest[0]):
+             name, value = rest[0].split("=", 1)
+             env[name] = value
+@@ -664,50 +766,128 @@ def _commit_paths(args: list[str]) -> tuple[list[str], bool]:
+     return paths, everything
+ 
+ 
+-def _commit_diff(cwd: Path, args: list[str]) -> str:
+-    """The lines `git commit <args>` would add: the index, plus what `-a` or pathspecs stage.
++def _commit_diff(cwd: Path, args: list[str], added: list[str] | None = None) -> str:
++    """What `git commit <args>` would record: the index, plus what `-a`, pathspecs, or a
++    `git add` earlier in the same command stage (issue #71, M3).
+ 
+-    Secrets files are left out by pathspec: the hook never reads `.env`.
++    Content is read for files whose name is not a secrets name; every staged name is listed
++    (`STAGED_NAME` lines) so a secrets file is refused by name, never read: the hook never reads
++    `.env`. A git error or the time budget refuses the commit (fail closed, M2).
+     """
++    deadline = time.monotonic() + STAGED_BUDGET_S
++
++    def git(*argv: str, ok: tuple[int, ...] = (0,)) -> tuple[int, str]:
++        remaining = deadline - time.monotonic()
++        if remaining <= 0:
++            raise subprocess.TimeoutExpired("git", STAGED_BUDGET_S)
++        result = subprocess.run(
++            ["git", "-C", str(cwd), *argv], capture_output=True, text=True, encoding="utf-8",
++            errors="replace", timeout=remaining, check=False,
++        )
++        if result.returncode not in ok:
++            raise subprocess.SubprocessError(f"git {argv[0]} exited {result.returncode}")
++        return result.returncode, result.stdout
++
+     paths, everything = _commit_paths(args)
++    added = list(added or [])
++    born = git("rev-parse", "--verify", "-q", "HEAD", ok=(0, 1))[0] == 0
++    against = ["HEAD"] if born else []  # an unborn branch: the worktree against the index
+     excludes = [f":(exclude,glob)**/{name}" for name in SECRET_NAMES + SECRET_GLOBS]
+-    runs = [(["diff", "--cached"], [])]
++    runs: list[tuple[list[str], list[str]]] = [(["diff", "--cached"], [])]
+     if everything:
+         runs.append((["diff"], []))
+-    if paths:
+-        runs.append((["diff", "HEAD"], paths))
++    for spec in (paths, added):
++        if spec:
++            runs.append((["diff", *against], spec))
+     out: list[str] = []
+     for diff, spec in runs:
+-        result = subprocess.run(
+-            ["git", "-C", str(cwd), *diff, "-U0", "--no-color", "--no-ext-diff",
+-             "--no-textconv", "--", *spec, *excludes],
+-            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=2,
+-            check=False,
+-        )
+-        out.append(result.stdout)
++        names = git(*diff, "--name-only", "--diff-filter=d", "-z", "--", *spec)[1]
++        out.extend(f"{STAGED_NAME}{name}\n" for name in names.split("\0") if name)
++        out.append(git(
++            *diff, "-U0", "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/",
++            "--dst-prefix=b/", "--", *spec, *excludes,
++        )[1])
++    if added:
++        untracked = git("ls-files", "-o", "--exclude-standard", "-z", "--", *added)[1]
++        for name in (n for n in untracked.split("\0") if n):
++            if time.monotonic() > deadline:
++                raise subprocess.TimeoutExpired("git add", STAGED_BUDGET_S)
++            out.append(f"{STAGED_NAME}{name}\n")
++            if not is_secret(name):
++                out.append(_as_added(cwd / name, name))
+     return "".join(out)
+ 
+ 
++def _as_added(file: Path, name: str) -> str:
++    """An untracked file `git add` is about to stage, as the lines of a diff that adds it."""
++    try:
++        data = file.read_bytes()[:UNTRACKED_READ_LIMIT]
++    except OSError:
++        return ""
++    if b"\0" in data[:8000]:
++        return ""  # binary
++    lines = data.decode("utf-8", errors="replace").splitlines()
++    body = "".join(f"+{line}\n" for line in lines)
++    return f"diff --git a/{name} b/{name}\n--- /dev/null\n+++ b/{name}\n@@ -0,0 +1 @@\n{body}"
++
++
++def _safe_name(name: str) -> str:
++    """A file name fit for a refusal message: never one that itself matches a secret."""
++    if any(pattern.search(name) for _, pattern in STAGED_SECRETS):
++        return "a file whose name matches a secret pattern"
++    return name
++
++
+ def _secret_in_diff(diff: str) -> str | None:
+-    path, line = "", 0
++    """The refusal for a staged secret. It names the pattern and the file, never a line of
++    content (issue #71, M3): `+++ ` counts as a header only inside a `diff --git` header."""
++    path, header = "", False
+     for row in diff.splitlines():
+-        if row.startswith("+++ "):
+-            path = row[6:] if row.startswith("+++ b/") else row[4:]
+-        elif row.startswith("@@"):
+-            match = re.search(r"\+(\d+)", row)
+-            line = int(match.group(1)) if match else 0
+-        elif row.startswith("+"):
++        if row.startswith(STAGED_NAME):
++            name = row[len(STAGED_NAME) :]
++            base = name.rsplit("/", 1)[-1]
++            if is_secret(name) or (base.startswith("id_") and not base.endswith(".pub")):
++                return f"a secrets file is staged ({_safe_name(name)}): unstage it"
++            continue
++        if row.startswith("diff --git "):
++            path, header = row.rsplit(" b/", 1)[-1], True
++            continue
++        if header:
++            header = not row.startswith("@@")
++            continue
++        if row.startswith("+"):
+             for rule, pattern in STAGED_SECRETS:
+                 if pattern.search(row):
+                     return (
+-                        f"the change to commit adds what looks like a {rule} ({path}:{line}): "
+-                        "unstage it (the value is not shown)"
++                        f"the change to commit adds what looks like a {rule} in "
++                        f"{_safe_name(path)}: unstage it (the value is not shown)"
+                     )
+-            line += 1
+     return None
+ 
+ 
+-def _staged_rule(cmd: list[str], cwd: Path, staged_of: StagedOf) -> str | None:
++def _added_paths(cmd: list[str], cwd: Path) -> list[str]:
++    """The pathspecs of `git add`, absolute: `-A`, `-u` or no path at all mean the whole tree."""
++    git_dir = cwd
++    i = 1
++    while i < len(cmd) and cmd[i].startswith("-"):
++        if cmd[i] == "-C" and i + 1 < len(cmd):
++            git_dir = _resolve(cmd[i + 1], git_dir)
++        i += 2 if cmd[i] in ("-C", "-c", "--git-dir", "--work-tree") else 1
++    paths: list[str] = []
++    whole = False
++    for word in cmd[i + 1 :]:
++        if word in ("-A", "--all", "-u", "--update"):
++            whole = True
++        elif word == "--" or word.startswith("-"):
++            continue
++        else:
++            paths.append(str(_resolve(word, cwd)))
++    return [str(git_dir)] if whole or not paths else paths
++
++
++def _staged_rule(
++    cmd: list[str], cwd: Path, staged_of: StagedOf, added: list[str]
++) -> str | None:
+     """Candidate 7 (#71): a commit whose change adds a high-confidence secret."""
+     git_dir = cwd
+     i = 1
+@@ -718,8 +898,11 @@ def _staged_rule(cmd: list[str], cwd: Path, staged_of: StagedOf) -> str | None:
+     args = cmd[i + 1 :]
+     if {"--dry-run", "-h", "--help"} & set(args):
+         return None
++    # `cd "$(git rev-parse --show-toplevel)"` is not resolved: its parent is the same repo.
++    while not git_dir.exists() and git_dir != git_dir.parent:
++        git_dir = git_dir.parent
+     try:
+-        diff = staged_of(git_dir, args)
++        diff = staged_of(git_dir, args, added)
+     except (OSError, subprocess.SubprocessError):
+         return "the change to commit could not be read for secrets: refused (fail closed)"
+     return _secret_in_diff(diff)
+@@ -749,6 +932,8 @@ def _gh_rule(words: list[str]) -> str | None:
+     text = " ".join(rest)
+     if "graphql" in rest and GH_GRAPHQL_WRITES.search(text):
+         return "this GraphQL mutation merges, opens a PR or commits to a branch: the owner's action"
++    if "graphql" in rest and GH_GRAPHQL_ISSUE_STATE.search(text):  # issue #71, M4
++        return "this GraphQL mutation changes an issue's state: the merged PR's job"
+     method, endpoint, fields = _gh_api_call(rest)
+     if method == "POST" and re.search(r"(^|/)repos/[^/]+/[^/]+/pulls/?$", endpoint):
+         return "opening a PR through the GitHub API is the owner's action"
+@@ -756,13 +941,17 @@ def _gh_rule(words: list[str]) -> str | None:
+         if fields.get("branch", "main") == "main":
+             return "writing a file on main through the GitHub API is refused: open a PR"
+     if method != "GET" and re.search(r"(^|/)repos/[^/]+/[^/]+/issues/\d+/?$", endpoint):
+-        if {"state", "state_reason"} & set(fields):  # issue #71, M1b
++        if {"state", "state_reason", "--input"} & set(fields):  # issue #71, M1b and M4
+             return "changing an issue's state through the GitHub API is the merged PR's job"
+     return None
+ 
+ 
+ def _gh_api_call(rest: list[str]) -> tuple[str, str, dict[str, str]]:
+-    """(HTTP method, endpoint, fields) of `gh api ...`, as gh itself defaults them."""
++    """(HTTP method, endpoint without its query, fields) of `gh api ...`, as gh defaults them.
++
++    `-fkey=value` attached and `--input FILE` count as a body (#71, M4); `--input` is recorded
++    as a field of its own, since the file may set any key.
++    """
+     method = ""
+     endpoint = ""
+     fields: dict[str, str] = {}
+@@ -777,7 +966,11 @@ def _gh_api_call(rest: list[str]) -> tuple[str, str, dict[str, str]]:
+             method, i = word.split("=", 1)[1].upper(), i + 1
+         elif word.startswith("-X") and len(word) > 2:
+             method, i = word[2:].upper(), i + 1
+-        elif word in ("-f", "-F", "--field", "--raw-field", "--input"):
++        elif word in ("--input",) or word.startswith("--input="):
++            has_body = True
++            fields["--input"] = word.split("=", 1)[1] if "=" in word else following
++            i += 1 if "=" in word else 2
++        elif word in ("-f", "-F", "--field", "--raw-field"):
+             has_body = True
+             key, _, value = following.partition("=")
+             fields[key] = value
+@@ -787,11 +980,16 @@ def _gh_api_call(rest: list[str]) -> tuple[str, str, dict[str, str]]:
+             key, _, value = word.split("=", 1)[1].partition("=")
+             fields[key] = value
+             i += 1
++        elif word.startswith(("-f", "-F")) and not word.startswith("--") and len(word) > 2:
++            has_body = True
++            key, _, value = word[2:].partition("=")
++            fields[key] = value
++            i += 1
+         elif word in GH_API_VALUED:
+             i += 2
+         else:
+             if not word.startswith("-") and not endpoint:
+-                endpoint = word
++                endpoint = word.split("?", 1)[0]
+             i += 1
+     if not method:
+         method = "POST" if has_body else "GET"
+@@ -813,41 +1011,57 @@ def _render_rule(words: list[str], redirects: list[tuple[str, str]]) -> str | No
+     return None
+ 
+ 
++def _long(word: str, options: tuple[str, ...]) -> str:
++    """The long option a word stands for, as argparse reads it: exact, or a unique prefix
++    (`--la` is `--lake`, `--liv` is `--live`; `--li` is ambiguous). "" when none (#71, L3)."""
++    name = word.split("=", 1)[0]
++    if not name.startswith("--") or name == "--":
++        return ""
++    if name in options:
++        return name
++    hits = [option for option in options if option.startswith(name)]
++    return hits[0] if len(hits) == 1 else ""
++
++
++def _value(args: list[str], i: int) -> str:
++    if "=" in args[i]:
++        return args[i].split("=", 1)[1]
++    return args[i + 1] if i + 1 < len(args) else ""
++
++
+ def _cli_rule(env: dict[str, str], args: list[str], cwd: Path) -> str | None:
+     """`python -m cyclebeat.cli [--lake DIR] <command> ...` (cyclebeat/cli.py, issue #71)."""
+-    if "-h" in args or "--help" in args:
+-        return None  # argparse prints the usage and exits before any command runs
+     lake = ""
+     sub = ""
+     rest: list[str] = []
+     i = 0
+     while i < len(args):
+         word = args[i]
+-        if word == "--lake":
+-            lake = args[i + 1] if i + 1 < len(args) else ""
+-            i += 2
++        option = _long(word, CLI_GLOBAL)
++        if word == "-h" or option == "--help":
++            return None  # argparse prints the usage and exits before any command runs
++        if option == "--lake":
++            lake = _value(args, i)
++            i += 1 if "=" in word else 2
+             continue
+-        if word.startswith("--lake="):
+-            lake = word.split("=", 1)[1]
+-        elif not word.startswith("-"):
++        if not word.startswith("-"):
+             sub, rest = word, args[i + 1 :]
+             break
+         i += 1
++    options = CLI_SUB_OPTIONS.get(sub, ("--help",))
++    found = {_long(w, options) for w in rest} | ({"--help"} if "-h" in rest else set())
++    if "--help" in found:
++        return None
+     if sub in CLI_WRITES_LAKE:
+         # `ingest` writes only the lake root it is given; `--live` and `resolve` also fill the
+         # HTTP cache under data/spike/, and `extract-app` reads the app store under data/.
+-        outside = bool(lake) and not _inside(_resolve(lake, cwd), DATA_ZONES)
+-        if sub == "ingest" and outside and "--live" not in rest:
++        outside = bool(lake) and _write_refusal(_resolve(lake, cwd)) is None
++        if sub == "ingest" and outside and "--live" not in found:
+             return None
+         return f"cyclebeat.cli {sub} writes lake/ and data/"
+     if sub in CLI_WRITES_DB:
+-        db = ""
+-        for j, word in enumerate(rest):
+-            if word == "--db" and j + 1 < len(rest):
+-                db = rest[j + 1]
+-            elif word.startswith("--db="):
+-                db = word.split("=", 1)[1]
+-        if db and not _inside(_resolve(db, cwd), DATA_ZONES):
++        db = next((_value(rest, j) for j, w in enumerate(rest) if _long(w, options) == "--db"), "")
++        if db and _write_refusal(_resolve(db, cwd)) is None:
+             return None
+         if not db and _db_outside_data(env, cwd):
+             return None
+@@ -995,6 +1209,30 @@ def _search_rule(head: str, cmd: list[str], cwd: Path) -> str | None:
+     return None
+ 
+ 
++def _shell_args(cmd: list[str]) -> tuple[set[str], list[str]]:
++    """(the short option letters, the words after the options) of a shell command line;
++    `-o pipefail` and the like take the next word (#71, H4)."""
++    letters: set[str] = set()
++    i = 1
++    while i < len(cmd):
++        word = cmd[i]
++        if word in ("--", "-"):
++            i += 1
++            break
++        if word in SHELL_VALUED:
++            i += 2
++            continue
++        if word.startswith("--"):
++            i += 1
++            continue
++        if len(word) > 1 and word[0] in "-+":
++            letters.update(word[1:])
++            i += 1 + sum(1 for ch in word[1:] if ch in "oO")
++            continue
++        break
++    return letters, cmd[i:]
++
++
+ def _nested_script(cmd: list[str]) -> str | None:
+     """The script of `bash -c '...'` (and sh, zsh, dash, ksh) or `eval ...`, else None."""
+     if not cmd:
+@@ -1003,46 +1241,62 @@ def _nested_script(cmd: list[str]) -> str | None:
+     if head == "eval":
+         return " ".join(cmd[1:])
+     if head in SHELLS:
+-        for i, word in enumerate(cmd[1:], 1):
+-            if not word.startswith("-"):
+-                return None
+-            if not word.startswith("--") and "c" in word[1:]:
+-                return cmd[i + 1] if i + 1 < len(cmd) else ""
++        letters, rest = _shell_args(cmd)
++        if "c" in letters:
++            return rest[0] if rest else ""
+     return None
+ 
+ 
+ def _shell_reads_stdin(cmd: list[str]) -> bool:
+-    """`bash`, `bash -s`, `sh -`: the heredoc fed to it is the script."""
+-    if not cmd or _base(cmd[0]) not in SHELLS or _nested_script(cmd) is not None:
++    """`bash`, `bash -s`, `bash -o pipefail`, `sh -`: the heredoc fed to it is the script."""
++    if not cmd or _base(cmd[0]) not in SHELLS:
+         return False
+-    args = cmd[1:]
+-    return all(w.startswith("-") for w in args) or "-s" in args
++    letters, rest = _shell_args(cmd)
++    return "c" not in letters and (not rest or "s" in letters)
++
++
++def _python_args(cmd: list[str]) -> tuple[int | None, bool]:
++    """(index of the `-c` code, reads its program on stdin) of `python ...`; `-W x` and `-X x`
++    take the next word (#71, M5)."""
++    i = 1
++    while i < len(cmd):
++        word = cmd[i]
++        if word in PY_VALUED:
++            i += 2
++            continue
++        if word == "-":
++            return None, True
++        if word.startswith("--"):
++            i += 1
++            continue
++        if word.startswith("-"):
++            for k, ch in enumerate(word[1:], 1):
++                if ch in "WX":
++                    break  # the rest of the word is the value
++                if ch == "c":
++                    if k == len(word) - 1:
++                        return (i + 1 if i + 1 < len(cmd) else None), False
++                    return None, False  # code attached to -c: not read (ROADMAP, L4)
++                if ch == "m":
++                    return None, False
++            i += 1
++            continue
++        return None, False  # a script file
++    return None, True
+ 
+ 
+ def _python_code(cmd: list[str]) -> int | None:
+     """Index in `cmd` of the code of `python -c CODE`, else None."""
+     if not cmd or not PYTHON.fullmatch(_base(cmd[0])):
+         return None
+-    for i, word in enumerate(cmd[1:], 1):
+-        if word == "-c" or (re.fullmatch(r"-[bBdEhiIOPqsSuv]*c", word)):
+-            return i + 1 if i + 1 < len(cmd) else None
+-        if word in ("-W", "-X"):
+-            continue
+-        if not word.startswith("-") or word == "-" or "m" in word:
+-            return None
+-    return None
++    return _python_args(cmd)[0]
+ 
+ 
+ def _python_reads_stdin(cmd: list[str]) -> bool:
+-    """`python` or `python -`: the heredoc fed to it is the program."""
+-    if not cmd or not PYTHON.fullmatch(_base(cmd[0])) or _python_code(cmd) is not None:
++    """`python`, `python -`, `python -W ignore -`: the heredoc fed to it is the program."""
++    if not cmd or not PYTHON.fullmatch(_base(cmd[0])):
+         return False
+-    for word in cmd[1:]:
+-        if word == "-":
+-            return True
+-        if not word.startswith("-") or "m" in word:
+-            return False
+-    return True
++    return _python_args(cmd)[1]
+ 
+ 
+ def _data_words(cmd: list[str]) -> tuple[set[int], set[int]]:
+@@ -1050,7 +1304,8 @@ def _data_words(cmd: list[str]) -> tuple[set[int], set[int]]:
+ 
+     Message: what `git commit -m` records, never a path nor a command. Inert: words that name no
+     file to open (a search pattern, echo/printf arguments, an exclusion value, python code that
+-    `_python_rule` reads instead); the secrets check skips both sets.
++    `_python_rule` reads instead); the secrets check skips both sets. echo/printf words piped
++    into xargs or a shell are checked there, by `_walk` (#71, H3).
+     """
+     message: set[int] = set()
+     inert = set(_excluded(cmd))
+@@ -1100,20 +1355,31 @@ def _message_words(cmd: list[str], at: int) -> set[int]:
+ 
+ 
+ def _pattern_words(cmd: list[str], at: int) -> set[int]:
+-    """Indexes of the search pattern of grep, rg or `git grep` (the `-e` values, else the first
+-    positional); a `-f` value is a file and stays checked."""
+-    valued = RG_VALUED if _base(cmd[0]) == "rg" else GREP_VALUED
++    """Indexes of the search pattern of grep, rg or `git grep`: the `-e` values, else the first
++    positional. Short options are read letter by letter, so `-e.` and `-ie PAT` give their
++    pattern and leave the positionals as files (#71, H2); a `-f` value is a file and stays
++    checked."""
++    rg = _base(cmd[0]) == "rg"
++    valued = RG_VALUED if rg else GREP_VALUED
++    valued_letters = set("efgtTmABCM") if rg else set("efmABCdD")
+     out: set[int] = set()
+     explicit = False
+     for i in range(at + 1, len(cmd)):
+-        if cmd[i] in ("-e", "--regexp") and i + 1 < len(cmd):
++        word = cmd[i]
++        if word in ("-e", "--regexp") and i + 1 < len(cmd):
+             out.add(i + 1)
+             explicit = True
+-        elif cmd[i].startswith("--regexp="):
+-            out.add(i)
+-            explicit = True
+-        elif cmd[i] in ("-f", "--file") or cmd[i].startswith("--file="):
++        elif word.startswith(("--regexp=", "--file=")) or word in ("-f", "--file"):
+             explicit = True
++        elif word.startswith("-") and not word.startswith("--") and len(word) > 2:
++            for k, ch in enumerate(word[1:], 1):
++                if ch in "ef":
++                    explicit = True
++                    if ch == "e" and k == len(word) - 1 and i + 1 < len(cmd):
++                        out.add(i + 1)  # `-ie PAT`; an attached `-e.` holds its own pattern
++                    break
++                if ch in valued_letters:
++                    break
+     if explicit:
+         return out
+     i = at + 1
+@@ -1136,7 +1402,9 @@ def _read_only(cmd: list[str]) -> bool:
+     if head == "find":
+         return not (set(cmd) & FIND_WRITES)
+     if head == "git":
+-        sub, _ = _sub(cmd, {"-C", "-c"})
++        sub, rest = _sub(cmd, {"-C", "-c"})
++        if sub == "hash-object":  # a read unless -w writes the object (#71)
++            return not any(re.fullmatch(r"-[a-z]*w[a-z]*", w) for w in rest)
+         return sub in GIT_READ
+     if head == "sed":
+         return not any(w == "-i" or w.startswith(("-i", "--in-place")) for w in cmd[1:])
+@@ -1311,7 +1579,10 @@ def _walk(command: str, cwd: Path, ctx: _Ctx, variables: dict[str, str]) -> str
+     scopes: list[tuple[Path, dict[str, str]]] = []
+     loops: list[tuple[str, list[str]] | None] = []
+     switched_to_main = False
++    added: list[str] = []  # what `git add` stages before a `git commit` (#71, M3a)
++    feed: list[str] = []  # echo/printf words piped into the next command (#71, H3)
+     for seg in segments:
++        piped_in, feed = feed, []
+         if seg.mark == "(":
+             scopes.append((cwd, dict(variables)))
+             continue
+@@ -1326,7 +1597,9 @@ def _walk(command: str, cwd: Path, ctx: _Ctx, variables: dict[str, str]) -> str
+         words = list(seg.words)
+         while words and words[0] in RESERVED:
+             if words[0] == "done" and loops:
+-                loops.pop()
++                ended = loops.pop()
++                if ended and ended[1]:  # bash leaves the variable on the last value (#71, M1)
++                    variables[ended[0]] = ended[1][-1]
+             elif words[0] in ("while", "until"):
+                 loops.append(None)
+             words = words[1:]
+@@ -1341,17 +1614,34 @@ def _walk(command: str, cwd: Path, ctx: _Ctx, variables: dict[str, str]) -> str
+         if not words and not seg.redirects:
+             continue
+         checked = words
+-        if "xargs" in words:  # xargs turns the heredoc it is fed into arguments
+-            checked = words + [w for body in seg.stdin for w in body.split()]
+-        for bound in _loop_variants(variables, loops, checked, seg.redirects):
++        if "xargs" in words:  # xargs turns what it is fed (a heredoc, a pipe) into arguments
++            checked = words + [w for body in seg.stdin for w in body.split()] + piped_in
++        try:
++            variants = _loop_variants(variables, loops, checked, seg.redirects)
++        except Unparsable as exc:
++            return f"this loop is too large to check ({exc}): refused"
++        for bound in variants:
+             refusal = _segment_rule(
+                 [_expand(w, bound) for w in checked],
+                 [(op, _expand(t, bound)) for op, t in seg.redirects],
+-                seg.stdin, cwd, ctx, switched_to_main, bound,
++                seg.stdin, cwd, ctx, switched_to_main, bound, added,
+             )
+             if refusal:
+                 return refusal
++            _, bound_cmd = _command([_expand(w, bound) for w in words])
++            if piped_in and bound_cmd and (
++                _shell_reads_stdin(bound_cmd) or _python_reads_stdin(bound_cmd)
++            ):
++                fed = " ".join(piped_in)  # `echo cat .env | sh`: the echoed words are the script
++                refusal = (
++                    _nested(fed, cwd, ctx, bound) if _shell_reads_stdin(bound_cmd)
++                    else _python_rule(fed, cwd, ctx)
++                )
++                if refusal:
++                    return refusal
+         env, cmd = _command([_expand(w, variables) for w in words])
++        if seg.piped and cmd and _base(cmd[0]) in ("echo", "printf"):
++            feed = cmd[1:]
+         if not cmd:
+             variables.update({k: _expand(v, variables) for k, v in env.items()})
+             continue
+@@ -1365,8 +1655,16 @@ def _walk(command: str, cwd: Path, ctx: _Ctx, variables: dict[str, str]) -> str
+             sub, rest = _sub(cmd, {"-C", "-c"})
+             if sub in ("checkout", "switch") and "main" in rest:
+                 switched_to_main = True
++        if head == "git" and _sub(cmd, {"-C", "-c", "--git-dir", "--work-tree"})[0] == "add":
++            added.extend(_added_paths(cmd, cwd))
+         if head == "cd" and len(cmd) > 1:
+-            cwd = _resolve(cmd[1], cwd)
++            # In a loop, `cd $d` takes each value: a protected one wins (#71, M1).
++            targets = [
++                _resolve(_expand(w, bound), cwd)
++                for bound in variants
++                for w in _command(words)[1][1:2]
++            ] or [_resolve(cmd[1], cwd)]
++            cwd = next((t for t in targets if _write_refusal(t)), targets[0])
+     return None
+ 
+ 
+@@ -1385,10 +1683,47 @@ def _loop_variants(
+         name, items = loop
+         if f"${name}" not in text and f"${{{name}}}" not in text:
+             continue
+-        variants = [{**v, name: item} for v in variants for item in items][:64]
++        if len(variants) * len(items) > MAX_LOOP_VARIANTS:
++            raise Unparsable(f"more than {MAX_LOOP_VARIANTS} loop values")
++        variants = [{**v, name: item} for v in variants for item in items]
+     return variants
+ 
+ 
++def _remote_script(cmd: list[str]) -> str | None:
++    """The words `ssh HOST CMD...` or `watch CMD...` hand to a shell, else None."""
++    if not cmd:
++        return None
++    head = _base(cmd[0])
++    if head not in ("ssh", "watch"):
++        return None
++    i = 1
++    while i < len(cmd) and cmd[i].startswith("-"):
++        if head == "ssh":
++            letters = cmd[i][1:]
++            i += 2 if letters and letters[-1] in SSH_VALUED else 1
++        else:
++            i += 2 if cmd[i] in WATCH_VALUED else 1
++    rest = cmd[i + 1 :] if head == "ssh" else cmd[i:]
++    return " ".join(rest) if rest else None
++
++
++def _find_runs(cmd: list[str]) -> list[list[str]]:
++    """The commands `find -exec ... ;` (and -execdir, -ok, -okdir) runs."""
++    if not cmd or _base(cmd[0]) != "find":
++        return []
++    runs: list[list[str]] = []
++    i = 1
++    while i < len(cmd):
++        if cmd[i] in FIND_RUNS:
++            j = i + 1
++            while j < len(cmd) and cmd[j] not in (";", "+"):
++                j += 1
++            runs.append(cmd[i + 1 : j])
++            i = j
++        i += 1
++    return runs
++
++
+ def _secret_words(words: list[str], skip: set[int]) -> str | None:
+     for index, word in enumerate(words):
+         if index in skip:
+@@ -1409,6 +1744,7 @@ def _segment_rule(
+     ctx: _Ctx,
+     switched_to_main: bool,
+     variables: dict[str, str],
++    added: list[str] | None = None,
+ ) -> str | None:
+     env, cmd = _command(words)
+     offset = len(words) - len(cmd)
+@@ -1422,6 +1758,15 @@ def _segment_rule(
+         refusal = _nested(script, cwd, ctx)
+         if refusal:
+             return refusal
++    remote = _remote_script(cmd)
++    if remote is not None:  # ssh and watch run their words through a shell (#71, H4)
++        refusal = _nested(remote, cwd, ctx)
++        if refusal:
++            return refusal
++    for run in _find_runs(cmd):  # `find ... -exec sh -c '...' \;` (#71, H4)
++        refusal = _segment_rule(run, [], [], cwd, ctx, switched_to_main, variables)
++        if refusal:
++            return refusal
+     code = _python_code(cmd)
+     if code is not None:
+         refusal = _python_rule(cmd[code], cwd, ctx)
+@@ -1455,7 +1800,7 @@ def _segment_rule(
+         if refusal:
+             return refusal
+         if _sub(cmd, {"-C", "-c", "--git-dir", "--work-tree"})[0] == "commit":
+-            refusal = _staged_rule(cmd, cwd, ctx.staged_of)
++            refusal = _staged_rule(cmd, cwd, ctx.staged_of, added or [])
+             if refusal:
+                 return refusal
+     for rule in (_destructive_rule(head, cmd, cwd), _search_rule(head, cmd, cwd)):

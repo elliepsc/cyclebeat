@@ -239,6 +239,64 @@ ALLOWED: list[tuple[str, dict[str, Any], str]] = [
         bash("gh api -X PATCH repos/o/r/issues/71 -f title=t"),
         "feature",
     ),
+    # ── issue #71, security-auditor pass 1: what the fixes must keep allowed ──
+    ("hash-object reads a file", bash("git hash-object agent-hooks/pre_tool_use.py"), "f"),
+    ("hash-object reads data/", bash("git hash-object data/x.parquet"), "feature"),
+    ("hash-object with -t", bash("git -C . hash-object -t blob lake/a.parquet"), "feature"),
+    ("pin: a ${} default is text", bash("echo ${HOME:-/tmp}"), "feature"),
+    ("pin: a $() in a ${} default", bash('echo "${x:-$(git rev-parse HEAD)}"'), "feature"),
+    ("pin: a ${:=} assignment", bash(": ${x:=default}"), "feature"),
+    ("pin: grep -e .env as a pattern", bash("grep -e .env README.md"), "feature"),
+    ("pin: rg -e .env as a pattern", bash("rg -e .env docs/"), "feature"),
+    ("pin: git grep -e .env as a pattern", bash("git grep -e .env -- '*.md'"), "feature"),
+    ("pin: grep -ie .env as a pattern", bash("grep -ie .env docs/"), "feature"),
+    ("pin: echo into xargs echo", bash("echo hello | xargs echo"), "feature"),
+    ("pin: printf into xargs -I", bash("printf '%s\\n' a b | xargs -I{} echo {}"), "feature"),
+    ("pin: echo a command into sh", bash("echo ls | sh"), "feature"),
+    ("pin: echo .env into wc", bash("echo .env | wc -c"), "feature"),
+    ("pin: printf .env into grep", bash("printf '%s\\n' .env | grep -c env"), "feature"),
+    ("pin: bash -o pipefail -c", bash("bash -o pipefail -c 'make lint'"), "feature"),
+    ("pin: bash -euo pipefail -c reads", bash("bash -euo pipefail -c 'ls lake'"), "feature"),
+    ("pin: find -exec wc", bash("find cyclebeat -name '*.py' -exec wc -l {} +"), "feature"),
+    ("pin: ssh reads", bash("ssh localhost 'ls ~/projets/cyclebeat/lake'"), "feature"),
+    ("sudo -u then a read", bash("sudo -u postgres cat data/x.csv"), "feature"),
+    ("pin: watch git status", bash("watch -n 5 'git status'"), "feature"),
+    ("pin: a loop that lists", bash("for d in lake/raw lake/staged; do ls $d; done"), "f"),
+    (
+        "pin: the loop variable after the loop",
+        bash("for f in /tmp/a /tmp/b; do :; done; rm -f $f"),
+        "f",
+    ),
+    ("pin: cd through a loop to read", bash("for d in lake/raw; do cd $d && ls; done"), "f"),
+    ("pin: gh api reads an issue state", bash("gh api repos/o/r/issues/71 --jq .state"), "f"),
+    (
+        "pin: a GraphQL query on an issue",
+        bash(
+            "gh api graphql -f query='query{repository(owner:\"o\",name:\"r\")"
+            "{issue(number:71){state}}}'"
+        ),
+        "feature",
+    ),
+    ("pin: gh api -ftitle= attached", bash("gh api -X PATCH repos/o/r/issues/71 -ftitle=t"), "f"),
+    ("pin: gh api with a query string", bash("gh api 'repos/o/r/issues?state=closed'"), "f"),
+    ("pin: gh api pulls with -q", bash("gh api repos/o/r/pulls -q '.[].title'"), "feature"),
+    ("pin: heredoc to bash -o reads", bash("bash -o pipefail <<'X'\nls lake\nX"), "feature"),
+    ("pin: heredoc to python -W", bash("python3 -W ignore - <<'X'\nprint(1)\nX"), "feature"),
+    ("pin: python -X dev -c", bash('python3 -X dev -c "print(1)"'), "feature"),
+    ("pin: a case that echoes", bash("case x in *) echo lake;; esac"), "feature"),
+    ("pin: a case in a subshell reads", bash("(cd lake; case x in *) ls;; esac)"), "feature"),
+    ("pin: a carriage return in a word", bash("echo a\rb"), "feature"),
+    ("pin: cli --la to /tmp", bash("uv run python -m cyclebeat.cli --la /tmp/x ingest"), "f"),
+    (
+        "pin: cli --lim is --limit",
+        bash("uv run python -m cyclebeat.cli --lake /tmp/x ingest --lim 5"),
+        "feature",
+    ),
+    (
+        "cli load --d to /tmp",
+        bash("uv run python -m cyclebeat.cli load --d /tmp/x.duckdb"),
+        "f",
+    ),
 ]
 
 DENIED: list[tuple[str, dict[str, Any], str]] = [
@@ -437,6 +495,134 @@ DENIED: list[tuple[str, dict[str, Any], str]] = [
         bash("gh api --method=PATCH /repos/o/r/issues/44 -f state_reason=completed"),
         "feature",
     ),
+    # ── issue #71, security-auditor pass 1: each finding, red on 0ef6e38 ──
+    ("H1 a $() in a ${} default", bash("echo ${x:-$(rm -rf lake)}"), "feature"),
+    ("H1 a secret read in a ${} default", bash("echo ${x:-$(cat .env)}"), "feature"),
+    ("H1 a backtick in a ${:=}", bash(": ${x:=`git push --force`}"), "feature"),
+    ("H2 grep -e. on .env", bash("grep -e. .env"), "feature"),
+    ("H2 rg -e. on .env", bash("rg -e. .env"), "feature"),
+    ("H2 git grep -e. on .env", bash("git grep --no-index -e. -- .env"), "feature"),
+    ("H3 echo .env into xargs cat", bash("echo .env | xargs cat"), "feature"),
+    ("H3 printf .env into xargs cp", bash("printf '%s\\n' .env | xargs -I{} cp {} /tmp/leak"), "f"),
+    ("H3 echo a command into sh", bash("echo cat .env | sh"), "feature"),
+    ("H4 bash -euo pipefail -c multiline", bash("bash -euo pipefail -c '\nrm -rf lake\n'"), "f"),
+    (
+        "H4 find -exec sh -c multiline",
+        bash("find /tmp -maxdepth 0 -exec sh -c '\ncat .env\n' \\;"),
+        "f",
+    ),
+    ("H4 ssh multiline", bash("ssh localhost '\ncat ~/projets/cyclebeat/.env\n'"), "feature"),
+    ("H4 bash -o pipefail -c one line", bash("bash -o pipefail -c 'rm -rf lake'"), "feature"),
+    ("H4 sudo -u then sh -c", bash("sudo -u postgres sh -c 'rm -rf lake'"), "feature"),
+    (
+        "M1 a loop past 64 values",
+        bash(
+            "for d in x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21"
+            " x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 x32 x33 x34 x35 x36 x37 x38 x39 x40 x41 x42 x"
+            "43 x44 x45 x46 x47 x48 x49 x50 x51 x52 x53 x54 x55 x56 x57 x58 x59 x60 x61 x62 x63 lak"
+            "e/raw; do rm -rf $d; done"
+        ),
+        "f",
+    ),
+    ("M1 the loop variable after the loop", bash("for d in lake/raw; do :; done; rm -rf $d"), "f"),
+    (
+        "M1 cd through the loop variable",
+        bash("for d in lake/raw; do cd $d && rm -f a.parquet; done"),
+        "f",
+    ),
+    (
+        "M1 too many loop values",
+        bash("for a in " + "x " * 70 + "; do for b in " + "y " * 70 + "; do echo $a$b; done; done"),
+        "f",
+    ),
+    ("M4 gh api --input", bash("gh api -X PATCH repos/o/r/issues/71 --input body.json"), "f"),
+    (
+        "M4 gh api -fstate= attached",
+        bash("gh api -X PATCH repos/o/r/issues/71 -fstate=closed"),
+        "f",
+    ),
+    (
+        "M4 gh api endpoint with a query",
+        bash("gh api -X PATCH 'repos/o/r/issues/71?x=1' -f state=closed"),
+        "f",
+    ),
+    (
+        "M4 gh api -fhead= opens a PR",
+        bash("gh api repos/o/r/pulls -fhead=x -fbase=main -ftitle=t"),
+        "f",
+    ),
+    (
+        "M4 GraphQL closeIssue",
+        bash(
+            "gh api graphql -f query='mutation{closeIssue(input:{issueId:\"I\"}){clientMutationId}}"
+            "'"
+        ),
+        "f",
+    ),
+    (
+        "M4 GraphQL reopenIssue",
+        bash(
+            "gh api graphql -f query='mutation{reopenIssue(input:{issueId:\"I\"}){clientMutationId}"
+            "}'"
+        ),
+        "f",
+    ),
+    (
+        "M4 GraphQL deleteIssue",
+        bash(
+            "gh api graphql -f query='mutation{deleteIssue(input:{issueId:\"I\"}){clientMutationId}"
+            "}'"
+        ),
+        "f",
+    ),
+    (
+        "M4 GraphQL transferIssue",
+        bash(
+            "gh api graphql -f query='mutation{transferIssue(input:{issueId:\"I\",repositoryId:\"R"
+            "\"}){clientMutationId}}'"
+        ),
+        "f",
+    ),
+    ("M5 heredoc to bash -o pipefail", bash("bash -o pipefail <<'X'\nrm -rf lake\nX"), "feature"),
+    ("M5 heredoc to bash -euo pipefail", bash("bash -euo pipefail <<'X'\nrm -rf lake\nX"), "f"),
+    (
+        "M5 heredoc to python -W ignore -",
+        bash("python3 -W ignore - <<'X'\nimport shutil; shutil.rmtree('lake')\nX"),
+        "f",
+    ),
+    (
+        "M5 python -X dev -c",
+        bash("python3 -X dev -c \"import shutil; shutil.rmtree('lake')\""),
+        "f",
+    ),
+    ("L1 case ) in a subshell", bash("(cd lake; case x in *) rm -f a.parquet;; esac)"), "feature"),
+    (
+        "L1 case ) in a substitution",
+        bash("echo $(cd lake; case x in *) rm -f a.parquet;; esac)"),
+        "f",
+    ),
+    ("L2 a carriage return before #", bash("echo x\r#$(rm -rf lake)"), "feature"),
+    ("L3 cli --la is --lake", bash("uv run python -m cyclebeat.cli --la lake ingest"), "feature"),
+    (
+        "L3 cli --liv is --live",
+        bash("uv run python -m cyclebeat.cli --lake /tmp/x ingest --liv"),
+        "f",
+    ),
+    (
+        "L3 cli --lake on agent-hooks",
+        bash("uv run python -m cyclebeat.cli --lake agent-hooks ingest"),
+        "f",
+    ),
+    (
+        "pin: L3 cli load --d is --db",
+        bash("cd data && uv run python -m cyclebeat.cli load --d x.duckdb"),
+        "f",
+    ),
+    (
+        "pin: hash-object -w on agent-hooks",
+        bash("git hash-object -w agent-hooks/pre_tool_use.py"),
+        "f",
+    ),
 ]
 
 
@@ -446,7 +632,9 @@ def test_the_allowed_list_is_not_shorter() -> None:
 
 def decide(event: dict[str, Any], branch: str) -> str | None:
     """The hook's verdict with the branch injected and nothing staged."""
-    return hook.decide(event, branch_of=lambda _cwd: branch, staged_of=lambda _cwd, _args: "")
+    return hook.decide(
+        event, branch_of=lambda _cwd: branch, staged_of=lambda _cwd, _args, _added: ""
+    )
 
 
 @pytest.mark.parametrize(("case", "event", "branch"), ALLOWED, ids=[c[0] for c in ALLOWED])
@@ -506,7 +694,7 @@ def test_a_commit_that_adds_a_secret_is_refused(
     tmp_path: Path, rule: str, kind: str, secret: str
 ) -> None:
     reason = _commit(_repo(tmp_path, secret))
-    assert reason and rule in reason and "config.py:1" in reason
+    assert reason and rule in reason and "config.py" in reason
     assert secret not in reason  # the value is never echoed
 
 
@@ -564,3 +752,68 @@ def test_the_script_fails_closed_on_garbage() -> None:
     out = _run("this is not json")
     assert out.returncode == 2
     assert "failing closed" in out.stderr
+
+
+# ── issue #71, security-auditor pass 1 on the secret check (M2, M3, L6) ─────────────────
+TOKEN = "gh" + "p_" + FAKE
+
+
+def test_a_git_error_refuses_the_commit(tmp_path: Path) -> None:
+    reason = _commit(tmp_path)  # not a repository: git diff exits 129
+    assert reason and "could not be read" in reason
+
+
+def test_an_unresolved_cd_still_reads_the_repo(tmp_path: Path) -> None:
+    repo = _repo(tmp_path, TOKEN)
+    assert _commit(repo, 'cd "$(git rev-parse --show-toplevel)" && git commit -m x')
+
+
+def test_an_unborn_branch_with_a_pathspec_is_read(tmp_path: Path) -> None:
+    repo = _repo(tmp_path, "nothing")  # staged clean, no commit yet: HEAD does not exist
+    (repo / "config.py").write_text(f"v = '{TOKEN}'\n")
+    assert _commit(repo, "git commit -m x config.py")
+
+
+def test_git_add_then_commit_in_one_command_is_read(tmp_path: Path) -> None:
+    repo = _repo(tmp_path, "nothing")
+    _git(repo, "commit", "-q", "-m", "base")
+    (repo / "new.py").write_text(f"v = '{TOKEN}'\n")
+    assert _commit(repo, "git add new.py && git commit -m x")
+    assert _commit(repo, "git add -A && git commit -m x")
+    assert _commit(repo, "git add . && git commit -m x")
+
+
+def test_the_refusal_never_prints_a_line_of_content(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    (tmp_path / "config.py").write_text("++ " + TOKEN + "\n" + TOKEN + "\n")
+    _git(tmp_path, "add", "config.py")
+    reason = _commit(tmp_path)
+    assert reason and "GitHub token" in reason and "config.py" in reason
+    assert FAKE not in reason
+
+
+@pytest.mark.parametrize("name", ["certs/server.pem", "deploy.key", ".ssh/id_ed25519", "id_custom"])
+def test_a_secrets_file_staged_is_refused_by_name(tmp_path: Path, name: str) -> None:
+    _git(tmp_path, "init", "-q")
+    (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+    (tmp_path / name).write_text("not a key header\n")
+    _git(tmp_path, "add", "-f", name)
+    reason = _commit(tmp_path)
+    assert reason and "secrets file is staged" in reason
+
+
+def test_a_public_key_staged_is_allowed(tmp_path: Path) -> None:
+    # A pin: green on 0ef6e38, red on the mutation that refuses every id_* (ai-workflow #71).
+    _git(tmp_path, "init", "-q")
+    (tmp_path / "id_ed25519.pub").write_text("ssh-ed25519 AAAA test\n")
+    _git(tmp_path, "add", "id_ed25519.pub")
+    assert _commit(tmp_path) is None
+
+
+def test_a_staged_env_is_refused_without_being_read(tmp_path: Path) -> None:
+    repo = _repo(tmp_path, "nothing")
+    (repo / ".env").write_text("GROQ_API_KEY=" + TOKEN + "\n")
+    _git(repo, "add", "-f", ".env")
+    reason = _commit(repo)
+    assert reason and "secrets file is staged (.env)" in reason
+    assert FAKE not in hook._commit_diff(repo, [], [])
