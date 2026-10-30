@@ -2,6 +2,7 @@
 name: ai-workflow-scribe
 description: Writes and maintains docs/ai-workflow.md (criterion 2 of the AI Dev Tools grid) at the end of each dev session — initial prompt, iterations, what human review corrected. Also proposes reusable lessons to capitalize in CLAUDE.md. Invoke at the end of a session or PR.
 tools: Read, Edit, Write, Grep, Glob, Bash
+model: inherit
 ---
 
 # ai-workflow-scribe — AI workflow log (CycleBeat)
