@@ -3,9 +3,11 @@
     uv run python security/pr-audits/pr-71-replay.py <path/to/candidate/pre_tool_use.py>
 
 Columns: 69b032e (before #71) and f618410 (patch 2), both read with `git show` and executed in
-memory as modules whose `__file__` is the repository hook path; the candidate, imported from
-the path given. Only `decide()` is called: no case is ever run. The commit-check cases build
-throwaway git repositories in a temporary directory, with fake keys built by concatenation.
+memory as modules whose `__file__` is the repository hook path; the candidate, read from the
+path given and executed the same way, so the three columns share the repository's ROOT (a copy
+under /tmp would otherwise see its zones under /tmp). Only `decide()` is called: no case is
+ever run. The commit-check cases build throwaway git repositories in a temporary directory,
+with fake keys built by concatenation.
 
 Rows: the 51 cases of the first table (security/pr-audits/pr-71-hook-2-replay.md) and the 21 of
 the second pass (security/pr-audits/pr-71-security-auditor-2.md, "Regressions against 69b032e").
@@ -16,7 +18,6 @@ whose goal is "allowed"), or when a "refused" goal is missed.
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import inspect
 import subprocess
 import sys
@@ -45,11 +46,10 @@ def _from_git(rev: str) -> types.ModuleType:
 
 
 def _from_path(path: Path) -> types.ModuleType:
-    spec = importlib.util.spec_from_file_location("hook_candidate", path)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
+    module = types.ModuleType("hook_candidate")
+    module.__file__ = str(HOOK)
     sys.modules[module.__name__] = module
-    spec.loader.exec_module(module)
+    exec(compile(path.read_text(), str(path), "exec"), module.__dict__)
     return module
 
 
