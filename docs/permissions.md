@@ -65,6 +65,8 @@ Bash the hook answered first.
 | Merge into `main` | — | `git merge` on `main`, or after `git checkout/switch main` in the same command |
 | Create or merge a PR | `gh pr create*`, `gh pr merge*` | the same plus the GitHub merge API |
 | Call Render | `curl *render.com*`, `WebFetch(domain:api.render.com)` | deploy hooks, `api.render.com`, any `$RENDER_*` variable, `python -m tools.deploy` |
+| Change an issue's state (#44, #71) | — | `gh issue close`, `reopen`, `delete`, `transfer`, `edit --state`; a non-GET `gh api` call on `repos/O/R/issues/N` with a `state` or `state_reason` field or an `--input` body; the GraphQL `closeIssue`, `reopenIssue`, `deleteIssue`, `transferIssue`, `updateIssue` with `state:` |
+| Commit a secret (#71) | — | `git commit` when the change it records adds a private key header or a known token prefix, or stages a secrets file by its name; the hook names `.env`, never reads it |
 | Loosen its own guardrails | `Edit(/agent-hooks/**)`, `Edit(/.claude/settings.json)`, `Edit(/.claude/settings.local.json)` | writes to `agent-hooks/` and to any `.claude/settings*.json` |
 
 Changing the guardrails is therefore the owner's action, in an editor or a terminal outside
@@ -83,6 +85,33 @@ matches it); `cat .env.example` works.
   project.
 - **A `cd` is followed, an alias is not.** The hook tracks `cd <dir>` within one command line,
   not shell aliases or functions.
+- **Issue #71: what the hook reads now, and what it still misses.** Rules A1-A8 and the
+  relaxations B3 and B6 are listed in the hook's docstring; the replay that measured them against
+  69b032e is [pr-71-replay.md](../security/pr-audits/pr-71-replay.md). Open holes, all present
+  in 69b032e too ([fourth audit](../security/pr-audits/pr-71-security-auditor-4.md)):
+  - a quoted `<<EOF` (`echo '<<EOF'`) hides every following line, up to an `EOF` line, from
+    every rule (H1, the widest);
+  - a line shlex cannot lex is split on spaces with its quotes kept, so `echo "a⏎"; rm -rf
+    "lake"` gets through (H2, and the case found while trying B2);
+  - process substitution `<(...)`, `>(...)` is not read (H3);
+  - an issue's state changed through a GraphQL variable, a substituted query, `gh alias` or
+    `curl` (H4, H5);
+  - the commit check (A1) is not reached by `git --git-dir/--work-tree ... commit` nor by
+    `git commit -m --dry-run` (H6);
+  - `coproc`, `function f {...}`, `stdbuf`, `setsid`, `flock` (H7); `python cyclebeat/cli.py`
+    or `-Im cyclebeat.cli` (H8); a heredoc fed to `source` or `$SHELL`, `awk` writing a file,
+    `.env~`, `docker compose config` (H9);
+  - `python -c` is read with `ast`: a computed path, an aliased import, `exec`, `getattr` or
+    code attached to `-c` is not seen; `git diff/log --output=` is read-only to the hook.
+- **False positives accepted with #71.** Refused, though harmless; the relaxations meant for
+  them (B1, B2, B4, B5) were removed after the fourth audit found holes in each:
+  - a variable assigned in the command and used after a `cd` (FP1); the line that closes a
+    multi-line `python -c "..."` followed by `; ls data/...` (FP2); a multi-line `git commit
+    -m` message naming `lake/...` or `make ingest` (FP4, FP5; `git commit -F` with a file
+    outside the repository is the workaround); a `for` list naming `agent-hooks/` or `lake/`
+    with a read-only body (FP6) (cases in `tests/fixtures/hook_false_positives.json`);
+  - `case` patterns naming `data/*`, `lake/*` or `.env`; `find ... -exec` and `-execdir`; a
+    multi-line `gh issue comment --body` (use `--body-file`).
 - **Docker.** `docker compose up` (default profile) is allowed: it mounts no `data/` (verified
   in `docker-compose.yml`). The `pipeline` profile, which writes `data/` and `lake/`, is refused.
 
