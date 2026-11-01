@@ -16,10 +16,14 @@ It refuses, with exit code 2 and a one-line reason:
 | no merge into `main` | `git merge x` on main, `git switch main && git merge x` | `git merge origin/main` on a branch |
 | no PR creation or merge | `gh pr create`, `gh pr merge 999999`, the merge API | `gh pr view`, `gh run list` |
 | no Render | deploy hooks, `api.render.com`, `$RENDER_*`, `python -m tools.deploy` | `pytest tests/unit/test_deploy.py` |
+| no secret committed (#71) | `git commit` when the change adds a private key or a known token prefix, or stages `.env`/`*.pem`/`*.key` | a clean commit |
+| no issue state change (#44, #71) | `gh issue close`/`reopen`/`delete`/`transfer`, `gh api` PATCH with `state`, GraphQL `closeIssue` | `gh issue view`, `gh issue edit --add-label` |
 | the guardrails are the owner's | edits to `agent-hooks/` and `.claude/settings*.json` | reading them, `git add` |
 
-It reads command text. It stops mistakes, not an adversary: a `python -c` that builds a path at
-runtime gets through. What it can and cannot do, and the two other layers, are in
+It reads command text: the segments, the scripts of `bash -c`, `$(...)` and backticks, a heredoc
+fed to a shell, and `python -c` code read with `ast` (issue #71, the rules A1-A8 and the
+relaxations B3 and B6 in the module docstring). It stops mistakes, not an adversary: a `python -c`
+that builds a path at runtime gets through. What it can and cannot do, and the two other layers, are in
 [docs/permissions.md](../docs/permissions.md).
 
 Tests: [`tests/unit/test_agent_hook.py`](../tests/unit/test_agent_hook.py), with at least as many
