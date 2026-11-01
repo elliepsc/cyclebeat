@@ -11,8 +11,9 @@ built by concatenation.
 
 Rows: the 51 cases of the first auditor pass, the 21 and the 26 regressions of the second and
 third passes (security/pr-audits/pr-71-security-auditor-{,2,3}.md), the B1 counter-examples,
-the six false positives of tests/fixtures/hook_false_positives.json, and the auditor's 63
-normal-work probes. The archive branch these reports cite is archive/71-hook-rewrite.
+the cases of the fourth pass (pr-71-security-auditor-4.md), the six false positives of
+tests/fixtures/hook_false_positives.json, and the auditor's 63 normal-work probes. The archive
+branch these reports cite is archive/71-hook-rewrite.
 
 A goal names the step of the targeted plan that meets it (`refused (A2)`, `allowed (B3)`);
 `refused` alone means 69b032e already refuses it; `limit` is a documented gap; `probe` is normal
@@ -230,6 +231,34 @@ B1_COUNTER: list[tuple[str, str, str]] = [
     ("B1", "cd lake; S=/tmp | true; rm -rf $S/x", "refused"),
     ("B1", "cd lake; if false; then S=/tmp; fi; rm -rf $S/x", "refused"),
 ]
+# Fourth pass (security/pr-audits/pr-71-security-auditor-4.md), against B1, B2, B4 and B5, which
+# were removed: what they let through must stay refused. `limit`: allowed by 69b032e too, or a
+# verdict that depends on the hook process's environment (F1-6, `$_`).
+AUDIT4: list[tuple[str, str, str]] = [
+    ("F1-1", 'echo "a\nD=../tmp\n"\nrm -rf lake/$D', "refused"),
+    ("F1-2", "echo x # ; D=../tmp\nrm -rf lake/$D", "refused"),
+    ("F1-3", 'REPLY=../tmp; read <<< ""; rm -rf lake/$REPLY', "refused"),
+    ("F1-4", "MAPFILE=../tmp; mapfile < /dev/null; rm -rf lake/$MAPFILE", "refused"),
+    ("F1-5", "OPTARG=../tmp; getopts a o; rm -rf lake/$OPTARG", "refused"),
+    ("F1-6", "_=../tmp; echo; rm -rf lake/$_", "limit"),
+    ("F1-7", "D=../tmp; p=d; declare ${p^^}=; rm -rf lake/$D", "refused"),
+    ("F1-8", "echo 'a\nD=../tmp\n'\nrm -rf lake/$D", "refused"),
+    ("F1-9", "D=../tmp; cp README.md 'lake/$D'", "refused"),
+    ("F1-10", "D=../tmp; touch lake/\\$D", "refused"),
+    ("F1-11", "D=../../tmp/x; cp README.md 'data/$D'", "refused"),
+    ("F2-1", 'echo "a\n"; for x in data/cyclebeat.duckdb ; do cat README.md>$x ; done', "refused"),
+    ("F2-2", 'echo "a\n"; for x in lake/a ; do cat $x>lake/out ; done', "refused"),
+    ("F2-3", 'echo "a\n"; for x in .claude/settings.json ; do echo {}>$x ; done', "refused"),
+    ("F3-1", 'echo "a\n"; git diff --output=lake/x', "refused"),
+    ("F3-2", 'echo "a\n"; git log -p --output=data/x', "refused"),
+    ("F3-3", "git diff --output=data/cyclebeat.duckdb", "limit"),
+    ("F3-4", "git log --output=data/cyclebeat.duckdb", "limit"),
+    ("F4-1", "git(){ sh -c \"$3\"; }\ngit commit -m '\nrm -rf lake\n'", "refused"),
+    ("H1", "echo '<<EOF'\nrm -rf lake\nEOF", "limit"),
+    ("H1", "echo 'x <<EOF'\ncat .env\nEOF", "limit"),
+    ("H1", "echo '<<EOF'\ngit push --force origin main\nEOF", "limit"),
+    ("B2 tried", 'python3 -c "\nprint(1)\n"; rm -rf lake', "limit"),
+]
 # The auditor's normal-work probes: 43 of the second pass, 20 of the third.
 PROBES: list[str] = [
     "git hash-object agent-hooks/pre_tool_use.py", "git hash-object --stdin < README.md",
@@ -284,16 +313,23 @@ PROBES: list[str] = [
     "git diff f618410..HEAD -- agent-hooks/pre_tool_use.py",
 ]
 FIXTURE = REPO / "tests" / "fixtures" / "hook_false_positives.json"
+# B3 is kept; B1, B2, B4 and B5 were removed after the fourth pass: their false positives
+# are documented limits (docs/permissions.md).
 FP_STEP = {1: "B1", 2: "B2", 3: "B3", 4: "B4", 5: "B4", 6: "B5"}
+KEPT = {"B3", "B6"}
 
 
 def fixture_cases() -> list[tuple[str, str, str]]:
-    """The six false positives of #71, goal allowed by their relaxation."""
+    """The six false positives of #71: allowed by a kept relaxation, else a limit."""
     import json
 
     cases = json.loads(FIXTURE.read_text())["cases"]
-    return [(f"FP{c['issue_71_item']}", c["command"],
-             f"allowed ({FP_STEP[c['issue_71_item']]})") for c in cases]
+    out = []
+    for c in cases:
+        step = FP_STEP[c["issue_71_item"]]
+        goal = f"allowed ({step})" if step in KEPT else f"limit ({step} removed, audit 4)"
+        out.append((f"FP{c['issue_71_item']}", c["command"], goal))
+    return out
 
 
 def commit_cases() -> list[tuple[str, str, str, Path]]:
@@ -334,7 +370,8 @@ def main() -> int:
     ).stdout.strip() or "uncommitted"
     digest = hashlib.sha256(candidate_path.read_bytes()).hexdigest()
     rows: list[tuple[str, str, str, list[str | None]]] = []
-    for finding, command, goal in FIRST + SECOND + THIRD + TARGETED + B1_COUNTER + fixture_cases():
+    listed = FIRST + SECOND + THIRD + TARGETED + B1_COUNTER + AUDIT4 + fixture_cases()
+    for finding, command, goal in listed:
         rows.append((finding, command, goal, [verdict(h, command) for h in hooks.values()]))
     for finding, label, goal, repo in commit_cases():
         command = label.split("  #", 1)[0]
