@@ -10,8 +10,9 @@ Under the hood it is a **data-engineering project first**: a multi-source ingest
 a Parquet lake, a DuckDB warehouse modelled with dbt, a deterministic planning engine with its
 own evaluator, and a contract-first API.
 
-> **Status: submitted to the AI Dev Tools Zoomcamp 2026 and validated.** What follows is
-> portfolio work: see the [Roadmap](#roadmap).
+> **Status: submitted to the AI Dev Tools Zoomcamp 2026 and validated.** The submitted state is
+> the tag `v1.0-submission` (commit 2b2b4f0). What follows is portfolio work: see the
+> [Roadmap](#roadmap).
 >
 > **Live site:** <https://cyclebeat-web.onrender.com/> · **Live API:** <https://cyclebeat-api.onrender.com/> · interactive docs: <https://cyclebeat-api.onrender.com/docs>
 > (`GET /health`, `POST /v1/sessions/generate` with the demo source). It runs on Render's free
