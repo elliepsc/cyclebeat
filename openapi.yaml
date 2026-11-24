@@ -224,7 +224,8 @@ components:
           const: ok
 
     # RFC 7807. E.3 fixes the four members; `reasons` is additive and carries the planner's
-    # machine-readable refusal codes (e.g. `no_cooldown_candidate`) so a client can react to
+    # machine-readable refusal codes (e.g. `no_cooldown_candidate`) and the names of the
+    # evaluator's blocking checks (e.g. `cooldown_present`, ADR-007) so a client can react to
     # WHY a session was impossible instead of parsing prose.
     Problem:
       type: object

@@ -353,6 +353,81 @@ def test_no_csv_path_is_a_server_error(
     }
 
 
+# ── The evaluator's blocking failures reach the 422 (issue #74) ──────────────────────────
+
+
+def _generate_over_http(service: SessionService, **overrides: Any) -> Any:
+    from fastapi.testclient import TestClient
+
+    from api.dependencies import get_session_service
+    from api.main import create_app
+
+    app = create_app()
+    app.dependency_overrides[get_session_service] = lambda: service
+    client = TestClient(app, raise_server_exceptions=False)
+    return client.post("/v1/sessions/generate", json=request(**overrides).model_dump(mode="json"))
+
+
+def test_a_blocking_failure_from_the_evaluator_is_a_422(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ADR-007 decision 2: a non-empty `blocking_failures` is the 422, whatever the planner did.
+
+    The planner is replaced by one that returns its real plan without the cooldown, the
+    regression the API must not serve.
+    """
+    import api.services.session as session_module
+    from cyclebeat.evaluator import evaluate
+    from cyclebeat.models import SessionParams
+    from cyclebeat.planner import plan_session
+
+    def plan_without_cooldown(catalogue: Any, params: Any) -> Any:
+        plan = plan_session(catalogue, params)
+        return plan.model_copy(update={"segments": plan.segments[:-1]})
+
+    session_params = SessionParams(level="advanced", goal="intervals", duration_min=45)
+    # Guard: the mutated plan really carries the blocking failure this test is about.
+    assert "cooldown_present" in evaluate(
+        plan_without_cooldown(CATALOGUE, session_params), session_params
+    ).blocking_failures
+
+    sessions = FakeSessionRepository()
+    service = SessionService(
+        tracks=FakeTrackRepository(),  # type: ignore[arg-type]
+        sessions=sessions,  # type: ignore[arg-type]
+        feedback=FakeFeedbackRepository(),  # type: ignore[arg-type]
+    )
+    monkeypatch.setattr(session_module, "plan_session", plan_without_cooldown)
+    response = _generate_over_http(service)
+
+    assert response.status_code == 422, (response.status_code, response.json().get("verdict"))
+    assert response.headers["content-type"].startswith("application/problem+json")
+    assert "cooldown_present" in response.json()["reasons"]
+    assert sessions.saved == {}, "a refused session is never stored"
+
+
+def test_a_non_blocking_failure_is_still_a_200_with_review() -> None:
+    """Only blocking checks refuse: a session that misses its duration is served as `review`."""
+    from cyclebeat.evaluator import evaluate
+    from cyclebeat.models import SessionParams
+    from cyclebeat.planner import plan_session
+
+    thin_catalogue = build_catalogue([(95, 240), (105, 210), (95, 200)])
+    thin = SessionService(
+        tracks=FakeTrackRepository(thin_catalogue),  # type: ignore[arg-type]
+        sessions=FakeSessionRepository(),  # type: ignore[arg-type]
+        feedback=FakeFeedbackRepository(),  # type: ignore[arg-type]
+    )
+    params = SessionParams(level="advanced", goal="intervals", duration_min=60)
+    # Guard: the evaluator finds no blocking failure on this plan, only non-blocking ones.
+    assert evaluate(plan_session(thin_catalogue, params), params).blocking_failures == []
+
+    response = _generate_over_http(thin, duration_min=60)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["verdict"] == "review"
+    assert any(w.startswith("duration_accuracy") for w in body["warnings"])
+
+
 # ── Replay, history, feedback ────────────────────────────────────────────────────────────
 
 

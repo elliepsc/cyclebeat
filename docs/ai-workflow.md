@@ -1,5 +1,33 @@
 # AI workflow log
 
+## Session 2026-11-24 — Complete project (issue #74) — The evaluator's `blocking_failures` become the 422 on `POST /v1/sessions/generate`, as ADR-007 says
+
+**Loop**: issue read → branch `fix/74-blocking-failures-422` cut from `origin/main` @ 190d55e → plan commented on #74 → STOP (API behaviour change) → owner go-ahead → red test → fix → docs → contract-guardian pass 1 → fixes → contract-guardian pass 2 on the delta → this entry. The PR is opened by the owner; it is not open at the time of writing.
+**Tool/model**: Claude Code / Claude Opus 5.5
+**Initial prompt**: (faithful summary) work issue #74, drafted as N2 during #70: the evaluator's `blocking_failures` never reached the 422 on `POST /v1/sessions/generate`, although ADR-007 decision 2 (l. 58-60), `cyclebeat/models.py:173-174` and `cyclebeat/evaluator.py:12-13` say a non-empty list is the 422. Plan comment 7131103574; owner decisions relayed on the issue (comments 7131096068 and 7132982387). The agent stopped before coding because the change alters API behaviour, and resumed on the owner's go-ahead.
+**What was done** (commits dee4e0a, 9dd17b1, 4e8f1cd, 9be26e8, e55fd9a):
+- `api/services/session.py`: after `evaluate()`, a non-empty `result.blocking_failures` raises `UnprocessableError` with those reasons, before the session is saved.
+- `tests/unit/test_api_services.py` (it already mounted an HTTP client through `dependency_overrides`, so both tests live there):
+  - `test_a_blocking_failure_from_the_evaluator_is_a_422` monkeypatches `api.services.session.plan_session` (the imported name) to return the real plan without its cooldown; a guard checks that the evaluator reports `cooldown_present`; it expects 422, `problem+json`, `reasons` containing `cooldown_present`, and nothing stored. Red on main's `session.py` for the right reason, `AssertionError: (200, 'review')` / `assert 200 == 422`, shown twice: before the fix, and again after the review's extra assertion, with `origin/main`'s `session.py` checked out, then restored.
+  - `test_a_non_blocking_failure_is_still_a_200_with_review`: thin catalogue, 200, verdict `review`, a `duration_accuracy` warning, guard `blocking_failures == []`. Green before and after the fix. No existing test proved this: `test_warnings_merge_the_planner_and_the_evaluator` is service-level and asserts only the warning.
+- `openapi.yaml`: only the `#` comment above `Problem` (l. 226-229) changed; it now names the evaluator's blocking checks among the reasons. The schema and the 422 description (l. 72) are untouched. `make contract` 25 passed; `make front-gen` then `git diff --exit-code` on `frontend/src/api/schema.d.ts`: no drift.
+- README "What safe means": one subordinate clause added; one line re-wrapped after review.
+- `CLAUDE.md`: one line, commit with `git commit -F <scratchpad file>`, never a multi-line `-m` (owner decision; the refusal was seen in #70, cause unknown). Every commit of this branch used `-F`; no hook refusal in this session.
+**Notable iterations**:
+- The sentence "the planner never builds a session that breaks a blocking rule" came in #70 from contract-guardian (`planner.py:182`, `:294`) without verification. In #74 pass 1, contract-guardian checked it line by line against `planner.py` (warmup/cooldown anchors l. 60-75 and 88; no cold sprint l. 294-295, with `starts_at` at l. 216; BPM through `_eligible` l. 130-133) and found that it holds. It is verified by the reviewer subagent, not independently by the main agent.
+- The new 422 branch cannot be reached with today's planner (contract-guardian pass 1): the 422 test reaches it only through the monkeypatched planner.
+**Reviews** (raw outputs: `security/pr-audits/pr-74-contract-guardian.md`, `security/pr-audits/pr-74-contract-guardian-pass2.md`):
+- contract-guardian pass 1: APPROVED. `reasons` is an open string array, so the evaluator's codes fit with no schema change and no front regeneration. Non-blocking: NB1 `openapi.yaml:72-75` says the structured reasons are in `detail` (they are in `reasons`; same at `planner.py:37`), pre-existing, left as a follow-up since it needs a client regeneration; NB2 the `Problem` docstring in `api/schemas.py:38-41` names the planner's codes only, follow-up (the issue limits the fix to `session.py`); NB3 README line too long, fixed in 9be26e8; NB4 assert that nothing is stored on the 422, fixed in 9be26e8. Semantic risk raised: `reasons` now mixes planner codes and evaluator check names; the vocabulary must be decided before any client branches on it.
+- contract-guardian pass 2, on the delta: APPROVED, no finding.
+**Corrected by human review**: the owner set the monkeypatch target (the name imported in `api.services.session`), the exact expected red, HTTP-level tests rather than service-level ones, the comment-only change to `openapi.yaml` (with a STOP on any schema change), a limit of 8 files, and the `CLAUDE.md` commit rule.
+**Role split**: decided by the owner: the go-ahead after the STOP, the decisions relayed on the issue, the corrections above. Done by the agent: the plan comment, the fix, the tests and their red runs, the docs, the fixes after review. Done by subagents: contract-guardian, two passes; this entry through the `ai-workflow-scribe` subagent.
+**Verification**: the red/green runs above; `make contract` 25 passed; no client drift after `make front-gen`. DoD: see the PR description.
+**Spec/actual gaps** (issue #74 vs the branch): the fix stays in `session.py` as the issue scopes it; NB1 and NB2 are pre-existing doc gaps left as follow-ups, not fixed here.
+**Lesson**: the defect sat between two modules that each matched the ADR on their own; only an HTTP-level test with a planner forced to fail could show it, since the real planner never trips the evaluator. A reviewer's claim carried over from a previous PR stayed unverified until a later pass checked it line by line.
+**To capitalize in CLAUDE.md** (proposals only, the owner decides):
+- A test for a defensive branch the real code cannot reach monkeypatches the name as imported by the module under test, with a guard that the injected input really triggers the condition.
+- A claim taken from a subagent review is labelled "verified by the reviewer" until the main agent re-checks it.
+
 ## Session 2026-11-24 — Complete project (issue #70) — README reviewer quick path and rubric map, widened by the owner to a README/docs pass
 
 **Loop**: issue read → branch `docs/70-readme-reviewer-path` cut from `origin/main` @ 66fdab9 → grid re-check → README pass and table move → rubric-map test, red first → contract-guardian pass 1 → fixes → contract-guardian pass 2 on the delta → fixes → this entry. The PR is opened by the owner; it is not open at the time of writing.
