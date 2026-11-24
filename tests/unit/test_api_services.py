@@ -368,9 +368,7 @@ def _generate_over_http(service: SessionService, **overrides: Any) -> Any:
     return client.post("/v1/sessions/generate", json=request(**overrides).model_dump(mode="json"))
 
 
-def test_a_blocking_failure_from_the_evaluator_is_a_422(
-    service: SessionService, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_a_blocking_failure_from_the_evaluator_is_a_422(monkeypatch: pytest.MonkeyPatch) -> None:
     """ADR-007 decision 2: a non-empty `blocking_failures` is the 422, whatever the planner did.
 
     The planner is replaced by one that returns its real plan without the cooldown, the
@@ -391,12 +389,19 @@ def test_a_blocking_failure_from_the_evaluator_is_a_422(
         plan_without_cooldown(CATALOGUE, session_params), session_params
     ).blocking_failures
 
+    sessions = FakeSessionRepository()
+    service = SessionService(
+        tracks=FakeTrackRepository(),  # type: ignore[arg-type]
+        sessions=sessions,  # type: ignore[arg-type]
+        feedback=FakeFeedbackRepository(),  # type: ignore[arg-type]
+    )
     monkeypatch.setattr(session_module, "plan_session", plan_without_cooldown)
     response = _generate_over_http(service)
 
     assert response.status_code == 422, (response.status_code, response.json().get("verdict"))
     assert response.headers["content-type"].startswith("application/problem+json")
     assert "cooldown_present" in response.json()["reasons"]
+    assert sessions.saved == {}, "a refused session is never stored"
 
 
 def test_a_non_blocking_failure_is_still_a_200_with_review() -> None:
