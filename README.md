@@ -59,7 +59,7 @@ This map was checked against `main` at 66fdab9.
 | 7 | Containerization | [Dockerfile](Dockerfile), [docker-compose.yml](docker-compose.yml) | postgres, api and web with chained healthchecks, one command |
 | 8 | Deployment | the live URLs above, [render.yaml](render.yaml) | API and site on Render's free tier |
 | 9 | CI/CD | [.github/workflows/ci.yml](.github/workflows/ci.yml), [tools/deploy.py](tools/deploy.py) | CI on every push; CD deploys to production after green CI on `main`. No dev environment and no manual production step (the 3-point level) |
-| 10 | Observability | [monitoring/](monitoring/) | Partial: Prometheus metrics and Grafana in a local compose profile; no traces, no structured logs sharing a trace ID |
+| 10 | Observability | [monitoring/](monitoring/) | Partial: `/metrics` exposed by the API everywhere; Prometheus and Grafana in a local compose profile; no traces, no structured logs sharing a trace ID |
 | 11 | Alerting on User Impact | — | **Missing:** no alert rule |
 | 12 | On-Call Agent | — | **Missing:** no agent woken by an alert |
 
@@ -68,12 +68,13 @@ This map was checked against `main` at 66fdab9.
 **What "safe" means.** It is the evaluator's verdict when the session passes every check of
 [ADR-007](docs/adr/adr-007-session-construction-rules.md). Four of them are blocking: a Z1 or Z2
 warmup of at least 180 s, a Z1 cooldown of at least 120 s, no Z5 in the first 300 s, and a BPM on
-every track. The planner never builds a session that breaks one of them; when the catalogue holds no
-track that can serve as the warmup or the cooldown, the API refuses with HTTP 422. Any other failing
-check (duration within 120 s of the target, level and goal caps, at most two hard segments in a row,
-recovery after a hard segment, BPM coverage) gives the verdict `review` instead. The thresholds come
-from the project's v1 notes, which ADR-007 presents as ordinary indoor-cycling practice; no sports
-or medical reference is cited, and they are not medically validated.
+every track. The planner never builds a session that breaks one of them; when the catalogue does not
+hold two distinct tracks to serve as the cooldown (Z1, at least 120 s) and the warmup (Z1 or Z2, at
+least 180 s), the API refuses with HTTP 422. Any other failing check (duration within 120 s of the
+target, level and goal caps, at most two hard segments in a row, recovery after a hard segment, BPM
+coverage) gives the verdict `review` instead. The thresholds come from the project's v1 notes, which
+ADR-007 presents as ordinary indoor-cycling practice; no sports or medical reference is cited, and
+they are not medically validated.
 
 The generated session: the evaluator's verdict, then one row per track with its role, zone, BPM,
 BPM confidence and duration, and the form to rate the session:
