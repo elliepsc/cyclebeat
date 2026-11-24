@@ -75,6 +75,13 @@ class SessionService:
             ) from exc
 
         result = evaluate(plan, params)
+        if result.blocking_failures:
+            # ADR-007 decision 2: a non-empty `blocking_failures` is the E.3 422, re-checked
+            # here rather than trusted to the planner's construction (#74).
+            raise UnprocessableError(
+                "No session satisfying the safety rules can be built from this source.",
+                reasons=result.blocking_failures,
+            )
 
         wire = SessionPlan(
             session_id=uuid.uuid4().hex,

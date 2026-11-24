@@ -70,7 +70,8 @@ This map was checked against `main` at 66fdab9.
 warmup of at least 180 s, a Z1 cooldown of at least 120 s, no Z5 in the first 300 s, and a BPM on
 every track. The planner never builds a session that breaks one of them; when the catalogue does not
 hold two distinct tracks to serve as the cooldown (Z1, at least 120 s) and the warmup (Z1 or Z2, at
-least 180 s), the API refuses with HTTP 422. Any other failing check (duration within 120 s of the
+least 180 s), the API refuses with HTTP 422, which it also does when the evaluator's re-check of the
+finished session reports one of them in its `blocking_failures`. Any other failing check (duration within 120 s of the
 target, level and goal caps, at most two hard segments in a row, recovery after a hard segment, BPM
 coverage) gives the verdict `review` instead. The thresholds come from the project's v1 notes, which
 ADR-007 presents as ordinary indoor-cycling practice; no sports or medical reference is cited, and
