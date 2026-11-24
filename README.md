@@ -1,16 +1,17 @@
 # 🚴 CycleBeat — music-to-workout data product
 
-CycleBeat turns a playlist into a structured indoor-cycling session: every track gets a tempo,
-a cadence, a resistance and an effort phase, and the whole session is checked for safety and
-coherence before it is served.
+Your playlist becomes an indoor-cycling session: cadence, resistance and effort zone computed for every track.
+
+- **The problem:** studio classes impose their playlist, and the instructor's.
+- **The user:** an indoor cyclist, in a studio or at home, who wants to ride to their own music.
+- **What the data checks:** how reliable each track's BPM is, and whether the session built from them is sound.
 
 Under the hood it is a **data-engineering project first**: a multi-source ingestion pipeline,
 a Parquet lake, a DuckDB warehouse modelled with dbt, a deterministic planning engine with its
 own evaluator, and a contract-first API.
 
-> **Status (October 2026): work in progress — AI Dev Tools Zoomcamp 2026 project.**
-> The data pipeline, the engine, the API and the frontend are done and tested, and both the API
-> and the site are deployed. What remains is in the [Roadmap](#roadmap).
+> **Status: submitted to the AI Dev Tools Zoomcamp 2026 and validated.** What follows is
+> portfolio work: see the [Roadmap](#roadmap).
 >
 > **Live site:** <https://cyclebeat-web.onrender.com/> · **Live API:** <https://cyclebeat-api.onrender.com/> · interactive docs: <https://cyclebeat-api.onrender.com/docs>
 > (`GET /health`, `POST /v1/sessions/generate` with the demo source). It runs on Render's free
@@ -21,18 +22,67 @@ own evaluator, and a contract-first API.
 
 ---
 
+## Reviewer quick path
+
+1. **Live.** Open <https://cyclebeat-web.onrender.com/> and generate a session, or call the
+   API with the demo source (`/health` alone proves nothing about the data):
+
+   ```bash
+   curl -s -X POST https://cyclebeat-api.onrender.com/v1/sessions/generate -H 'content-type: application/json' -d '{"source": {"type": "demo", "value": ""}, "level": "beginner", "goal": "endurance", "duration_min": 30}'
+   ```
+
+2. **The full system locally, one command:** `docker compose up --build`, then open
+   <http://localhost:4173> ([details](#the-full-system-one-command-docker)).
+3. **Every test, one command:** `make test` (unit, then integration against the compose stack;
+   needs `make setup` once and Docker running, see [Quality gates](#quality-gates)).
+4. **How it was built:** the agent team and its hand-offs, [docs/agent-team.md](docs/agent-team.md);
+   one entry per session, with what human review corrected, [docs/ai-workflow.md](docs/ai-workflow.md);
+   the agents' instructions, [CLAUDE.md](CLAUDE.md).
+
+## Rubric map
+
+One row per criterion of the official grid, verbatim in
+[docs/grading-criteria.md](docs/grading-criteria.md) (re-checked against the course repository on
+24 November 2026: unchanged since commit 526d9c1). Evidence levels, the old 30-point grid and what
+is missing: [docs/quality-bar.md](docs/quality-bar.md), whose state is dated 22 October 2026.
+This map was checked against `main` at 66fdab9.
+
+| # | Criterion | Where to look | In one line |
+|---|---|---|---|
+| 1 | Problem Description | the opening lines of this page, [Why this project](#why-this-project) | The problem, the user, what the system does and how a session is judged |
+| 2 | Product Specification | [product-spec.md](product-spec.md), the [GitHub issues](https://github.com/elliepsc/cyclebeat/issues) | FR/NFR with acceptance criteria; one issue per block, the agent's plan commented on it before coding |
+| 3 | Agent Team Specification | [docs/agent-team.md](docs/agent-team.md), [.claude/agents/](.claude/agents/) | The owner, the main agent and four subagents, their triggers and hand-offs |
+| 4 | Context Management | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) | Both point to modular docs: roadmap, ADRs, permissions, agent team |
+| 5 | Application | [Run it locally](#run-it-locally), [docker-compose.yml](docker-compose.yml) | React → FastAPI → Postgres, one command |
+| 6 | Testing | [Quality gates](#quality-gates), [tests/](tests/), [tests/integration/](tests/integration/) | `make test`: unit, then integration over HTTP |
+| 7 | Containerization | [Dockerfile](Dockerfile), [docker-compose.yml](docker-compose.yml) | postgres, api and web with chained healthchecks, one command |
+| 8 | Deployment | the live URLs above, [render.yaml](render.yaml) | API and site on Render's free tier |
+| 9 | CI/CD | [.github/workflows/ci.yml](.github/workflows/ci.yml), [tools/deploy.py](tools/deploy.py) | CI on every push; CD deploys to production after green CI on `main`. No dev environment and no manual production step (the 3-point level) |
+| 10 | Observability | [monitoring/](monitoring/) | Partial: Prometheus metrics and Grafana in a local compose profile; no traces, no structured logs sharing a trace ID |
+| 11 | Alerting on User Impact | — | **Missing:** no alert rule |
+| 12 | On-Call Agent | — | **Missing:** no agent woken by an alert |
+
 ## What it looks like
 
-Pick a level, a goal and a duration, then generate a session:
-
-![The "Plan a session" form: level Beginner, goal Endurance, 30 minutes](docs/screenshots/form.png)
+**What "safe" means.** It is the evaluator's verdict when the session passes every check of
+[ADR-007](docs/adr/adr-007-session-construction-rules.md). Four of them are blocking: a Z1 or Z2
+warmup of at least 180 s, a Z1 cooldown of at least 120 s, no Z5 in the first 300 s, and a BPM on
+every track. When one of those fails, no session is served at all (HTTP 422). Any other failing
+check (duration within 120 s of the target, level and goal caps, at most two hard segments in a
+row, recovery after a hard segment, BPM coverage) gives the verdict `review` instead. The thresholds come from the project's v1 notes,
+which ADR-007 presents as ordinary indoor-cycling practice; no sports or medical reference is
+cited, and they are not medically validated.
 
 The generated session: the evaluator's verdict, then one row per track with its role, zone, BPM,
 BPM confidence and duration, and the form to rate the session:
 
 ![A generated 30-minute beginner endurance session, verdict safe, 8 tracks from Z1 to Z4](docs/screenshots/run.png)
 
-Then rate it, with an optional note:
+It starts from a level, a goal and a duration:
+
+![The "Plan a session" form: level Beginner, goal Endurance, 30 minutes](docs/screenshots/form.png)
+
+Once generated, the session can be rated, with an optional note:
 
 ![The rating form of the same session, filled in: "Good", with the note "Great session", above the Send feedback button](docs/screenshots/rate.png)
 
@@ -114,40 +164,27 @@ orchestrated by Airflow) is a separate, opt-in path that writes the host's `lake
 CI runs the test jobs on every push. On `main`, once they are green, it triggers Render's
 deploy hooks and smoke-tests the live services; Render deploys nothing on its own.
 
-Every box and arrow above, with its source (line numbers as of this commit; they drift as the
-files change):
+Every box and arrow above, with its source in the code: [docs/architecture.md](docs/architecture.md).
 
-| Box or arrow | What | Source |
-|---|---|---|
-| CI test jobs | `build`, `frontend`, `integration`, `security` | `.github/workflows/ci.yml:27`, `:119`, `:157`, `:182` |
-| deploy | runs on `main` only | `.github/workflows/ci.yml:198-200` |
-| A1 | `deploy` waits for the four test jobs | `.github/workflows/ci.yml:199` |
-| A2, A3 | `tools/deploy.py` calls the two deploy hooks, then smoke-tests health, generate, CORS and the web page; Render's auto-deploy is off | `.github/workflows/ci.yml:221-226`; `tools/deploy.py:115`, `:245-266`; `render.yaml:30`, `:48` |
-| cyclebeat-web | Render static site built by Vite | `render.yaml:42-47` |
-| cyclebeat-api | Render Docker service; the container runs uvicorn only | `render.yaml:23-26`; `Dockerfile:61` |
-| planner + evaluator | called by the generate service | `api/services/session.py:68`, `:78` |
-| A4 | the bundle calls the API URL fixed at build time; the API lets that origin in | `render.yaml:36-37`, `:55-56`; `frontend/src/api/client.ts:6` |
-| A5, SQLite | no `DATABASE_URL` in production, so the store is SQLite | `render.yaml:31-37`; `api/repositories/database.py:153-167` |
-| A6, A10 | the API opens the warehouse read-only; it falls back to read-write only if that open fails (a missing file), which the image's baked-in warehouse does not hit | `api/repositories/warehouse.py:38-42`; `api/repositories/track.py:27` |
-| API image build, A7 | one `RUN` builds the warehouse from versioned files; the API reads it at `RUNTIME_DB_PATH` | `Dockerfile:40-45`; `render.yaml:32-33` |
-| web (compose) | nginx serves the built bundle | `docker-compose.yml:86-92`; `frontend/Dockerfile:24-28` |
-| api (compose), A11 | built from the same `Dockerfile` | `docker-compose.yml:60-61`, `:76` |
-| A8 | the compose bundle points at the compose API | `docker-compose.yml:90`; `frontend/src/api/client.ts:6` |
-| A9, postgres | `DATABASE_URL` set, so the store is Postgres | `docker-compose.yml:40-47`, `:69`; `api/repositories/database.py:106-107`, `:153-158` |
-| DuckDB (compose) | the image's warehouse, not mounted over | `docker-compose.yml:58-59`, `:65` |
-| Local pipeline | `make ingest`, `make dbt`; compose profile `pipeline` | `Makefile:81-82`, `:92-96`; `docker-compose.yml:106-138`, `:148-191` |
-| sources | demo snapshot or live Deezer, optional CSV; patterns JSON | `cyclebeat/cli.py:48-67`; `ingest/ingest_pipeline.py:43` |
-| app store | engine picked by `DATABASE_URL` | `cyclebeat/app_store.py:61`, `:64-68` |
-| lake | Parquet partitions under `lake/` | `cyclebeat/lake.py:24`, `:84` |
-| DuckDB (local) | `RUNTIME_DB_PATH`, default `data/cyclebeat_runtime.duckdb` | `db/runtime.py:21-23`; `dbt/profiles.yml:8` |
-| A12 | `cli ingest` writes the lake | `cyclebeat/cli.py:69`; `Makefile:94` |
-| A13 | dlt stages the patterns in its own DuckDB file, `cyclebeat_ingestion.duckdb` in the working directory ([dlt docs](https://dlthub.com/docs/dlt-ecosystem/destinations/duckdb)); `save_patterns` then copies them into the runtime DuckDB | `ingest/ingest_pipeline.py:51-56` (dlt, no path given), `:59-61`; `db/runtime.py:63`; `Makefile:93` |
-| A14 | `cli extract-app` copies sessions and feedback into the lake | `cyclebeat/cli.py:122`; `cyclebeat/app_store.py:157`; `Makefile:95` |
-| A15 | `cli load` loads the lake into DuckDB | `cyclebeat/cli.py:106`; `cyclebeat/warehouse.py:122`; `Makefile:96` |
-| A16 | dbt builds the marts in the same DuckDB | `dbt/profiles.yml:8`; `Makefile:82` |
-| Airflow | three DAGs chained on lake assets | `dags/dag_ingest.py:36`; `dags/dag_resolve_bpm.py:34`; `dags/dag_build_warehouse.py:32` |
-| A17 | `dag_ingest` and `dag_resolve_bpm` write the lake | `dags/dag_ingest.py:84`; `dags/dag_resolve_bpm.py:94` |
-| A18 | `dag_build_warehouse`: extract-app, load, then dbt build | `dags/dag_build_warehouse.py:44-77` |
+### The stack, and where each tool runs
+
+Production is the Render deployment; "locally" means a developer's machine or CI.
+
+- **React + Vite + TypeScript:** the site; in production a Render static site, locally an nginx container under compose.
+- **FastAPI (uvicorn):** the API, which plans and evaluates sessions; runs in production.
+- **SQLite:** the sessions-and-feedback store in production, inside the container, lost at each deploy ([ADR-003](docs/adr/adr-003-render-no-disk.md)).
+- **Postgres:** the same store under compose and in CI; not in production.
+- **DuckDB:** the analytical warehouse; in production, built into the API image and opened read-only.
+- **dbt:** staging → intermediate → marts; in production it runs once, when the API image is built, never at runtime.
+- **dlt:** loads the cycling-patterns knowledge base; runs at image build and in the local pipeline.
+- **Deezer API:** track identity, the 30 s preview and an optional `bpm` field; called live only locally (`cli ingest --live`); production and CI read the committed snapshot.
+- **librosa:** BPM from the Deezer preview; demonstrated locally (an optional `audio` extra, not in the image), not in production, which serves the BPMs of the committed snapshot.
+- **Airflow 3:** orchestration of the three DAGs, demonstrated locally (compose profile `pipeline`), not in production.
+- **Prometheus + Grafana:** metrics, demonstrated locally (compose profile `monitoring`), not in production.
+- **Docker and Docker Compose:** the API image runs in production on Render; Compose runs the full system locally and in CI.
+- **GitHub Actions:** the tests on every push, then the production deploy from `main`.
+- **Semgrep and gitleaks:** blocking security scans in CI.
+- **MCP server:** read-only warehouse tools for a coding agent, used locally only ([docs/agent-extension-pack.md](docs/agent-extension-pack.md)).
 
 The BPM resolution (librosa on the Deezer preview, cross-validated with Deezer's `bpm`) is
 described in [ADR-005](docs/adr/adr-005-deezer-preview-backbone.md) and
@@ -159,7 +196,7 @@ grain, formula and guarding tests: [docs/metrics.md](docs/metrics.md).
 
 | Decision | Why | ADR |
 |---|---|---|
-| BPM from `librosa` on the Deezer preview, Deezer `bpm` field as cross-validation | Spotify audio features are closed to new apps; librosa returned a BPM on 82 % of 50 real previews, with a documented error bar ([spike report](docs/spikes/phase1-source-coverage.md)) | [ADR-005](docs/adr/adr-005-deezer-preview-backbone.md) |
+| BPM from `librosa` on the Deezer preview, Deezer `bpm` field as cross-validation | Spotify audio features are closed to new apps; librosa returned a usable BPM for 41 of 50 tracks (82 %): 30 current Deezer chart tracks + 20 hand-picked classics; the spike itself calls this a small sample and expects the real-world rate below 82 % ([spike report](docs/spikes/phase1-source-coverage.md)) | [ADR-005](docs/adr/adr-005-deezer-preview-backbone.md) |
 | A confidence score on every BPM (`cross_validated` 0.9, `single_source` 0.6) | The planner must know how much to trust each track | [ADR-005](docs/adr/adr-005-deezer-preview-backbone.md) |
 | Deterministic planner, no LLM in the core | Cadence and effort must be computed, not generated | [ADR-007](docs/adr/adr-007-session-construction-rules.md) |
 | Evaluator validated by a **mutation check** | An evaluator tested on the planner's own output proves nothing | [ADR-007](docs/adr/adr-007-session-construction-rules.md) |
@@ -321,6 +358,8 @@ WSL setup and the branch/PR workflow: [CONTRIBUTING.md](CONTRIBUTING.md).
 | 7 | Agent extension pack (MCP server, hook, subagents, skill, plugin) | ✅ |
 | 10 | Security, audit and DevOps (criterion 13) | ✅ (PR #42) |
 | 6 | Bounded warehouse copilot (LLM layer) | planned |
+
+Feedback ratings and notes are stored and reach the marts, but the planner never reads them; next phase: ratings adjust the thresholds.
 
 Detailed roadmap: [docs/ROADMAP.md](docs/ROADMAP.md).
 
