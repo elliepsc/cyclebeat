@@ -1,5 +1,34 @@
 # AI workflow log
 
+## Session 2026-11-24 — Complete project (issue #70) — README reviewer quick path and rubric map, widened by the owner to a README/docs pass
+
+**Loop**: issue read → branch `docs/70-readme-reviewer-path` cut from `origin/main` @ 66fdab9 → grid re-check → README pass and table move → rubric-map test, red first → contract-guardian pass 1 → fixes → contract-guardian pass 2 on the delta → fixes → this entry. The PR is opened by the owner; it is not open at the time of writing.
+**Tool/model**: Claude Code / Claude Opus 5.5
+**Initial prompt**: (faithful summary) work issue #70, a reviewer quick path and a rubric map in the README. The owner widened it to a README/docs pass: an idea-first opening; a status banner (submitted, tag `v1.0-submission` on 2b2b4f0, pushed by the owner); `run.png` first; "safe" defined from ADR-007; the 82 % figure with its sample and caveat; one line per stack tool (production vs local); the A1-A18 table moved to `docs/architecture.md`; a roadmap line on the unused feedback loop. The decisions were relayed on the issue (comments 7130086280 and 7130097804).
+**What was done** (commits c4fd004 to 60917ab):
+- `docs/grading-criteria.md` re-checked on 24 November 2026 against the course repo: the fenced text equals `project/README.md` on its main (a25c7a0) byte for byte (empty diff); the last commit on that file is still 526d9c1.
+- Moving the A1-A18 table to `docs/architecture.md`: six `file:line` pointers had drifted since PR #63 and were refreshed (`api/services/session.py` :67 and :77, `cyclebeat/cli.py:123`, `cyclebeat/app_store.py:176`, `cyclebeat/lake.py` :27 and :109). `git grep README.md` was used to separate live pointers from dated snapshots; `backend/README.md:11` still lands on `#architecture`.
+- `tests/unit/test_rubric_map.py`: the owner reversed "no code" for this acceptance criterion. Red with one map row removed (AssertionError, index 10); red on `origin/main` in a temporary worktree (IndexError: no section); green on the branch.
+**Notable iterations**:
+- The agent flagged that "submitted and validated" had no tag or grade behind it; the owner then pushed `v1.0-submission`; the banner cites the tag in 0a06447.
+- The hook (`agent-hooks/pre_tool_use.py`) refused `git commit -q -m "<multi-line message>"` in fail-closed mode ("the change to commit could not be read for secrets"), twice, including with `git add` in a separate command. The agent's first hypothesis (add and commit had to be one command) was therefore wrong. The owner diagnosed it: no local filter, and the hook accepts `git commit -q -m test` in 0.04 s on the same index. Every later commit went through `git commit -F <file in the scratchpad>`. `agent-hooks/` is unchanged; the cause is left for the next hook issue.
+- The agent's own diagnostic command quoted the `**/.env` exclude pattern and was refused by the hook, correctly; not retried.
+- A `python -c` one-liner with a shell variable inside was refused as unparsable; replaced by a pytest run in a worktree.
+**Reviews** (raw outputs: `security/pr-audits/pr-70-contract-guardian.md`, `security/pr-audits/pr-70-contract-guardian-pass2.md`):
+- contract-guardian pass 1: APPROVED with N1 (the 422 wording overstated), N2 (evaluator `blocking_failures` never reach the 422: a separate issue, the owner creates it after the merge), N3 (`/metrics` is served in production: the instrumentator is a main dependency), N4 (record the grid re-check). N1 and N3 fixed in 7915309; N4 is recorded above.
+- contract-guardian pass 2, on the delta: APPROVED with D1 (the 422 needs two distinct anchor tracks: the cooldown is picked first, then removed), D2 (stale docstring in `api/main.py`: code, out of scope), D3 (rubric row 10). D1 and D3 fixed in 60917ab. Pass 2 cited the spike's l.130 for the "below 82 %" sentence; it is l.128 (checked with `sed`).
+**Corrected by human review / where the agent went against the owner's wording** (both kept by the owner):
+1. "safe": the owner's brief said "passes the blocking checks"; the code makes `safe` require every check (`cyclebeat/evaluator.py:76`). The README follows the code.
+2. "41/50 previews" became "41 of 50 tracks": only 49 tracks had a preview (spike l.17).
+3. The status claim had no tag behind it: flagged by the agent, settled by the owner's tag (above).
+**Role split**: decided by the owner: the widened scope, the decisions relayed on the issue, the test for the rubric map, the tag `v1.0-submission` and its push, keeping the two deviations above, N2 as a separate issue, the diagnosis of the commit refusal. Done by the agent: the grid re-check, the README pass, the table move and pointer refresh, the test, the fixes after review. Done by subagents: contract-guardian, two passes; this entry through the `ai-workflow-scribe` subagent.
+**Verification**: the grid diff and the red/green runs of `test_rubric_map.py` as above. DoD: see the PR description.
+**Spec/actual gaps** (issue #70 vs the branch): the issue asked for a quick path and a rubric map; the scope was widened by the owner on the issue, not by the agent. The rubric map ships a test, as the issue asks, although the owner's first brief said "no code" (owner's reversal).
+**Lesson**: moving a table of `file:line` pointers is a re-verification, not a move: six of them had drifted since PR #63. Two of the owner's own wordings were wrong against the code and the spike; checking them against the source instead of copying the brief kept the README true.
+**To capitalize in CLAUDE.md** (proposals only, the owner decides):
+- Commit messages go through `git commit -F <file in the scratchpad>`, not `-m` with a multi-line message (refused in fail-closed mode by the hook, cause open).
+- A moved table of `file:line` pointers is re-verified at its target, not moved as is.
+
 ## Session 2026-10-30 to 2026-11-01 — Complete project (issue #71) — Remove the hook's six known false positives (tests/fixtures/hook_false_positives.json) without opening any hole; one of the six is fixed
 
 **Loop**: issue read → first attempt (rewrite) on `fix/71-hook-executed-command` → three security-auditor passes → stopped on the owner's exit condition, archived → second plan (targeted) on `fix/71-hook-targeted` cut from `origin/main` @ 69b032e → refusals A1-A8 one at a time, red first, replay after each → relaxations B1-B6 one at a time → fourth security-auditor pass → B1, B2, B4, B5 removed, replay re-run → docs → this entry. The PR is opened by the owner; it is not open at the time of writing.
