@@ -67,11 +67,12 @@ This map was checked against `main` at 66fdab9.
 **What "safe" means.** It is the evaluator's verdict when the session passes every check of
 [ADR-007](docs/adr/adr-007-session-construction-rules.md). Four of them are blocking: a Z1 or Z2
 warmup of at least 180 s, a Z1 cooldown of at least 120 s, no Z5 in the first 300 s, and a BPM on
-every track. When one of those fails, no session is served at all (HTTP 422). Any other failing
-check (duration within 120 s of the target, level and goal caps, at most two hard segments in a
-row, recovery after a hard segment, BPM coverage) gives the verdict `review` instead. The thresholds come from the project's v1 notes,
-which ADR-007 presents as ordinary indoor-cycling practice; no sports or medical reference is
-cited, and they are not medically validated.
+every track. The planner never builds a session that breaks one of them; when the catalogue holds no
+track that can serve as the warmup or the cooldown, the API refuses with HTTP 422. Any other failing
+check (duration within 120 s of the target, level and goal caps, at most two hard segments in a row,
+recovery after a hard segment, BPM coverage) gives the verdict `review` instead. The thresholds come
+from the project's v1 notes, which ADR-007 presents as ordinary indoor-cycling practice; no sports
+or medical reference is cited, and they are not medically validated.
 
 The generated session: the evaluator's verdict, then one row per track with its role, zone, BPM,
 BPM confidence and duration, and the form to rate the session:
@@ -180,7 +181,7 @@ Production is the Render deployment; "locally" means a developer's machine or CI
 - **Deezer API:** track identity, the 30 s preview and an optional `bpm` field; called live only locally (`cli ingest --live`); production and CI read the committed snapshot.
 - **librosa:** BPM from the Deezer preview; demonstrated locally (an optional `audio` extra, not in the image), not in production, which serves the BPMs of the committed snapshot.
 - **Airflow 3:** orchestration of the three DAGs, demonstrated locally (compose profile `pipeline`), not in production.
-- **Prometheus + Grafana:** metrics, demonstrated locally (compose profile `monitoring`), not in production.
+- **Prometheus + Grafana:** the API exposes `/metrics` in every environment, production included; the Prometheus server and Grafana that collect and show it are demonstrated locally (compose profile `monitoring`), not in production.
 - **Docker and Docker Compose:** the API image runs in production on Render; Compose runs the full system locally and in CI.
 - **GitHub Actions:** the tests on every push, then the production deploy from `main`.
 - **Semgrep and gitleaks:** blocking security scans in CI.
